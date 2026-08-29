@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-stone-100 text-stone-800 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  /* Malayalam site names must render alongside Latin text. */
+  :lang(ml) {
+    font-family: 'Noto Sans Malayalam', 'Manjari', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-stone-200 bg-white shadow-sm;
+  }
+  .card-pad {
+    @apply rounded-xl border border-stone-200 bg-white p-5 shadow-sm;
+  }
+  .label {
+    @apply block text-xs font-semibold uppercase tracking-wide text-stone-500;
+  }
+  .input {
+    @apply w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900
+           placeholder:text-stone-400 focus:border-brand-500 focus:outline-none focus:ring-2
+           focus:ring-brand-500/20 disabled:bg-stone-100 disabled:text-stone-500;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold
+           transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  }
+  .btn-secondary {
+    @apply btn border border-stone-300 bg-white text-stone-700 hover:bg-stone-50;
+  }
+  .btn-danger {
+    @apply btn border border-clay-300 bg-clay-50 text-clay-800 hover:bg-clay-100;
+  }
+  .btn-ghost {
+    @apply btn text-stone-600 hover:bg-stone-100;
+  }
+  .th {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500;
+  }
+  .td {
+    @apply px-4 py-3 text-sm text-stone-700;
+  }
+  .row-hover {
+    @apply border-t border-stone-100 transition-colors hover:bg-stone-50;
+  }
+}
+
+/* Horizontal phase strip on project progress — deliberately scrollable,
+   as the client asked for a scrollable phase-based progress bar. */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.scroll-x::-webkit-scrollbar {
+  height: 6px;
+}
+.scroll-x::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-stone-300;
+}
