@@ -6,7 +6,9 @@
  * changing the one export at the bottom of this file — no page needs to change.
  */
 import type {
-  Client, DailyWorkReport, ID, Issue, Lead, Project, Settings, SiteVisit, Task,
+  ChatMessage, Clarification, Client, Consultation, ConsultationStatus, DailyWorkReport,
+  DocumentRecord, Employee, ID, Issue, Lead, PaymentFollowUp, Project, Settings, SiteVisit,
+  StaffAttendanceStatus, Task,
 } from '../domain/types'
 import * as mock from './mockAdapter'
 
@@ -48,6 +50,31 @@ export interface Api {
   leads: {
     setStatus(leadId: ID, status: Lead['status']): void
     convert(leadId: ID): Client
+  }
+  clients: {
+    create(input: Omit<Client, 'id' | 'createdAt'>): Client
+    update(clientId: ID, patch: Partial<Omit<Client, 'id'>>): void
+  }
+  clarifications: {
+    create(input: Omit<Clarification, 'id' | 'status'>): Clarification
+    resolve(clarificationId: ID, answer: string, answeredBy: ID): void
+  }
+  chat: { post(input: Omit<ChatMessage, 'id' | 'at'>): ChatMessage }
+  followUps: { create(input: Omit<PaymentFollowUp, 'id'>): PaymentFollowUp }
+  documents: { create(input: Omit<DocumentRecord, 'id'>): DocumentRecord }
+  employees: {
+    update(employeeId: ID, patch: Partial<Omit<Employee, 'id'>>): void
+    /** A null status clears the day. */
+    setAttendance(employeeId: ID, date: string, status: StaffAttendanceStatus | null): void
+  }
+  consultations: {
+    /** Callers check for clashes first with findClash() from domain/consultations. */
+    create(input: Omit<Consultation, 'id' | 'status'>): Consultation
+    setStatus(consultationId: ID, status: ConsultationStatus, notes?: string): void
+  }
+  amc: {
+    scheduleVisit(recordId: ID, date: string, teamIds: ID[]): void
+    completeVisit(recordId: ID, visitId: ID, notes: string, issues: string[]): void
   }
   siteVisits: { create(visit: Omit<SiteVisit, 'id'>): SiteVisit }
   tasks: {

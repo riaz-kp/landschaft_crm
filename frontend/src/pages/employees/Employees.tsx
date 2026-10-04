@@ -1,14 +1,16 @@
+import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { ROLES } from '../../domain/roles'
+import { DEPARTMENTS } from '../../domain/types'
 import {
-  PageHeader, Section, Table, Badge, Avatar,
+  PageHeader, Section, Table, Badge, Avatar, EmptyState,
 } from '../../components/ui'
+import { ContactNumbers } from '../../components/ContactFields'
 
 /** The organisational structure as supplied by the client. */
 export function Employees() {
   const db = useDb()
 
-  const departments = ['Management', 'Design', 'Execution', 'Accounts', 'Marketing'] as const
   const managerName = (id?: string) =>
     id ? db.employees.find((e) => e.id === id)?.name ?? '—' : '—'
 
@@ -16,23 +18,30 @@ export function Employees() {
     <div>
       <PageHeader
         title="Employees"
-        subtitle="Internal logins only — the system has no separate client login."
+        subtitle="Internal logins only — the system has no separate client login. Open anyone for their full profile."
       />
 
       <div className="space-y-6">
-        {departments.map((department) => {
+        {DEPARTMENTS.map((department) => {
           const people = db.employees.filter((e) => e.department === department)
-          if (people.length === 0) return null
+          // AMC is shown even before anyone is assigned, so the department is visible.
+          if (people.length === 0 && department !== 'AMC') return null
           return (
             <Section key={department} title={department}>
-              <Table head={['Name', 'Role', 'Reports To', 'Phone', 'Email']}>
+              {people.length === 0 ? (
+                <EmptyState
+                  title="No one assigned to AMC yet."
+                  hint="Open an employee → Role in Company to move them into the AMC department."
+                />
+              ) : (
+              <Table head={['Name', 'Role', 'Reports To', 'Phone / WhatsApp', 'Email']}>
                 {people.map((person) => (
                   <tr key={person.id} className="row-hover">
                     <td className="td">
-                      <span className="flex items-center gap-2.5">
-                        <Avatar name={person.name} size="sm" />
-                        <span className="font-medium text-stone-900">{person.name}</span>
-                      </span>
+                      <Link to={`/employees/${person.id}`} className="flex items-center gap-2.5">
+                        <Avatar name={person.name} size="sm" src={person.photo} />
+                        <span className="font-medium text-stone-900 hover:text-brand-700">{person.name}</span>
+                      </Link>
                     </td>
                     <td className="td">
                       <Badge tone={person.role === 'foreman' ? 'clay' : 'stone'}>
@@ -40,11 +49,12 @@ export function Employees() {
                       </Badge>
                     </td>
                     <td className="td">{managerName(person.reportsTo)}</td>
-                    <td className="td tabular-nums">{person.phone}</td>
+                    <td className="td"><ContactNumbers phone={person.phone} whatsapp={person.whatsapp} /></td>
                     <td className="td">{person.email}</td>
                   </tr>
                 ))}
               </Table>
+              )}
             </Section>
           )
         })}

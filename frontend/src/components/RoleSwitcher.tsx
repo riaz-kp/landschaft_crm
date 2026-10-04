@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ROLES } from '../domain/roles'
 import { useSession } from '../state/session'
 import { Avatar } from './ui'
@@ -18,7 +19,7 @@ export function RoleSwitcher() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-stone-100"
       >
-        <Avatar name={user.name} />
+        <Avatar name={user.name} src={user.photo} />
         <span className="hidden sm:block">
           <span className="block text-sm font-semibold leading-tight text-stone-900">{user.name}</span>
           <span className="block text-xs leading-tight text-stone-500">{role.title}</span>
@@ -30,6 +31,15 @@ export function RoleSwitcher() {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl">
+            {user.role !== 'foreman' && (
+              <Link
+                to={`/employees/${user.id}`}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 border-b border-stone-100 px-4 py-2.5 text-sm font-semibold text-brand-700 hover:bg-stone-50"
+              >
+                <Icon name="user" className="h-4 w-4" /> My profile
+              </Link>
+            )}
             <div className="border-b border-stone-100 bg-stone-50 px-4 py-2.5">
               <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
                 Prototype — sign in as
@@ -47,7 +57,7 @@ export function RoleSwitcher() {
                     person.id === user.id ? 'bg-brand-50' : ''
                   }`}
                 >
-                  <Avatar name={person.name} size="sm" />
+                  <Avatar name={person.name} size="sm" src={person.photo} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-stone-800">{person.name}</span>
                     <span className="block truncate text-xs text-stone-500">{ROLES[person.role].title}</span>

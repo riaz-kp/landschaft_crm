@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { formatCurrency, formatDate } from '../../domain/format'
 import {
@@ -7,8 +8,9 @@ import { Icon } from '../../components/Icon'
 
 /**
  * §19 — execution can continue into a free maintenance month and then an AMC.
+ * AMC now runs as its own department, separate from Execution.
  */
-export function Maintenance() {
+export function AmcContracts() {
   const db = useDb()
 
   const free = db.maintenance.filter((m) => m.type === 'Free Maintenance')
@@ -17,24 +19,28 @@ export function Maintenance() {
     m.visits.filter((v) => !v.done).map((v) => ({ visit: v, record: m })),
   )
 
-  const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? '—'
+  const projectOf = (id: string) => db.projects.find((p) => p.id === id)
+  const clientName = (projectId: string) =>
+    db.clients.find((c) => c.id === projectOf(projectId)?.clientId)?.name
   const workerNames = (ids: string[]) =>
     ids.map((id) => db.workers.find((w) => w.id === id)?.name).filter(Boolean).join(', ')
 
   return (
     <div>
       <PageHeader
-        title="Maintenance"
-        subtitle="Free maintenance after handover, then annual maintenance contracts."
+        title="AMC Contracts"
+        subtitle="The AMC department — free maintenance after handover, then annual maintenance contracts."
+        actions={<Link to="/amc/visits" className="btn-secondary">Visit schedule</Link>}
       />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile label="Free Maintenance" value={free.length} />
         <StatTile label="Active AMCs" value={amc.length} tone="green" />
-        <StatTile label="Upcoming Visits" value={upcoming.length} tone="amber" />
+        <StatTile label="Upcoming Visits" value={upcoming.length} tone="amber" to="/amc/visits" />
         <StatTile
           label="AMC Value"
           value={formatCurrency(amc.reduce((s, m) => s + (m.value ?? 0), 0), true)}
+          sub="Annual" to="/amc/renewals"
         />
       </div>
 
@@ -62,12 +68,17 @@ export function Maintenance() {
             <Section
               key={record.id}
               title={
-                <span className="flex items-center gap-2">
-                  {projectName(record.projectId)}
+                <span className="flex flex-wrap items-center gap-2">
+                  <Link to={`/projects/${record.projectId}`} className="hover:text-brand-700">
+                    {projectOf(record.projectId)?.name ?? '—'}
+                  </Link>
                   <Badge tone={record.type === 'AMC' ? 'clay' : 'green'}>{record.type}</Badge>
                 </span>
               }
-              description={`${formatDate(record.startDate)} – ${formatDate(record.endDate)} · ${record.visitSchedule}`}
+              description={
+                `${clientName(record.projectId) ?? '—'} · ${formatDate(record.startDate)} – ` +
+                `${formatDate(record.endDate)} · ${record.visitSchedule}`
+              }
               actions={
                 <div className="flex items-center gap-2">
                   {record.value && <span className="text-sm font-semibold tabular-nums">{formatCurrency(record.value)}</span>}

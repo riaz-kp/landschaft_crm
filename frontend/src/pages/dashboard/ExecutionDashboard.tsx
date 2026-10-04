@@ -72,10 +72,10 @@ export function ExecutionDashboard() {
         />
         <StatTile label="Completed Tasks" value={pad2(completedTasks.length)} to="/tasks/board" />
         <StatTile
-          label="Maintenance Visits"
+          label="AMC Visits"
           value={pad2(db.maintenance.flatMap((m) => m.visits).filter((v) => !v.done).length)}
           sub="Upcoming"
-          to="/execution/maintenance"
+          to="/amc/visits"
         />
       </div>
 

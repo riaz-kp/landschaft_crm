@@ -1,14 +1,19 @@
 import { useState } from 'react'
 import { useDb } from '../../state/useDb'
-import { formatDate, formatDateLong, today } from '../../domain/format'
+import { formatDate, formatDateLong, formatTime, today } from '../../domain/format'
+import { partyName } from '../../domain/consultations'
 import type { CalendarEvent } from '../../domain/types'
 import { PageHeader, Section, EmptyState, Badge } from '../../components/ui'
 
-const TONES: Record<CalendarEvent['type'], 'green' | 'amber' | 'blue' | 'clay'> = {
+/** CEO consultations are shown alongside the stored calendar events. */
+type EventType = CalendarEvent['type'] | 'Consultation'
+
+const TONES: Record<EventType, 'green' | 'amber' | 'blue' | 'clay' | 'stone'> = {
   'Site Visit': 'blue',
   Deadline: 'amber',
   Maintenance: 'green',
   Meeting: 'clay',
+  Consultation: 'stone',
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -23,12 +28,24 @@ export function CalendarPage() {
   // Shift so the grid starts on Monday.
   const leadingBlanks = (firstDay.getDay() + 6) % 7
 
+  const consultations = db.consultations
+    .filter((c) => c.status === 'Scheduled')
+    .map((c) => ({
+      id: c.id,
+      title: `CEO · ${formatTime(c.start)} ${partyName(c, db.clients, db.leads)}`,
+      date: c.date,
+      type: 'Consultation' as EventType,
+      assigneeId: undefined as string | undefined,
+    }))
+  const events: { id: string; title: string; date: string; type: EventType; assigneeId?: string }[] =
+    [...db.calendarEvents, ...consultations]
+
   const eventsOn = (day: number) => {
     const iso = `${month}-${String(day).padStart(2, '0')}`
-    return db.calendarEvents.filter((e) => e.date === iso)
+    return events.filter((e) => e.date === iso)
   }
 
-  const upcoming = [...db.calendarEvents]
+  const upcoming = [...events]
     .filter((e) => e.date >= today())
     .sort((a, b) => a.date.localeCompare(b.date))
 
@@ -41,7 +58,7 @@ export function CalendarPage() {
     <div>
       <PageHeader
         title="Calendar"
-        subtitle="Site visits, deadlines, maintenance visits and meetings."
+        subtitle="Site visits, deadlines, maintenance visits, meetings and CEO consultations."
         actions={
           <div className="flex items-center gap-2">
             <button onClick={() => shiftMonth(-1)} className="btn-secondary px-3">‹</button>

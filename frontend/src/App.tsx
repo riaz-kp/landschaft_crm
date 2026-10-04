@@ -6,6 +6,7 @@ import { FieldShell } from './shells/FieldShell'
 import { Dashboard } from './pages/dashboard/Dashboard'
 import { Leads } from './pages/crm/Leads'
 import { Clients } from './pages/crm/Clients'
+import { ClientDetail } from './pages/crm/ClientDetail'
 import { SiteVisits } from './pages/crm/SiteVisits'
 import { ProjectList } from './pages/projects/ProjectList'
 import { ProjectDetail } from './pages/projects/ProjectDetail'
@@ -16,11 +17,15 @@ import { ExecutionProjects } from './pages/execution/ExecutionProjects'
 import { ExecutionPhasePage } from './pages/execution/ExecutionPhasePage'
 import { DailyWorkReports } from './pages/execution/DailyWorkReports'
 import { ReportReview } from './pages/execution/ReportReview'
-import { Maintenance } from './pages/execution/Maintenance'
+import { AmcContracts } from './pages/amc/AmcContracts'
+import { AmcVisits } from './pages/amc/AmcVisits'
+import { AmcRenewals } from './pages/amc/AmcRenewals'
+import { Consultations } from './pages/consultations/Consultations'
 import { Quotations } from './pages/accounts/Quotations'
 import { PaymentRequests } from './pages/accounts/PaymentRequests'
 import { Payments } from './pages/accounts/Payments'
 import { Employees } from './pages/employees/Employees'
+import { EmployeeDetail } from './pages/employees/EmployeeDetail'
 import { ExecutionWorkers } from './pages/employees/ExecutionWorkers'
 import { Attendance } from './pages/employees/Attendance'
 import { WorkReports } from './pages/employees/WorkReports'
@@ -58,9 +63,11 @@ export function App() {
         <Route element={<AdminShell />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/consultations" element={<Consultations />} />
 
           <Route path="/crm/leads" element={<Leads />} />
           <Route path="/crm/clients" element={<Clients />} />
+          <Route path="/crm/clients/:clientId" element={<ClientDetail />} />
           <Route path="/crm/site-visits" element={<SiteVisits />} />
 
           <Route path="/projects" element={<ProjectList scope="all" />} />
@@ -84,7 +91,12 @@ export function App() {
           <Route path="/execution/mep" element={<ExecutionPhasePage phase="mep" />} />
           <Route path="/execution/reports" element={<DailyWorkReports />} />
           <Route path="/execution/reports/:reportId" element={<ReportReview />} />
-          <Route path="/execution/maintenance" element={<Maintenance />} />
+          {/* Maintenance moved out of Execution into its own AMC department. */}
+          <Route path="/execution/maintenance" element={<Navigate to="/amc" replace />} />
+
+          <Route path="/amc" element={<AmcContracts />} />
+          <Route path="/amc/visits" element={<AmcVisits />} />
+          <Route path="/amc/renewals" element={<AmcRenewals />} />
 
           <Route path="/accounts/quotations" element={<Quotations />} />
           <Route path="/accounts/payment-requests" element={<PaymentRequests />} />
@@ -94,6 +106,7 @@ export function App() {
           <Route path="/employees/workers" element={<ExecutionWorkers />} />
           <Route path="/employees/attendance" element={<Attendance />} />
           <Route path="/employees/work-reports" element={<WorkReports />} />
+          <Route path="/employees/:employeeId" element={<EmployeeDetail />} />
 
           <Route path="/documents" element={<Documents />} />
           <Route path="/calendar" element={<CalendarPage />} />

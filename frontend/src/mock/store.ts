@@ -1,9 +1,10 @@
 import * as seed from './seed'
 import { today } from '../domain/format'
 import type {
-  CalendarEvent, Client, DailyWorkReport, DocumentRecord, Employee, ID, Issue, Lead,
-  MaintenanceRecord, Payment, PaymentRequest, Project, Quotation, Settings, SiteAssignment,
-  SiteVisit, Task, Worker,
+  CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
+  DocumentRecord, Employee, ID, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
+  PaymentRequest, Project, Quotation, Settings, SiteAssignment, SiteVisit, StaffAttendance,
+  Task, Worker,
 } from '../domain/types'
 
 export interface DbShape {
@@ -23,10 +24,16 @@ export interface DbShape {
   maintenance: MaintenanceRecord[]
   documents: DocumentRecord[]
   calendarEvents: CalendarEvent[]
+  clarifications: Clarification[]
+  chatMessages: ChatMessage[]
+  followUps: PaymentFollowUp[]
+  consultations: Consultation[]
+  staffAttendance: StaffAttendance[]
   settings: Settings
 }
 
-const STORAGE_KEY = 'landschaft-crm-prototype-v1'
+// v2 adds client WhatsApp numbers and the AMC, client and employee records.
+const STORAGE_KEY = 'landschaft-crm-prototype-v2'
 
 function freshDb(): DbShape {
   // Structured clone keeps the seed module pristine across resets.
@@ -47,6 +54,11 @@ function freshDb(): DbShape {
     maintenance: seed.maintenance,
     documents: seed.documents,
     calendarEvents: seed.calendarEvents,
+    clarifications: seed.clarifications,
+    chatMessages: seed.chatMessages,
+    followUps: seed.followUps,
+    consultations: seed.consultations,
+    staffAttendance: seed.staffAttendance,
     settings: seed.settings,
   })
 }
@@ -58,7 +70,8 @@ function load(): DbShape {
     const parsed = JSON.parse(raw) as DbShape
     // Guard against a half-written or older payload.
     if (!parsed.projects || !parsed.reports) return freshDb()
-    return parsed
+    // Collections added after the payload was written start from the seed.
+    return { ...freshDb(), ...parsed }
   } catch {
     return freshDb()
   }

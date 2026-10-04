@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import { ROLES } from '../domain/roles'
 import type { Employee, Role, RoleKey } from '../domain/types'
-import * as seed from '../mock/seed'
+import { useDb } from './useDb'
 
 interface SessionValue {
   user: Employee
@@ -17,23 +17,25 @@ const SessionContext = createContext<SessionValue | null>(null)
 const STORAGE_KEY = 'landschaft-crm-session'
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  // Read from the store rather than the seed, so profile edits show up here too.
+  const { employees } = useDb()
   const [userId, setUserId] = useState<string>(() => {
     return localStorage.getItem(STORAGE_KEY) ?? 'e1' // Ashfaq — CEO / Ops
   })
 
   const value = useMemo<SessionValue>(() => {
-    const user = seed.employees.find((e) => e.id === userId) ?? seed.employees[1]
+    const user = employees.find((e) => e.id === userId) ?? employees[1]
     return {
       user,
       role: ROLES[user.role],
       roleKey: user.role,
-      people: seed.employees,
+      people: employees,
       signInAs: (id: string) => {
         localStorage.setItem(STORAGE_KEY, id)
         setUserId(id)
       },
     }
-  }, [userId])
+  }, [userId, employees])
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }

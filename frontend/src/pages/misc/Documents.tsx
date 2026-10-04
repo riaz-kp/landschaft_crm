@@ -3,7 +3,7 @@ import { useDb } from '../../state/useDb'
 import { formatDate } from '../../domain/format'
 import type { DocumentRecord } from '../../domain/types'
 import {
-  PageHeader, Section, Table, EmptyState, Badge, StatTile,
+  PageHeader, Section, Table, EmptyState, Badge, StatTile, DepartmentBadge,
 } from '../../components/ui'
 
 const CATEGORIES: (DocumentRecord['category'] | 'All')[] =
@@ -60,7 +60,10 @@ export function Documents() {
           <Table head={['Name', 'Project', 'Category', 'Uploaded By', 'Date', 'Size']}>
             {documents.map((doc) => (
               <tr key={doc.id} className="row-hover">
-                <td className="td font-medium text-stone-900">{doc.name}</td>
+                <td className="td font-medium text-stone-900">
+                  {doc.name}
+                  {doc.department && <span className="ml-2"><DepartmentBadge department={doc.department} /></span>}
+                </td>
                 <td className="td">{projectName(doc.projectId)}</td>
                 <td className="td"><Badge tone="stone">{doc.category}</Badge></td>
                 <td className="td">{uploaderName(doc.uploadedBy)}</td>

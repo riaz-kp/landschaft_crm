@@ -1,8 +1,9 @@
 import { addDays, today } from '../domain/format'
 import type {
-  CalendarEvent, Client, DailyWorkReport, DocumentRecord, Employee, Issue, Lead,
-  MaintenanceRecord, Payment, PaymentRequest, Phase, Project, Quotation, Settings,
-  SiteAssignment, SiteVisit, Task, Worker,
+  CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
+  DocumentRecord, Employee, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
+  PaymentRequest, Phase, Project, Quotation, Settings, SiteAssignment, SiteVisit,
+  StaffAttendance, StaffAttendanceStatus, Task, Worker,
 } from '../domain/types'
 
 const phase = (enabled: boolean, progress = 0): Phase => ({ enabled, progress })
@@ -43,11 +44,11 @@ export const workers: Worker[] = [
 ]
 
 export const clients: Client[] = [
-  { id: 'c1', name: 'ABC Holdings', phone: '+91 94470 30001', email: 'contact@abcholdings.in', address: 'Kowdiar, Thiruvananthapuram', leadId: 'l1', createdAt: '2026-04-12' },
-  { id: 'c2', name: 'XYZ Estates', phone: '+91 94470 30002', email: 'projects@xyzestates.in', address: 'Panampilly Nagar, Kochi', leadId: 'l2', createdAt: '2026-05-02' },
-  { id: 'c3', name: 'DEF Resorts', phone: '+91 94470 30003', email: 'gm@defresorts.in', address: 'Kovalam, Thiruvananthapuram', leadId: 'l3', createdAt: '2026-05-20' },
-  { id: 'c4', name: 'Dr. Ramesh Nair', phone: '+91 94470 30004', email: 'ramesh.nair@gmail.com', address: 'Edava, Varkala', createdAt: '2026-06-08' },
-  { id: 'c5', name: 'Greenfield Apartments', phone: '+91 94470 30005', email: 'assoc@greenfield.in', address: 'Kozhikode', createdAt: '2026-06-25' },
+  { id: 'c1', name: 'ABC Holdings', phone: '+91 94470 30001', whatsapp: '+91 94470 30001', email: 'contact@abcholdings.in', address: 'Kowdiar, Thiruvananthapuram', leadId: 'l1', createdAt: '2026-04-12' },
+  { id: 'c2', name: 'XYZ Estates', phone: '+91 94470 30002', whatsapp: '+91 99610 40002', email: 'projects@xyzestates.in', address: 'Panampilly Nagar, Kochi', leadId: 'l2', createdAt: '2026-05-02' },
+  { id: 'c3', name: 'DEF Resorts', phone: '+91 94470 30003', whatsapp: '+91 99610 40003', email: 'gm@defresorts.in', address: 'Kovalam, Thiruvananthapuram', leadId: 'l3', createdAt: '2026-05-20' },
+  { id: 'c4', name: 'Dr. Ramesh Nair', phone: '+91 94470 30004', whatsapp: '+91 94470 30004', email: 'ramesh.nair@gmail.com', address: 'Edava, Varkala', createdAt: '2026-06-08' },
+  { id: 'c5', name: 'Greenfield Apartments', phone: '+91 94470 30005', whatsapp: '+91 94470 30005', email: 'assoc@greenfield.in', address: 'Kozhikode', createdAt: '2026-06-25' },
 ]
 
 export const leads: Lead[] = [
@@ -387,8 +388,93 @@ export const documents: DocumentRecord[] = [
   { id: 'd5', name: 'Edava — Site Photos 28-08.zip', projectId: 'p4', category: 'Photo', uploadedBy: 'e11', uploadedAt: addDays(today(), -1), sizeKb: 24800 },
   { id: 'd6', name: 'Greenfield — Civil Drawings R3.dwg', projectId: 'p5', category: 'Drawing', uploadedBy: 'e5', uploadedAt: addDays(today(), -3), sizeKb: 5600 },
   { id: 'd7', name: 'Monthly Execution Summary — July.pdf', category: 'Report', uploadedBy: 'e6', uploadedAt: addDays(today(), -28), sizeKb: 820 },
-  { id: 'd8', name: 'Sea Breeze — AMC Agreement.pdf', projectId: 'p7', category: 'Contract', uploadedBy: 'e8', uploadedAt: addDays(today(), -29), sizeKb: 960 },
+  { id: 'd8', name: 'Sea Breeze — AMC Agreement.pdf', projectId: 'p7', clientId: 'c2', department: 'AMC', category: 'Contract', uploadedBy: 'e8', uploadedAt: addDays(today(), -29), sizeKb: 960 },
+  // Attachments filed on the client record, by department.
+  { id: 'd9', name: 'DEF Resorts — Plant palette approval.pdf', projectId: 'p3', clientId: 'c3', department: 'Design', category: 'Drawing', uploadedBy: 'e3', uploadedAt: addDays(today(), -40), sizeKb: 2150 },
+  { id: 'd10', name: 'DEF Resorts — Pool deck stone sample photos.zip', projectId: 'p3', clientId: 'c3', department: 'Execution', category: 'Photo', uploadedBy: 'e7', uploadedAt: addDays(today(), -6), sizeKb: 18400 },
+  { id: 'd11', name: 'DEF Resorts — Hardscape milestone invoice.pdf', projectId: 'p3', clientId: 'c3', department: 'Accounts', category: 'Other', uploadedBy: 'e8', uploadedAt: addDays(today(), -2), sizeKb: 210 },
+  { id: 'd12', name: 'Sea Breeze — August AMC visit report.pdf', projectId: 'p7', clientId: 'c2', department: 'AMC', category: 'Report', uploadedBy: 'e6', uploadedAt: addDays(today(), -12), sizeKb: 640 },
+  { id: 'd13', name: 'XYZ Estates — Palm species list from client.xlsx', projectId: 'p2', clientId: 'c2', department: 'Execution', category: 'Other', uploadedBy: 'e7', uploadedAt: addDays(today(), -9), sizeKb: 48 },
 ]
+
+export const clarifications: Clarification[] = [
+  { id: 'cl1', clientId: 'c3', projectId: 'p3', department: 'Design', raisedBy: 'Client', question: 'Can the entrance beds use flowering shrubs instead of ornamental grass?', loggedBy: 'e3', raisedOn: addDays(today(), -35), status: 'Resolved', answer: 'Yes — revised palette with ixora and hibiscus shared and approved.', answeredBy: 'e2', answeredOn: addDays(today(), -33) },
+  { id: 'cl2', clientId: 'c3', projectId: 'p3', department: 'Execution', raisedBy: 'Team', question: 'Confirm the pool deck stone finish: flamed or honed?', loggedBy: 'e7', raisedOn: addDays(today(), -6), status: 'Open' },
+  { id: 'cl3', clientId: 'c3', projectId: 'p3', department: 'Accounts', raisedBy: 'Client', question: 'Is GST included in the hardscape milestone amount?', loggedBy: 'e8', raisedOn: addDays(today(), -2), status: 'Open' },
+  { id: 'cl4', clientId: 'c2', projectId: 'p2', department: 'Execution', raisedBy: 'Team', question: 'Which palm species for the rear garden — Foxtail or Royal?', loggedBy: 'e7', raisedOn: addDays(today(), -10), status: 'Resolved', answer: 'Client chose Foxtail; species list attached.', answeredBy: 'e7', answeredOn: addDays(today(), -9) },
+  { id: 'cl5', clientId: 'c2', projectId: 'p7', department: 'AMC', raisedBy: 'Client', question: 'Can AMC visits move from Tuesday to Saturday mornings?', loggedBy: 'e6', raisedOn: addDays(today(), -4), status: 'Open' },
+  { id: 'cl6', clientId: 'c1', projectId: 'p1', department: 'Design', raisedBy: 'Client', question: 'Can the pergola be teak rather than WPC?', loggedBy: 'e3', raisedOn: addDays(today(), -3), status: 'Open' },
+  { id: 'cl7', clientId: 'c5', projectId: 'p5', department: 'Design', raisedBy: 'Team', question: 'Association to confirm the revised walkway alignment.', loggedBy: 'e5', raisedOn: addDays(today(), -2), status: 'Open' },
+]
+
+export const chatMessages: ChatMessage[] = [
+  { id: 'ch1', clientId: 'c3', department: 'Design', authorId: 'e2', text: 'Final BOQ is reconciled. Design is done on our side for the resort.', at: `${addDays(today(), -10)}T11:20` },
+  { id: 'ch2', clientId: 'c3', department: 'Design', authorId: 'e3', text: 'Sharing the plant palette approval under attachments for the site team.', at: `${addDays(today(), -10)}T11:42` },
+  { id: 'ch3', clientId: 'c3', department: 'Execution', authorId: 'e7', text: 'Paver delivery was short by 200 units. Supplier says Thursday.', at: `${addDays(today(), -1)}T17:05` },
+  { id: 'ch4', clientId: 'c3', department: 'Execution', authorId: 'e6', text: 'Hold the pool deck edge until the client confirms flamed vs honed.', at: `${addDays(today(), -1)}T17:30` },
+  { id: 'ch5', clientId: 'c3', department: 'Execution', authorId: 'e1', text: 'I meet their GM this week — will get the stone finish decided.', at: `${today()}T09:10` },
+  { id: 'ch6', clientId: 'c3', department: 'Accounts', authorId: 'e8', text: 'Hardscape milestone request is pending approval. Invoice draft attached.', at: `${addDays(today(), -2)}T15:00` },
+  { id: 'ch7', clientId: 'c2', department: 'AMC', authorId: 'e6', text: 'Client wants Saturday visits. Sabu and Manoj are both free Saturday mornings.', at: `${addDays(today(), -4)}T10:15` },
+  { id: 'ch8', clientId: 'c2', department: 'Execution', authorId: 'e7', text: 'Palm pits done at Panampilly Nagar. Setting out palms tomorrow.', at: `${today()}T16:55` },
+  { id: 'ch9', clientId: 'c1', department: 'Design', authorId: 'e4', text: 'Rear garden renders at 80%. Waiting on the pergola material decision.', at: `${addDays(today(), -2)}T14:30` },
+]
+
+export const followUps: PaymentFollowUp[] = [
+  { id: 'fu1', clientId: 'c3', projectId: 'p3', date: addDays(today(), -12), mode: 'Call', note: 'Spoke to the GM about the second instalment. Agreed to release after the hardscape milestone.', byId: 'e8', nextFollowUp: addDays(today(), -2) },
+  { id: 'fu2', clientId: 'c3', projectId: 'p3', date: addDays(today(), -2), mode: 'Email', note: 'Sent the hardscape milestone invoice draft. Client queried GST.', byId: 'e8', promisedAmount: 1800000, nextFollowUp: addDays(today(), 3) },
+  { id: 'fu3', clientId: 'c4', projectId: 'p4', date: addDays(today(), -8), mode: 'WhatsApp', note: 'Reminded about the balance after hardscape. Will pay once softscape is complete.', byId: 'e9', nextFollowUp: addDays(today(), -1) },
+  { id: 'fu4', clientId: 'c1', projectId: 'p1', date: addDays(today(), -3), mode: 'Call', note: '3D presentation payment approved. Client confirmed NEFT this week.', byId: 'e9', promisedAmount: 170000, nextFollowUp: addDays(today(), 2) },
+  { id: 'fu5', clientId: 'c5', projectId: 'p5', date: addDays(today(), -5), mode: 'Visit', note: 'Met the association treasurer. First advance to follow once the walkway alignment is signed off.', byId: 'e8', nextFollowUp: addDays(today(), 6) },
+]
+
+/** Offset from today, nudged off Sunday — the CEO's diary runs Monday to Saturday. */
+function workday(offset: number): string {
+  const date = addDays(today(), offset)
+  return new Date(date + 'T00:00:00').getDay() === 0 ? addDays(date, offset < 0 ? -1 : 1) : date
+}
+
+export const consultations: Consultation[] = [
+  { id: 'cs1', date: workday(1), start: '10:00', durationMins: 60, purpose: 'Resort pool deck finish and milestone payment', clientId: 'c3', mode: 'Office', bookedBy: 'e7', status: 'Scheduled' },
+  { id: 'cs2', date: workday(1), start: '15:00', durationMins: 30, purpose: 'Lakeview Villas — common area proposal walkthrough', leadId: 'l5', mode: 'Video', bookedBy: 'e10', status: 'Scheduled' },
+  { id: 'cs3', date: workday(2), start: '11:30', durationMins: 45, purpose: 'Greenfield delay — recovery plan with the association', clientId: 'c5', mode: 'Site', bookedBy: 'e6', status: 'Scheduled' },
+  { id: 'cs4', date: workday(3), start: '09:30', durationMins: 30, purpose: 'Pergola material decision', clientId: 'c1', mode: 'Phone', bookedBy: 'e3', status: 'Scheduled' },
+  { id: 'cs5', date: workday(4), start: '16:00', durationMins: 60, purpose: 'Quarterly accounts review', attendee: 'Arshad, Anaswara', mode: 'Office', bookedBy: 'e8', status: 'Scheduled' },
+  { id: 'cs6', date: workday(-2), start: '10:30', durationMins: 60, purpose: 'Terrace garden quotation discussion', leadId: 'l4', mode: 'Office', bookedBy: 'e10', status: 'Completed', notes: 'Client wants a revised quote with fewer planters.' },
+  { id: 'cs7', date: workday(-5), start: '14:00', durationMins: 30, purpose: 'AMC renewal terms — Sea Breeze Villa', clientId: 'c2', mode: 'Phone', bookedBy: 'e6', status: 'Completed' },
+]
+
+/** Small deterministic hash so generated attendance is stable across reloads. */
+function hash(text: string): number {
+  let h = 0
+  for (let i = 0; i < text.length; i += 1) h = (h * 31 + text.charCodeAt(i)) >>> 0
+  return h
+}
+
+/**
+ * Sixty days of office attendance for each employee, Sundays off. Generated
+ * rather than hand-written, so it always ends at today.
+ */
+export const staffAttendance: StaffAttendance[] = employees
+  .filter((e) => e.role !== 'super_admin')
+  .flatMap((employee) =>
+    Array.from({ length: 60 }, (_, i) => addDays(today(), -i))
+      .filter((date) => new Date(date + 'T00:00:00').getDay() !== 0)
+      .map((date): StaffAttendance => {
+        const roll = hash(employee.id + date) % 100
+        const status: StaffAttendanceStatus =
+          roll < 3 ? 'Absent' : roll < 8 ? 'Leave' : roll < 12 ? 'Half Day' : 'Present'
+        const minute = String(hash(date + employee.id) % 25).padStart(2, '0')
+        return {
+          employeeId: employee.id,
+          date,
+          status,
+          checkIn: status === 'Present' || status === 'Half Day' ? `09:${minute}` : undefined,
+          // Today's check-out is still to come.
+          checkOut: date === today() ? undefined
+            : status === 'Present' ? '18:00' : status === 'Half Day' ? '13:30' : undefined,
+        }
+      }),
+  )
 
 export const calendarEvents: CalendarEvent[] = [
   { id: 'ce1', title: 'Site visit — Lakeview Villas', date: addDays(today(), 2), type: 'Site Visit', assigneeId: 'e2' },

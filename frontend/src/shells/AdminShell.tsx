@@ -60,7 +60,7 @@ export function AdminShell() {
                 <NavLink
                   key={child.path}
                   to={child.path}
-                  end={child.path === '/projects' || child.path === '/execution' || child.path === '/employees'}
+                  end={['/projects', '/execution', '/employees', '/amc'].includes(child.path)}
                   onClick={() => setMobileNavOpen(false)}
                   className={({ isActive }) =>
                     `block rounded-lg px-3 py-1.5 text-sm transition-colors ${
@@ -111,7 +111,7 @@ export function AdminShell() {
             </svg>
           </button>
           <p className="hidden text-sm text-stone-500 sm:block">
-            Internal CRM · Design, Execution &amp; Maintenance
+            Internal CRM · Design, Execution &amp; AMC
           </p>
           <RoleSwitcher />
         </header>

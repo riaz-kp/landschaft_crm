@@ -25,14 +25,54 @@ export interface Role {
   remit: string
 }
 
+/** AMC runs as its own department, separate from Execution. */
+export const DEPARTMENTS = ['Management', 'Design', 'Execution', 'AMC', 'Accounts', 'Marketing'] as const
+export type Department = (typeof DEPARTMENTS)[number]
+
+/**
+ * The departments a client deals with directly. Clarifications, attachments
+ * and the internal team chat on a client are each filed under one of these.
+ */
+export const CLIENT_DEPARTMENTS = ['Design', 'Execution', 'AMC', 'Accounts'] as const
+export type ClientDepartment = (typeof CLIENT_DEPARTMENTS)[number]
+
+export const BLOOD_GROUPS = ['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−'] as const
+
 export interface Employee {
   id: ID
   name: string
   role: RoleKey
-  department: 'Management' | 'Design' | 'Execution' | 'Accounts' | 'Marketing'
+  department: Department
   reportsTo?: ID
   phone: string
+  whatsapp?: string
   email: string
+  /** Profile photo as a data URL in the prototype; an object-store key in production. */
+  photo?: string
+  dob?: string
+  address?: string
+  bloodGroup?: string
+  qualification?: string
+  joinedOn?: string
+  fatherName?: string
+  fatherOccupation?: string
+  motherName?: string
+  motherOccupation?: string
+  fatherMobile?: string
+  siblings?: string
+  /** Responsibilities held beyond the login role, e.g. covering AMC as well as Execution. */
+  responsibilities?: string[]
+}
+
+export type StaffAttendanceStatus = 'Present' | 'Half Day' | 'Leave' | 'Absent'
+
+/** Office staff attendance. Site labour attendance comes from daily reports instead. */
+export interface StaffAttendance {
+  employeeId: ID
+  date: string
+  status: StaffAttendanceStatus
+  checkIn?: string
+  checkOut?: string
 }
 
 /** Site labour. Workers do not log in — foremen record them. */
@@ -67,10 +107,73 @@ export interface Client {
   id: ID
   name: string
   phone: string
+  /** Stored separately; equal to phone when the client uses the same number. */
+  whatsapp: string
   email?: string
   address: string
   leadId?: ID
   createdAt: string
+}
+
+/** A point needing an answer — raised by the client, or by us awaiting the client. */
+export interface Clarification {
+  id: ID
+  clientId: ID
+  projectId?: ID
+  department: ClientDepartment
+  raisedBy: 'Client' | 'Team'
+  question: string
+  loggedBy: ID
+  raisedOn: string
+  status: 'Open' | 'Resolved'
+  answer?: string
+  answeredBy?: ID
+  answeredOn?: string
+}
+
+/** Internal staff discussion about a client, one thread per department. */
+export interface ChatMessage {
+  id: ID
+  clientId: ID
+  department: ClientDepartment
+  authorId: ID
+  text: string
+  /** Local date-time, YYYY-MM-DDTHH:mm. */
+  at: string
+}
+
+/** A logged attempt to collect money owed by a client. */
+export interface PaymentFollowUp {
+  id: ID
+  clientId: ID
+  projectId?: ID
+  date: string
+  mode: 'Call' | 'WhatsApp' | 'Email' | 'Visit'
+  note: string
+  byId: ID
+  promisedAmount?: number
+  nextFollowUp?: string
+}
+
+// ---------------------------------------------------------------- CEO consultations
+
+export type ConsultationStatus = 'Scheduled' | 'Completed' | 'Cancelled'
+
+/** A slot on the CEO's consultation schedule. Anyone may book one. */
+export interface Consultation {
+  id: ID
+  date: string
+  start: string
+  durationMins: number
+  purpose: string
+  clientId?: ID
+  leadId?: ID
+  /** Free-text attendee when the meeting is with neither a client nor a lead. */
+  attendee?: string
+  mode: 'Office' | 'Site' | 'Phone' | 'Video'
+  bookedBy: ID
+  status: ConsultationStatus
+  notes?: string
 }
 
 export type SiteVisitStatus = 'Scheduled' | 'Completed' | 'Cancelled'
@@ -322,6 +425,9 @@ export interface DocumentRecord {
   id: ID
   name: string
   projectId?: ID
+  /** Set on client attachments, which are filed by department. */
+  clientId?: ID
+  department?: ClientDepartment
   category: 'Drawing' | 'BOQ' | 'Contract' | 'Photo' | 'Report' | 'Other'
   uploadedBy: ID
   uploadedAt: string

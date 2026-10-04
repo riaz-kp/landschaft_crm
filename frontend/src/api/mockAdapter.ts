@@ -1,7 +1,8 @@
 import { nextId, nowTime, store } from '../mock/store'
 import { addDays, today } from '../domain/format'
 import type {
-  Client, DailyWorkReport, ID, Lead, Project, Settings, SiteVisit, Task,
+  ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, ID, Lead,
+  PaymentFollowUp, Project, Settings, SiteVisit, Task,
 } from '../domain/types'
 import type { Api, NewProjectInput } from './client'
 
@@ -210,6 +211,8 @@ export const adapter: Api = {
         id: nextId('c'),
         name: lead?.name ?? 'New Client',
         phone: lead?.phone ?? '',
+        // Leads carry one number; it is assumed to be on WhatsApp until edited.
+        whatsapp: lead?.phone ?? '',
         email: lead?.email,
         address: lead?.location ?? '',
         leadId,
@@ -224,6 +227,131 @@ export const adapter: Api = {
         }
       })
       return client
+    },
+  },
+
+  clients: {
+    create(input): Client {
+      const client: Client = { ...input, id: nextId('c'), createdAt: today() }
+      store.update((db) => {
+        db.clients.push(client)
+      })
+      return client
+    },
+    update(clientId, patch) {
+      store.update((db) => {
+        const client = db.clients.find((c) => c.id === clientId)
+        if (client) Object.assign(client, patch)
+      })
+    },
+  },
+
+  clarifications: {
+    create(input): Clarification {
+      const record: Clarification = { ...input, id: nextId('cl'), status: 'Open' }
+      store.update((db) => {
+        db.clarifications.push(record)
+      })
+      return record
+    },
+    resolve(clarificationId, answer, answeredBy) {
+      store.update((db) => {
+        const record = db.clarifications.find((c) => c.id === clarificationId)
+        if (!record) return
+        record.status = 'Resolved'
+        record.answer = answer
+        record.answeredBy = answeredBy
+        record.answeredOn = today()
+      })
+    },
+  },
+
+  chat: {
+    post(input): ChatMessage {
+      const message: ChatMessage = { ...input, id: nextId('ch'), at: `${today()}T${nowTime()}` }
+      store.update((db) => {
+        db.chatMessages.push(message)
+      })
+      return message
+    },
+  },
+
+  followUps: {
+    create(input): PaymentFollowUp {
+      const record: PaymentFollowUp = { ...input, id: nextId('fu') }
+      store.update((db) => {
+        db.followUps.push(record)
+      })
+      return record
+    },
+  },
+
+  documents: {
+    create(input): DocumentRecord {
+      const record: DocumentRecord = { ...input, id: nextId('d') }
+      store.update((db) => {
+        db.documents.push(record)
+      })
+      return record
+    },
+  },
+
+  employees: {
+    update(employeeId, patch) {
+      store.update((db) => {
+        const employee = db.employees.find((e) => e.id === employeeId)
+        if (employee) Object.assign(employee, patch)
+      })
+    },
+    setAttendance(employeeId, date, status) {
+      store.update((db) => {
+        const index = db.staffAttendance.findIndex((a) => a.employeeId === employeeId && a.date === date)
+        if (status === null) {
+          if (index >= 0) db.staffAttendance.splice(index, 1)
+          return
+        }
+        const checkIn = status === 'Present' || status === 'Half Day' ? '09:00' : undefined
+        const checkOut = status === 'Present' ? '18:00' : status === 'Half Day' ? '13:30' : undefined
+        const entry = { employeeId, date, status, checkIn, checkOut }
+        if (index >= 0) db.staffAttendance[index] = entry
+        else db.staffAttendance.push(entry)
+      })
+    },
+  },
+
+  consultations: {
+    create(input): Consultation {
+      const record: Consultation = { ...input, id: nextId('cs'), status: 'Scheduled' }
+      store.update((db) => {
+        db.consultations.push(record)
+      })
+      return record
+    },
+    setStatus(consultationId, status, notes) {
+      store.update((db) => {
+        const record = db.consultations.find((c) => c.id === consultationId)
+        if (!record) return
+        record.status = status
+        if (notes !== undefined) record.notes = notes
+      })
+    },
+  },
+
+  amc: {
+    scheduleVisit(recordId, date, teamIds) {
+      store.update((db) => {
+        const record = db.maintenance.find((m) => m.id === recordId)
+        record?.visits.push({ id: nextId('mv'), date, teamIds, notes: '', issues: [], photoCount: 0, done: false })
+      })
+    },
+    completeVisit(recordId, visitId, notes, issues) {
+      store.update((db) => {
+        const visit = db.maintenance.find((m) => m.id === recordId)?.visits.find((v) => v.id === visitId)
+        if (!visit) return
+        visit.done = true
+        visit.notes = notes
+        visit.issues = issues.filter((i) => i.trim())
+      })
     },
   },
 

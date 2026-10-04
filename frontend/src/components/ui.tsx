@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import type { Department } from '../domain/types'
 
 // ---------------------------------------------------------------- page frame
 
@@ -24,7 +25,8 @@ export function Section({
   children: ReactNode; className?: string
 }) {
   return (
-    <section className={`card ${className}`}>
+    // min-w-0 lets a wide table scroll inside the card instead of stretching a grid column.
+    <section className={`card min-w-0 ${className}`}>
       {(title || actions) && (
         <header className="flex items-center justify-between gap-4 border-b border-stone-200 px-5 py-4">
           <div>
@@ -82,6 +84,8 @@ const STATUS_TONES: Record<string, Tone> = {
   Pending: 'amber', Paid: 'green', Rejected: 'red', Sent: 'blue', Accepted: 'green',
   // Misc
   Scheduled: 'blue', Cancelled: 'stone', Open: 'red', Resolved: 'green',
+  // Staff attendance
+  Present: 'green', 'Half Day': 'amber', Leave: 'blue', Absent: 'red',
 }
 
 export function StatusBadge({ status }: { status: string }) {
@@ -141,13 +145,108 @@ export function Table({ head, children }: { head: ReactNode[]; children: ReactNo
 
 // ---------------------------------------------------------------- misc
 
-export function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
+export function Avatar({
+  name, size = 'md', src,
+}: { name: string; size?: 'sm' | 'md' | 'xl'; src?: string }) {
   const initials = name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
-  const dim = size === 'sm' ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-xs'
+  const dim = { sm: 'h-7 w-7 text-[10px]', md: 'h-9 w-9 text-xs', xl: 'h-24 w-24 text-2xl' }[size]
+  if (src) {
+    return <img src={src} alt={name} className={`shrink-0 rounded-full object-cover ${dim}`} />
+  }
   return (
     <span className={`inline-flex shrink-0 items-center justify-center rounded-full bg-brand-100 font-bold text-brand-800 ${dim}`}>
       {initials}
     </span>
+  )
+}
+
+// ---------------------------------------------------------------- departments
+
+const DEPARTMENT_TONES: Record<Department, Tone> = {
+  Management: 'stone', Design: 'blue', Execution: 'green', AMC: 'clay', Accounts: 'amber', Marketing: 'stone',
+}
+
+export function DepartmentBadge({ department }: { department: Department }) {
+  return <Badge tone={DEPARTMENT_TONES[department]}>{department}</Badge>
+}
+
+// ---------------------------------------------------------------- navigation within a page
+
+export function Tabs<K extends string>({
+  tabs, active, onChange,
+}: { tabs: { key: K; label: string; count?: number }[]; active: K; onChange: (key: K) => void }) {
+  return (
+    <nav className="mb-5 flex flex-wrap gap-1 border-b border-stone-200">
+      {tabs.map((t) => (
+        <button
+          key={t.key}
+          onClick={() => onChange(t.key)}
+          className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            active === t.key
+              ? 'border-brand-600 text-brand-800'
+              : 'border-transparent text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          {t.label}
+          {t.count !== undefined && <span className="ml-1.5 text-xs tabular-nums text-stone-400">{t.count}</span>}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
+/** The filter-button row used on list pages. */
+export function Pills<K extends string>({
+  options, active, onChange,
+}: { options: { key: K; label: string; count?: number }[]; active: K; onChange: (key: K) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => (
+        <button
+          key={o.key}
+          onClick={() => onChange(o.key)}
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            active === o.key
+              ? 'bg-brand-600 text-white'
+              : 'border border-stone-300 bg-white text-stone-600 hover:bg-stone-50'
+          }`}
+        >
+          {o.label}
+          {o.count !== undefined && <span className="ml-1 tabular-nums opacity-70">({o.count})</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function Modal({
+  title, onClose, children, footer,
+}: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+      <div className="absolute inset-0 bg-stone-900/50" onClick={onClose} />
+      <div
+        role="dialog" aria-modal="true"
+        className="relative flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
+      >
+        <header className="flex items-center justify-between gap-4 border-b border-stone-200 px-5 py-4">
+          <h2 className="font-semibold text-stone-900">{title}</h2>
+          <button onClick={onClose} className="btn-ghost -mr-2 px-2" aria-label="Close">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+            </svg>
+          </button>
+        </header>
+        <div className="overflow-y-auto px-5 py-5">{children}</div>
+        {footer && <footer className="flex justify-end gap-2 border-t border-stone-200 px-5 py-3">{footer}</footer>}
+      </div>
+    </div>
   )
 }
 

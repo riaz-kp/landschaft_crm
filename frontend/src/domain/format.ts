@@ -34,6 +34,12 @@ export function addDays(iso: string, days: number): string {
   return toIso(date)
 }
 
+/** Whole days from `from` to `to`; negative when `to` is earlier. */
+export function daysBetween(from: string, to: string): number {
+  const ms = new Date(to + 'T00:00:00').getTime() - new Date(from + 'T00:00:00').getTime()
+  return Math.round(ms / 86400000)
+}
+
 /** Indian digit grouping — 12,50,000 rather than 1,250,000. */
 export function formatCurrency(amount: number, compact = false): string {
   if (compact) {
@@ -76,4 +82,9 @@ export function pad2(n: number): string {
 
 export function initials(name: string): string {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+}
+
+/** wa.me wants digits only, country code included. */
+export function whatsappUrl(number: string): string {
+  return `https://wa.me/${number.replace(/\D/g, '')}`
 }

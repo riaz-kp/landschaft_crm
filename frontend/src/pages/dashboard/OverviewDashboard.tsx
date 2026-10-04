@@ -1,165 +1,348 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
-import { computeProgress, projectType } from '../../domain/progress'
-import { formatCurrency, formatDate, pad2 } from '../../domain/format'
+import { computeProgress } from '../../domain/progress'
+import { receivable } from '../../domain/finance'
+import { partyName } from '../../domain/consultations'
+import { addDays, daysBetween, formatCurrency, formatDate, formatTime, pad2, today } from '../../domain/format'
+import { DESIGN_PHASES, type Employee } from '../../domain/types'
 import {
-  PageHeader, Section, StatTile, StatusBadge, Table, EmptyState, Badge,
+  PageHeader, Section, StatTile, StatusBadge, EmptyState, Badge, ProgressBar, Avatar, SiteName,
 } from '../../components/ui'
-import { ProgressSummary } from '../../components/ProjectProgress'
+import { Icon } from '../../components/Icon'
 
-/** CEO / Super Admin view — full operational visibility across all five systems. */
+type Accent = 'design' | 'execution' | 'amc'
+
+const ACCENTS: Record<Accent, { bar: string; chip: string; link: string }> = {
+  design: { bar: 'border-t-sky-500', chip: 'bg-sky-100 text-sky-700', link: 'text-sky-700' },
+  execution: { bar: 'border-t-brand-600', chip: 'bg-brand-100 text-brand-700', link: 'text-brand-700' },
+  amc: { bar: 'border-t-clay-500', chip: 'bg-clay-100 text-clay-700', link: 'text-clay-700' },
+}
+
+type Metric = { label: string; value: ReactNode; alert?: boolean; to?: string }
+
+/** One department at a glance — the CEO sees Design, Execution and AMC side by side. */
+function DepartmentBox({
+  title, icon, accent, head, to, linkLabel, metrics, listTitle, children,
+}: {
+  title: string; icon: string; accent: Accent; head?: Employee; to: string; linkLabel: string
+  metrics: Metric[]; listTitle: string; children: ReactNode
+}) {
+  const a = ACCENTS[accent]
+  return (
+    <section className={`card flex min-w-0 flex-col border-t-4 ${a.bar}`}>
+      <header className="flex items-center justify-between gap-3 px-5 pb-3 pt-4">
+        <div className="flex items-center gap-3">
+          <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${a.chip}`}>
+            <Icon name={icon} className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-lg font-bold text-stone-900">{title}</h2>
+            {head && <p className="text-xs text-stone-500">Led by {head.name}</p>}
+          </div>
+        </div>
+        {head && (
+          <Link to={`/employees/${head.id}`} title={head.name}>
+            <Avatar name={head.name} size="sm" src={head.photo} />
+          </Link>
+        )}
+      </header>
+
+      <div className="grid grid-cols-2 border-y border-stone-100">
+        {metrics.map((m, i) => {
+          const body = (
+            <div className={`h-full px-5 py-3 ${i % 2 === 0 ? 'border-r border-stone-100' : ''} ${i >= 2 ? 'border-t border-stone-100' : ''} ${m.to ? 'hover:bg-stone-50' : ''}`}>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">{m.label}</p>
+              <p className={`mt-1 text-2xl font-bold tabular-nums ${m.alert ? 'text-red-700' : 'text-stone-900'}`}>{m.value}</p>
+            </div>
+          )
+          return m.to ? <Link key={m.label} to={m.to}>{body}</Link> : <div key={m.label}>{body}</div>
+        })}
+      </div>
+
+      <div className="flex-1 px-5 py-4">
+        <p className="mb-3 text-xs font-bold uppercase tracking-wider text-stone-400">{listTitle}</p>
+        {children}
+      </div>
+
+      <Link to={to} className={`flex items-center justify-between border-t border-stone-100 px-5 py-3 text-sm font-semibold ${a.link} hover:bg-stone-50`}>
+        {linkLabel} <Icon name="chevron" className="h-4 w-4" />
+      </Link>
+    </section>
+  )
+}
+
+/** CEO / Super Admin view — the company as three departments, plus money and the CEO's own diary. */
 export function OverviewDashboard() {
   const db = useDb()
   const { user } = useSession()
+  const date = today()
 
-  const active = db.projects.filter((p) => p.status !== 'Completed')
-  const openLeads = db.leads.filter((l) => !['Won', 'Lost'].includes(l.status))
-  const pipeline = openLeads.length
-  const received = db.payments.reduce((sum, p) => sum + p.amount, 0)
-  const contracted = db.projects.reduce((sum, p) => sum + p.value, 0)
-  const pendingRequests = db.paymentRequests.filter((r) => r.status === 'Pending')
-  const openIssues = db.issues.filter((i) => i.status === 'Open')
-  const submittedReports = db.reports.filter((r) => r.status === 'Submitted')
-
+  const headOf = (role: Employee['role']) => db.employees.find((e) => e.role === role)
   const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
+
+  // ------------------------------------------------ company
+  const openLeads = db.leads.filter((l) => !['Won', 'Lost'].includes(l.status))
+  const contracted = db.projects.reduce((sum, p) => sum + p.value, 0)
+  const received = db.payments.reduce((sum, p) => sum + p.amount, 0)
+  const owed = db.clients.reduce((sum, c) => sum + receivable(db, c.id).outstanding, 0)
+  const pendingRequests = db.paymentRequests.filter((r) => r.status === 'Pending')
+
+  // ------------------------------------------------ design
+  const designProjects = db.projects.filter((p) => p.services.design && p.status !== 'Completed')
+  const designIds = new Set(designProjects.map((p) => p.id))
+  const designAvg = designProjects.length
+    ? Math.round(designProjects.reduce((s, p) => s + (computeProgress(p).design?.overall ?? 0), 0) / designProjects.length)
+    : 0
+  const designReview = db.tasks.filter(
+    (t) => t.status === 'Review' && t.phase && (DESIGN_PHASES as readonly string[]).includes(t.phase),
+  )
+  const designOverdue = db.tasks.filter((t) => designIds.has(t.projectId) && t.status !== 'Done' && t.dueDate < date &&
+    t.phase && (DESIGN_PHASES as readonly string[]).includes(t.phase))
+  const designClarifications = db.clarifications.filter((c) => c.department === 'Design' && c.status === 'Open')
+
+  // ------------------------------------------------ execution
+  const executionProjects = db.projects.filter((p) => p.services.execution && p.status !== 'Completed')
+  const todaysReports = db.reports.filter((r) => r.date === date)
+  const filed = todaysReports.filter((r) => r.status !== 'Draft')
+  const pendingReports = db.reports.filter((r) => r.status === 'Submitted')
+  const workersToday = todaysReports.reduce((s, r) => s + r.attendance.filter((a) => a.present).length, 0)
+  const openIssues = db.issues.filter((i) => i.status === 'Open')
+  const delayed = executionProjects.filter((p) => p.delayed)
+
+  // ------------------------------------------------ AMC
+  const amcContracts = db.maintenance.filter((m) => m.type === 'AMC')
+  const amcValue = amcContracts.reduce((s, m) => s + (m.value ?? 0), 0)
+  const nextVisits = db.maintenance
+    .flatMap((m) => m.visits.filter((v) => !v.done).map((v) => ({ visit: v, record: m })))
+    .sort((a, b) => a.visit.date.localeCompare(b.visit.date))
+  const visitsThisWeek = nextVisits.filter((v) => v.visit.date <= addDays(date, 7))
+  const overdueVisits = nextVisits.filter((v) => v.visit.date < date)
+  const renewalsDue = amcContracts.filter((m) => m.renewalDate && daysBetween(date, m.renewalDate) <= 60)
+  // The AMC department's own people lead it once assigned; until then the Execution & Maintenance Head does.
+  const amcHead = db.employees.find((e) => e.department === 'AMC') ?? headOf('execution_head')
+
+  // ------------------------------------------------ CEO diary
+  const consultations = db.consultations
+    .filter((c) => c.status === 'Scheduled' && c.date >= date)
+    .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
+  const todaysConsultations = consultations.filter((c) => c.date === date)
 
   return (
     <div>
       <PageHeader
         title={`Good day, ${user.name}`}
-        subtitle="Full operational view across CRM, design, execution, accounts and workforce."
-        actions={<Link to="/projects/new" className="btn-primary">New Project</Link>}
+        subtitle="Design, Execution and AMC at a glance — plus money in, money owed and your consultations."
+        actions={<>
+          <Link to="/consultations" className="btn-secondary">My schedule</Link>
+          <Link to="/projects/new" className="btn-primary">New Project</Link>
+        </>}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile label="Active Projects" value={pad2(active.length)} to="/projects" />
-        <StatTile label="Open Leads" value={pad2(pipeline)} sub="Not yet won or lost" to="/crm/leads" />
-        <StatTile
-          label="Contracted Value" value={formatCurrency(contracted, true)}
-          sub="All projects" to="/accounts/payments"
-        />
+        <StatTile label="Open Leads" value={pad2(openLeads.length)} sub="Not yet won or lost" to="/crm/leads" />
+        <StatTile label="Contracted Value" value={formatCurrency(contracted, true)} sub="All projects" to="/accounts/payments" />
         <StatTile
           label="Received" value={formatCurrency(received, true)}
-          sub={`${Math.round((received / contracted) * 100)}% of contracted`}
+          sub={`${contracted ? Math.round((received / contracted) * 100) : 0}% of contracted`}
           tone="green" to="/accounts/payments"
         />
-        <StatTile
-          label="Reports To Review" value={pad2(submittedReports.length)}
-          tone={submittedReports.length ? 'amber' : 'green'} to="/execution/reports"
-        />
-        <StatTile
-          label="Payment Requests" value={pad2(pendingRequests.length)}
-          sub="Pending approval" tone={pendingRequests.length ? 'amber' : 'green'}
-          to="/accounts/payment-requests"
-        />
-        <StatTile
-          label="Open Issues" value={pad2(openIssues.length)}
-          tone={openIssues.length ? 'red' : 'green'} to="/execution/reports"
-        />
-        <StatTile
-          label="Delayed Projects"
-          value={pad2(db.projects.filter((p) => p.delayed && p.status !== 'Completed').length)}
-          tone="red" to="/projects"
-        />
+        <StatTile label="Receivable" value={formatCurrency(owed, true)} sub="Across all clients" tone="amber" to="/crm/clients" />
+      </div>
+
+      {/* The three departments, side by side */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        <DepartmentBox
+          title="Design" icon="pen" accent="design" head={headOf('design_director')}
+          to="/projects/design" linkLabel="Open design projects"
+          metrics={[
+            { label: 'Active Projects', value: pad2(designProjects.length), to: '/projects/design' },
+            { label: 'Avg Progress', value: `${designAvg}%` },
+            { label: 'In Review', value: pad2(designReview.length), to: '/tasks/board' },
+            { label: 'Overdue Tasks', value: pad2(designOverdue.length), alert: designOverdue.length > 0, to: '/tasks/team' },
+          ]}
+          listTitle="Projects"
+        >
+          {designProjects.length === 0 ? (
+            <EmptyState title="No active design projects." />
+          ) : (
+            <ul className="space-y-3">
+              {designProjects.slice(0, 4).map((project) => {
+                const progress = computeProgress(project).design?.overall ?? 0
+                return (
+                  <li key={project.id}>
+                    <div className="mb-1 flex items-baseline justify-between gap-2">
+                      <Link to={`/projects/${project.id}`} className="truncate text-sm font-medium text-stone-800 hover:text-sky-700">{project.name}</Link>
+                      <span className="shrink-0 text-xs font-semibold tabular-nums text-stone-600">{progress}%</span>
+                    </div>
+                    <ProgressBar value={progress} size="sm" />
+                    <p className="mt-0.5 truncate text-xs text-stone-400">{clientName(project.clientId)}</p>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {designClarifications.length > 0 && (
+            <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+              {designClarifications.length} client clarification{designClarifications.length > 1 ? 's' : ''} open
+            </p>
+          )}
+        </DepartmentBox>
+
+        <DepartmentBox
+          title="Execution" icon="hammer" accent="execution" head={headOf('execution_head')}
+          to="/execution" linkLabel="Open execution"
+          metrics={[
+            { label: 'Active Sites', value: pad2(executionProjects.length), to: '/execution' },
+            { label: "Today's Reports", value: `${pad2(filed.length)}/${pad2(executionProjects.length)}`, to: '/execution/reports' },
+            { label: 'Pending Review', value: pad2(pendingReports.length), alert: pendingReports.length > 0, to: '/execution/reports' },
+            { label: 'Workers Today', value: pad2(workersToday), to: '/employees/attendance' },
+          ]}
+          listTitle="Sites"
+        >
+          {executionProjects.length === 0 ? (
+            <EmptyState title="No active sites." />
+          ) : (
+            <ul className="space-y-3">
+              {executionProjects.slice(0, 4).map((project) => {
+                const progress = computeProgress(project).execution?.overall ?? 0
+                return (
+                  <li key={project.id}>
+                    <div className="mb-1 flex items-baseline justify-between gap-2">
+                      <Link to={`/projects/${project.id}`} className="truncate text-sm font-medium text-stone-800 hover:text-brand-700">{project.name}</Link>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {project.delayed && <Badge tone="red">Delayed</Badge>}
+                        <span className="text-xs font-semibold tabular-nums text-stone-600">{progress}%</span>
+                      </span>
+                    </div>
+                    <ProgressBar value={progress} size="sm" tone={project.delayed ? 'amber' : 'green'} />
+                    <p className="mt-0.5 truncate text-xs text-stone-400"><SiteName name={project.siteLocation} /></p>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {(openIssues.length > 0 || delayed.length > 0) && (
+            <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
+              {[
+                openIssues.length && `${openIssues.length} open site issue${openIssues.length > 1 ? 's' : ''}`,
+                delayed.length && `${delayed.length} delayed project${delayed.length > 1 ? 's' : ''}`,
+              ].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </DepartmentBox>
+
+        <DepartmentBox
+          title="AMC" icon="leaf" accent="amc" head={amcHead}
+          to="/amc" linkLabel="Open AMC"
+          metrics={[
+            { label: 'Active AMCs', value: pad2(amcContracts.length), to: '/amc' },
+            { label: 'Annual Value', value: formatCurrency(amcValue, true), to: '/amc/renewals' },
+            { label: 'Visits · 7 Days', value: pad2(visitsThisWeek.length), alert: overdueVisits.length > 0, to: '/amc/visits' },
+            { label: 'Renewals · 60 Days', value: pad2(renewalsDue.length), alert: renewalsDue.length > 0, to: '/amc/renewals' },
+          ]}
+          listTitle="Next visits"
+        >
+          {nextVisits.length === 0 ? (
+            <EmptyState title="No visits scheduled." />
+          ) : (
+            <ul className="divide-y divide-stone-100">
+              {nextVisits.slice(0, 4).map(({ visit, record }) => (
+                <li key={visit.id} className="flex items-center justify-between gap-3 py-2 first:pt-0">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-stone-800">
+                      {db.projects.find((p) => p.id === record.projectId)?.name}
+                    </p>
+                    <p className="text-xs text-stone-400">{record.type}</p>
+                  </div>
+                  <Badge tone={visit.date < date ? 'red' : 'clay'}>{formatDate(visit.date)}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+          {overdueVisits.length > 0 && (
+            <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
+              {overdueVisits.length} visit{overdueVisits.length > 1 ? 's' : ''} overdue
+            </p>
+          )}
+        </DepartmentBox>
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Section
-          title="Active Projects" className="xl:col-span-2"
-          actions={<Link to="/projects" className="text-sm font-semibold text-brand-700">View all</Link>}
+          title="My Consultations"
+          description={todaysConsultations.length ? `${todaysConsultations.length} today` : 'Nothing booked today'}
+          actions={<Link to="/consultations" className="text-sm font-semibold text-brand-700">Schedule</Link>}
         >
-          <Table head={['Project', 'Client', 'Type', 'Progress', 'Status']}>
-            {active.slice(0, 7).map((project) => (
-              <tr key={project.id} className="row-hover">
-                <td className="td">
-                  <Link to={`/projects/${project.id}`} className="font-medium text-stone-900 hover:text-brand-700">
-                    {project.name}
-                  </Link>
-                  <span className="block text-xs text-stone-400">{project.code}</span>
-                </td>
-                <td className="td">{clientName(project.clientId)}</td>
-                <td className="td"><Badge tone="stone">{projectType(project)}</Badge></td>
-                <td className="td"><ProgressSummary project={project} /></td>
-                <td className="td">
-                  {project.delayed
-                    ? <Badge tone="red">Delayed</Badge>
-                    : <StatusBadge status={project.status} />}
-                </td>
-              </tr>
-            ))}
-          </Table>
+          {consultations.length === 0 ? (
+            <EmptyState title="Your diary is clear." />
+          ) : (
+            <ul className="divide-y divide-stone-100">
+              {consultations.slice(0, 5).map((c) => (
+                <li key={c.id} className="px-5 py-3">
+                  <p className="text-xs font-semibold tabular-nums text-brand-700">
+                    {c.date === date ? 'Today' : formatDate(c.date)} · {formatTime(c.start)}
+                  </p>
+                  <p className="mt-0.5 text-sm font-medium text-stone-800">{c.purpose}</p>
+                  <p className="text-xs text-stone-400">
+                    {partyName(c, db.clients, db.leads)} · booked by {db.employees.find((e) => e.id === c.bookedBy)?.name}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </Section>
 
-        <div className="space-y-6">
-          <Section title="Lead Pipeline">
-            {openLeads.length === 0 ? (
-              <EmptyState title="No open leads." />
-            ) : (
-              <ul className="divide-y divide-stone-100">
-                {openLeads.slice(0, 5).map((lead) => (
-                  <li key={lead.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-stone-800">{lead.name}</p>
-                      <p className="truncate text-xs text-stone-400">{lead.location} · {lead.source}</p>
-                    </div>
-                    <StatusBadge status={lead.status} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
-
-          <Section title="Approvals Waiting">
-            {pendingRequests.length === 0 ? (
-              <EmptyState title="Nothing waiting on you." />
-            ) : (
-              <ul className="divide-y divide-stone-100">
-                {pendingRequests.map((request) => {
-                  const project = db.projects.find((p) => p.id === request.projectId)
-                  return (
-                    <li key={request.id} className="px-5 py-3">
+        <Section title="Approvals Waiting">
+          {pendingRequests.length === 0 && pendingReports.length === 0 ? (
+            <EmptyState title="Nothing waiting on you." />
+          ) : (
+            <ul className="divide-y divide-stone-100">
+              {pendingRequests.map((request) => {
+                const project = db.projects.find((p) => p.id === request.projectId)
+                return (
+                  <li key={request.id}>
+                    <Link to="/accounts/payment-requests" className="block px-5 py-3 hover:bg-stone-50">
                       <div className="flex items-center justify-between gap-3">
                         <p className="truncate text-sm font-medium text-stone-800">{project?.name}</p>
-                        <span className="shrink-0 text-sm font-semibold tabular-nums text-stone-900">
-                          {formatCurrency(request.amount)}
-                        </span>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums text-stone-900">{formatCurrency(request.amount)}</span>
                       </div>
-                      <p className="mt-0.5 text-xs text-stone-400">
-                        Payment request · {formatDate(request.date)}
-                      </p>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </Section>
-        </div>
-      </div>
-
-      <Section title="Progress by Project" className="mt-6">
-        <div className="grid gap-x-8 gap-y-5 px-5 py-5 md:grid-cols-2">
-          {active.map((project) => {
-            const progress = computeProgress(project)
-            return (
-              <div key={project.id}>
-                <div className="mb-1.5 flex items-baseline justify-between gap-3">
-                  <Link to={`/projects/${project.id}`} className="truncate text-sm font-medium text-stone-800 hover:text-brand-700">
-                    {project.name}
+                      <p className="mt-0.5 text-xs text-stone-400">Payment request · {formatDate(request.date)}</p>
+                    </Link>
+                  </li>
+                )
+              })}
+              {pendingReports.length > 0 && (
+                <li>
+                  <Link to="/execution/reports" className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-stone-50">
+                    <span className="text-sm font-medium text-stone-800">Daily reports to review</span>
+                    <Badge tone="amber">{pendingReports.length}</Badge>
                   </Link>
-                  <span className="shrink-0 text-sm font-bold tabular-nums text-brand-700">
-                    {progress.overall}%
-                  </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-stone-200">
-                  <div className="h-2 rounded-full bg-brand-500" style={{ width: `${progress.overall}%` }} />
-                </div>
-                <p className="mt-1 text-xs text-stone-400">{projectType(project)}</p>
-              </div>
-            )
-          })}
-        </div>
-      </Section>
+                </li>
+              )}
+            </ul>
+          )}
+        </Section>
+
+        <Section title="Lead Pipeline" actions={<Link to="/crm/leads" className="text-sm font-semibold text-brand-700">All leads</Link>}>
+          {openLeads.length === 0 ? (
+            <EmptyState title="No open leads." />
+          ) : (
+            <ul className="divide-y divide-stone-100">
+              {openLeads.slice(0, 5).map((lead) => (
+                <li key={lead.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-stone-800">{lead.name}</p>
+                    <p className="truncate text-xs text-stone-400">{lead.location} · {lead.source}</p>
+                  </div>
+                  <StatusBadge status={lead.status} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      </div>
     </div>
   )
 }

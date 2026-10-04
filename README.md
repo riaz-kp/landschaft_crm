@@ -59,6 +59,41 @@ A good demo path:
    Irrigation / Electrical / Drainage appear. The project detail then shows only
    the phases you selected.
 
+## Departments, clients and people
+
+Added after the client's first review of the prototype:
+
+- **AMC is its own department.** It has its own sidebar section (Contracts,
+  Visit Schedule, Renewals) instead of sitting under Execution. The old
+  `/execution/maintenance` link redirects to `/amc`. Nobody is assigned to the
+  AMC department yet. Move people in from Employee → Role in Company.
+- **CEO dashboard** shows Design, Execution and AMC as three separate boxes.
+  Below them are money owed, approvals and the CEO's own consultations.
+- **CEO Consultations** (`/consultations`) is visible to every role. Anyone can
+  book a slot on a Monday-to-Saturday, 9:00–18:00 diary. Clashes are refused.
+  Only the CEO's office can mark a consultation completed. The person who booked
+  it can cancel their own booking.
+- **Client details** (`/crm/clients/:id`) has these tabs:
+  - **Work History** draws one timeline from leads, site visits, tasks, daily
+    reports, AMC visits, payments and resolved clarifications.
+  - **Receivables & Follow-ups** shows balances, payment requests,
+    transactions and a payment follow-up log.
+  - **One tab per department** (Design, Execution, AMC, Accounts) holds that
+    department's client clarifications, attachments and internal team chat.
+- **Phone and WhatsApp are separate numbers.** A "same as phone" tick mirrors
+  the phone into WhatsApp. Clients and employees both use this.
+- **Employee details** (`/employees/:id`, or *My profile* in the role switcher)
+  has these tabs:
+  - **Profile**: photo, personal details and family details.
+  - **Works**: tasks, projects, reports, site visits and bookings.
+  - **Attendance**: a monthly calendar. Managers click a day to change it.
+  - **Role in Company**: role, department, reporting line, extra
+    responsibilities and system access.
+
+  Personal and family fields start blank in the seed. The names come from the
+  client's real org chart, so the prototype does not invent personal details
+  for them.
+
 ## What the document asked to keep configurable
 
 These live in **Settings** rather than being hard-coded:
@@ -83,7 +118,7 @@ appear nowhere. There is no client login — internal employees only.
 
 ```
 frontend/src/
-├── domain/       types, roles + permissions, progress calculation, formatting
+├── domain/       types, roles + permissions, progress, finance, consultations, formatting
 ├── api/          client.ts is the seam; mockAdapter.ts holds the behaviour
 ├── mock/         seeded data and the persisted store
 ├── shells/       AdminShell (desktop CRM) and FieldShell (foreman mobile)

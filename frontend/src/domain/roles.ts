@@ -78,6 +78,7 @@ export interface NavSection {
  */
 export const NAV: NavSection[] = [
   { label: 'Dashboard', path: '/dashboard', icon: 'grid' },
+  { label: 'CEO Consultations', path: '/consultations', icon: 'clock' },
   {
     label: 'CRM',
     icon: 'users',
@@ -124,7 +125,16 @@ export const NAV: NavSection[] = [
       { label: 'Softscape', path: '/execution/softscape' },
       { label: 'MEP', path: '/execution/mep' },
       { label: 'Daily Work Reports', path: '/execution/reports' },
-      { label: 'Maintenance', path: '/execution/maintenance' },
+    ],
+  },
+  {
+    // AMC is its own department, no longer a sub-page of Execution.
+    label: 'AMC',
+    icon: 'leaf',
+    children: [
+      { label: 'Contracts', path: '/amc' },
+      { label: 'Visit Schedule', path: '/amc/visits' },
+      { label: 'Renewals', path: '/amc/renewals' },
     ],
   },
   {
@@ -165,18 +175,22 @@ const SECTION_ACCESS: Record<RoleKey, string[] | '*'> = {
   design_pm: ['Dashboard', 'Projects', 'Tasks', 'Design', 'Documents', 'Calendar'],
   design_member: ['Dashboard', 'Projects', 'Tasks', 'Design', 'Documents'],
   execution_head: [
-    'Dashboard', 'Projects', 'Tasks', 'Execution', 'Employees', 'Documents', 'Calendar', 'Reports',
+    'Dashboard', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Documents', 'Calendar', 'Reports',
   ],
-  execution_pm: ['Dashboard', 'Projects', 'Tasks', 'Execution', 'Employees', 'Documents', 'Calendar'],
+  execution_pm: ['Dashboard', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Documents', 'Calendar'],
   foreman: [],
   accounts: ['Dashboard', 'CRM', 'Projects', 'Accounts', 'Documents', 'Reports'],
   marketing: ['Dashboard', 'CRM', 'Calendar'],
 }
 
+/** Sections every shell user can open — anyone may view and book the CEO's consultations. */
+const OPEN_TO_ALL = ['CEO Consultations']
+
 export function navForRole(role: RoleKey): NavSection[] {
   const allowed = SECTION_ACCESS[role]
   if (allowed === '*') return NAV
-  return NAV.filter((section) => allowed.includes(section.label))
+  if (role === 'foreman') return []
+  return NAV.filter((section) => allowed.includes(section.label) || OPEN_TO_ALL.includes(section.label))
 }
 
 export function canAccessPath(role: RoleKey, path: string): boolean {
@@ -197,4 +211,7 @@ export const can = {
     ['super_admin', 'ceo', 'design_director', 'execution_head'].includes(role),
   editSettings: (role: RoleKey) => ['super_admin', 'ceo'].includes(role),
   manageEmployees: (role: RoleKey) => ['super_admin', 'ceo', 'execution_head'].includes(role),
+  /** Everyone can book; only the CEO's office can mark a consultation done or cancel others' bookings. */
+  manageConsultations: (role: RoleKey) => ['super_admin', 'ceo'].includes(role),
+  manageAmc: (role: RoleKey) => ['super_admin', 'ceo', 'execution_head', 'execution_pm'].includes(role),
 }

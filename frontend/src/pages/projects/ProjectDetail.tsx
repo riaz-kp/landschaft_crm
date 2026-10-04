@@ -51,7 +51,7 @@ export function ProjectDetail() {
       ? [{ key: 'reports' as Tab, label: 'Daily Reports', count: reports.length }]
       : []),
     { key: 'accounts', label: 'Accounts' },
-    ...(maintenance.length ? [{ key: 'maintenance' as Tab, label: 'Maintenance' }] : []),
+    ...(maintenance.length ? [{ key: 'maintenance' as Tab, label: 'AMC' }] : []),
   ]
 
   return (
@@ -62,7 +62,7 @@ export function ProjectDetail() {
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{project.code}</span>
             <span className="text-stone-300">·</span>
-            <span>{client?.name}</span>
+            {client ? <Link to={`/crm/clients/${client.id}`} className="hover:text-brand-700">{client.name}</Link> : <span>—</span>}
             <span className="text-stone-300">·</span>
             <span><SiteName name={project.siteLocation} /></span>
           </span>
@@ -104,7 +104,9 @@ export function ProjectDetail() {
           <Section title="Project Information" className="lg:col-span-2">
             <dl className="grid gap-x-8 gap-y-4 px-5 py-5 sm:grid-cols-2">
               {[
-                ['Client', client?.name ?? '—'],
+                ['Client', client
+                  ? <Link key="c" to={`/crm/clients/${client.id}`} className="text-brand-700 hover:text-brand-800">{client.name}</Link>
+                  : '—'],
                 ['Site Location', <SiteName key="s" name={project.siteLocation} />],
                 ['Project Manager', manager?.name ?? '—'],
                 ['Project Type', projectType(project)],
