@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { api } from '../../api/client'
+import { usePermissions } from '../../state/permissions'
 import { useDb } from '../../state/useDb'
 import { receivable } from '../../domain/finance'
 import { formatCurrency, formatDate, whatsappUrl } from '../../domain/format'
 import { CLIENT_DEPARTMENTS, type ClientDepartment } from '../../domain/types'
-import { PageHeader, Section, EmptyState, StatTile, Tabs, StatusBadge } from '../../components/ui'
+import { PageHeader, Section, EmptyState, StatTile, Tabs, StatusBadge, ConfirmDialog } from '../../components/ui'
 import { ContactNumbers } from '../../components/ContactFields'
 import { Icon } from '../../components/Icon'
 import { ClientFormModal } from './ClientForm'
@@ -19,6 +21,9 @@ export function ClientDetail() {
   const db = useDb()
   const [tab, setTab] = useState<Tab>('history')
   const [editing, setEditing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const { can } = usePermissions()
+  const navigate = useNavigate()
 
   const client = db.clients.find((c) => c.id === clientId)
   if (!client) {
@@ -54,7 +59,8 @@ export function ClientDetail() {
           <a href={whatsappUrl(client.whatsapp || client.phone)} target="_blank" rel="noreferrer" className="btn-secondary">
             <Icon name="chat" className="h-4 w-4 text-brand-600" /> WhatsApp
           </a>
-          <button onClick={() => setEditing(true)} className="btn-secondary">Edit</button>
+          {can('CRM', 'edit') && <button onClick={() => setEditing(true)} className="btn-secondary"><Icon name="edit" className="h-4 w-4" /> Edit</button>}
+          {can('CRM', 'delete') && <button onClick={() => setDeleting(true)} className="btn-danger"><Icon name="trash" className="h-4 w-4" /> Delete</button>}
         </>}
       />
 
@@ -107,6 +113,15 @@ export function ClientDetail() {
       </Link>
 
       {editing && <ClientFormModal client={client} onClose={() => setEditing(false)} />}
+      {deleting && (
+        <ConfirmDialog
+          title={`Delete ${client.name}?`}
+          onClose={() => setDeleting(false)}
+          onConfirm={() => { api.clients.remove(client.id); navigate('/crm/clients') }}
+          blocked={projects.length ? `${client.name} has ${projects.length} project(s). A client with projects cannot be deleted.` : undefined}
+          message="The client record, its clarifications, team chat and payment follow-ups are removed. The original lead stays."
+        />
+      )}
     </div>
   )
 }

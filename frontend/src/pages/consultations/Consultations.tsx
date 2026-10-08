@@ -10,7 +10,7 @@ import {
 } from '../../domain/consultations'
 import type { Consultation } from '../../domain/types'
 import {
-  PageHeader, Section, EmptyState, Badge, StatusBadge, StatTile, Modal, Field,
+  PageHeader, Section, EmptyState, Badge, StatusBadge, StatTile, Modal, Field, FormError,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 
@@ -80,7 +80,7 @@ export function Consultations() {
         <StatTile label="Today" value={todays.length} sub={todays[0] ? `Next at ${formatTime(todays[0].start)}` : 'Nothing booked'} />
         <StatTile label="This Week" value={thisWeek.length} />
         <StatTile label="Week Booked" value={`${Math.round((bookedMinutes / capacity) * 100)}%`} sub={`${Math.round(bookedMinutes / 60)}h of consultation hours`} />
-        <StatTile label="Upcoming" value={upcoming.length} tone="blue" />
+        <StatTile label="Upcoming" value={upcoming.length} tone="blue" sub={`${upcoming.filter((c) => c.postponements?.length).length} postponed`} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-4">
@@ -145,7 +145,7 @@ export function Consultations() {
                         >
                           <span className="block font-semibold tabular-nums">{c.start}–{endOf(c)}</span>
                           <span className="block truncate">{c.purpose}</span>
-                          <span className="block truncate opacity-70">{name(c)}</span>
+                          <span className="block truncate opacity-70">{c.postponements?.length ? "↻ " : ""}{name(c)}</span>
                         </button>
                       ))}
                     </div>
@@ -174,6 +174,7 @@ export function Consultations() {
                       </p>
                       <p className="mt-0.5 text-sm font-medium text-stone-800">{c.purpose}</p>
                       <p className="text-xs text-stone-400">{name(c)} · {c.mode} · booked by {staffName(c.bookedBy)}</p>
+                      {c.postponements?.length ? <span className="mt-1 inline-block"><Badge tone="violet">Postponed from {formatDate(c.postponements[0].fromDate)}</Badge></span> : null}
                     </button>
                   </li>
                 ))}
@@ -342,21 +343,33 @@ function DetailsModal({
   consultation: c, canManage, isBooker, onClose,
 }: { consultation: Consultation; canManage: boolean; isBooker: boolean; onClose: () => void }) {
   const db = useDb()
+  const { user } = useSession()
   const [notes, setNotes] = useState(c.notes ?? '')
+  const [postponing, setPostponing] = useState(false)
   const scheduled = c.status === 'Scheduled'
+  const canChange = scheduled && (canManage || isBooker)
 
   const finish = (status: Consultation['status']) => {
     api.consultations.setStatus(c.id, status, notes.trim() || undefined)
     onClose()
   }
 
+  if (postponing) {
+    return <PostponeModal consultation={c} byId={user.id} onClose={() => setPostponing(false)} onDone={onClose} />
+  }
+
+  const staffName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
+
   return (
     <Modal
       title={c.purpose}
       onClose={onClose}
-      footer={scheduled && (canManage || isBooker) ? <>
-        <button onClick={() => finish('Cancelled')} className="btn-danger">
+      footer={canChange ? <>
+        <button onClick={() => finish('Cancelled')} className="btn-danger mr-auto">
           {canManage ? 'Cancel consultation' : 'Cancel my booking'}
+        </button>
+        <button onClick={() => setPostponing(true)} className="btn-secondary">
+          <Icon name="postpone" className="h-4 w-4" /> Postpone
         </button>
         {canManage && <button onClick={() => finish('Completed')} className="btn-primary">Mark completed</button>}
       </> : undefined}
@@ -366,7 +379,7 @@ function DetailsModal({
           ['When', `${formatDateLong(c.date)} · ${formatTime(c.start)}–${formatTime(endOf(c))}`],
           ['With', partyName(c, db.clients, db.leads)],
           ['Where', c.mode],
-          ['Booked by', db.employees.find((e) => e.id === c.bookedBy)?.name ?? '—'],
+          ['Booked by', staffName(c.bookedBy)],
         ].map(([label, value]) => (
           <div key={label}>
             <dt className="label">{label}</dt>
@@ -375,9 +388,31 @@ function DetailsModal({
         ))}
         <div>
           <dt className="label">Status</dt>
-          <dd className="mt-1"><StatusBadge status={c.status} /></dd>
+          <dd className="mt-1 flex gap-1.5">
+            <StatusBadge status={c.status} />
+            {c.postponements?.length ? <Badge tone="violet">Postponed ×{c.postponements.length}</Badge> : null}
+          </dd>
         </div>
       </dl>
+
+      {c.postponements?.length ? (
+        <div className="mt-4 rounded-xl bg-violet-50/60 p-3">
+          <p className="label mb-2 text-violet-700">Postponement history</p>
+          <ol className="space-y-2">
+            {c.postponements.map((p, i) => (
+              <li key={i} className="text-sm text-stone-700">
+                <span className="tabular-nums text-stone-500 line-through">{formatDate(p.fromDate)} {formatTime(p.fromStart)}</span>
+                {' → '}
+                <span className="font-medium tabular-nums">{formatDate(p.toDate)} {formatTime(p.toStart)}</span>
+                <span className="block text-xs text-stone-500">
+                  {p.reason} — {staffName(p.by)}, {formatDate(p.at.slice(0, 10))}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+
       <div className="mt-4">
         {scheduled && canManage ? (
           <Field label="Notes">
@@ -393,6 +428,88 @@ function DetailsModal({
       {scheduled && !canManage && !isBooker && (
         <p className="mt-4"><Badge tone="stone">Only the CEO's office or the person who booked can change this.</Badge></p>
       )}
+    </Modal>
+  )
+}
+
+/** Moves a consultation to another free slot, keeping a note of why. */
+function PostponeModal({
+  consultation: c, byId, onClose, onDone,
+}: { consultation: Consultation; byId: string; onClose: () => void; onDone: () => void }) {
+  const db = useDb()
+  const firstDay = (() => {
+    let d = c.date < today() ? today() : addDays(c.date, 1)
+    if (isSunday(d)) d = addDays(d, 1)
+    return d
+  })()
+  const [date, setDate] = useState(firstDay)
+  const [start, setStart] = useState(() => firstFreeSlot(db.consultations.filter((x) => x.id !== c.id), firstDay, c.durationMins) ?? c.start)
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const clash = findClash(db.consultations, date, start, c.durationMins, c.id)
+  const overruns = toMinutes(start) + c.durationMins > DAY_END
+  const free = slotTimes().filter((t) => toMinutes(t) + c.durationMins <= DAY_END && !findClash(db.consultations, date, t, c.durationMins, c.id))
+
+  const save = () => {
+    if (date < today()) return setError('Pick today or a later date.')
+    if (isSunday(date)) return setError('Sunday is the weekly off — pick another day.')
+    if (date === c.date && start === c.start) return setError('Pick a different date or time.')
+    if (overruns) return setError('That runs past 6:00 PM. Pick an earlier time.')
+    if (clash) return setError(`Clashes with "${clash.purpose}" (${clash.start}–${endOf(clash)}).`)
+    if (!reason.trim()) return setError('Say why it is being postponed — the other side will ask.')
+    api.consultations.postpone(c.id, date, start, reason.trim(), byId)
+    onDone()
+  }
+
+  return (
+    <Modal
+      title="Postpone consultation"
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="btn-secondary">Back</button>
+        <button onClick={save} className="btn-primary"><Icon name="postpone" className="h-4 w-4" /> Postpone</button>
+      </>}
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl bg-stone-50 p-3 text-sm">
+          <p className="font-medium text-stone-900">{c.purpose}</p>
+          <p className="mt-0.5 text-stone-500">
+            Currently {formatDateLong(c.date)} · {formatTime(c.start)}–{formatTime(endOf(c))} · {c.durationMins} min
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="New date" required>
+            <input
+              type="date" min={today()} className="input" value={date}
+              onChange={(e) => {
+                const d = e.target.value
+                setDate(d)
+                setError(null)
+                const slot = firstFreeSlot(db.consultations.filter((x) => x.id !== c.id), d, c.durationMins)
+                if (slot) setStart(slot)
+              }}
+            />
+          </Field>
+          <Field label="New start" required>
+            <select className="input" value={start} onChange={(e) => { setStart(e.target.value); setError(null) }}>
+              {slotTimes().map((t) => (
+                <option key={t} value={t} disabled={!free.includes(t)}>
+                  {formatTime(t)}{free.includes(t) ? '' : ' — taken'}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        {isSunday(date) && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">Sunday is the weekly off.</p>}
+        {!isSunday(date) && free.length === 0 && (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">That day is fully booked — try another day.</p>
+        )}
+        <Field label="Reason" required>
+          <textarea rows={2} className="input" value={reason} placeholder="e.g. Client travelling — asked to move to next week" onChange={(e) => { setReason(e.target.value); setError(null) }} />
+        </Field>
+        <FormError message={error} />
+      </div>
     </Modal>
   )
 }

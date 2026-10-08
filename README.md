@@ -94,6 +94,42 @@ Added after the client's first review of the prototype:
   client's real org chart, so the prototype does not invent personal details
   for them.
 
+## Second review round
+
+- **Sidebar shows main sections only.** Sub-pages (Leads / Clients / Site Visits,
+  Concept / 3D / Civil / BOQ, and so on) appear as tabs at the top of each section.
+- **Roles & Permissions** in Settings: tick View / Create / Edit / Delete per
+  module for each role. View controls the sidebar and blocks the URL; the other
+  three control which buttons appear. Super Admin is always full; foremen stay
+  in the field app.
+- **Create, edit and delete** for employees, execution workers, clients, leads,
+  site visits, tasks and BOQs / quotations, with a confirm step before deleting.
+- **Tasks** gain an *All Tasks* view, a time filter (today, this week, this
+  month, overdue, custom range) plus project / assignee / priority filters, and
+  drag-and-drop on the Task Board.
+- **Site photos twice a day.** The foreman's report has separate Morning and
+  Evening photo sections; when photos are mandatory, both are required.
+- **Gallery** (`/gallery`) shows every project's daily photos in one window,
+  filtered by project, day or date range, and session. Each project also has a
+  *Site Photos* tab.
+- **Execution worker detail pages** (`/employees/workers/:id`) cover profile,
+  day rate, attendance calendar, sites worked, work history and AMC visits.
+- **Attendance** is one register for employees and workers: mark P / H / L / A
+  with time in, time out and overtime for the day; a month grid with totals;
+  click a date to make it a holiday. Workers fill in from the daily reports.
+- **Anees** carries the designation *Co-Founder & Design Director*. Any
+  employee can be given a designation.
+- **Calendar** has tick-box filters per event type and an "only mine" option.
+- **CEO consultations** can be postponed to a free slot with a reason; the
+  history is kept.
+- **BOQ & Quotation** follow the project type: Design only → BOQ, Execution
+  only → Quotation, Design + Execution → both. Each project has a checklist tab.
+- **Map location** on project creation (OpenStreetMap; search, click or use
+  the device location). The project page shows the pin and a Google Maps link.
+
+The data version moved to v3, so earlier browser data is replaced by the new
+seed on first load.
+
 ## What the document asked to keep configurable
 
 These live in **Settings** rather than being hard-coded:

@@ -88,3 +88,9 @@ export function initials(name: string): string {
 export function whatsappUrl(number: string): string {
   return `https://wa.me/${number.replace(/\D/g, '')}`
 }
+
+/** The current local time as HH:mm. */
+export function currentTime(): string {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}

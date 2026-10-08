@@ -1,10 +1,22 @@
 import { nextId, nowTime, store } from '../mock/store'
 import { addDays, today } from '../domain/format'
 import type {
-  ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, ID, Lead,
-  PaymentFollowUp, Project, Settings, SiteVisit, Task,
+  ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, Employee, ID,
+  Lead, PaymentFollowUp, Project, Quotation, Settings, SiteVisit, Task, Worker,
 } from '../domain/types'
 import type { Api, NewProjectInput } from './client'
+
+type WithId = { id: ID }
+
+function patchIn<T extends WithId>(list: T[], id: ID, patch: Partial<Omit<T, 'id'>>) {
+  const record = list.find((x) => x.id === id)
+  if (record) Object.assign(record, patch)
+}
+
+function removeFrom<T extends WithId>(list: T[], id: ID) {
+  const index = list.findIndex((x) => x.id === id)
+  if (index >= 0) list.splice(index, 1)
+}
 
 /** A blank issue line, or the literal "Nothing", raises no alert. */
 function isRealIssue(text: string): boolean {
@@ -58,11 +70,25 @@ export const adapter: Api = {
         },
         value: input.value,
         delayed: false,
+        siteCoords: input.siteCoords,
+        checklist: {},
       }
       store.update((db) => {
         db.projects.push(project)
       })
       return project
+    },
+
+    update(projectId, patch) {
+      store.update((db) => patchIn(db.projects, projectId, patch))
+    },
+
+    setChecklist(projectId, itemId, done, by) {
+      store.update((db) => {
+        const project = db.projects.find((p) => p.id === projectId)
+        if (!project) return
+        project.checklist = { ...project.checklist, [itemId]: done ? { done, by, on: today() } : { done } }
+      })
     },
 
     setPhaseProgress(projectId, phaseKey, progress) {
@@ -198,6 +224,24 @@ export const adapter: Api = {
   },
 
   leads: {
+    create(input): Lead {
+      const lead: Lead = { ...input, id: nextId('l'), createdAt: today() }
+      store.update((db) => {
+        db.leads.unshift(lead)
+      })
+      return lead
+    },
+    update(leadId, patch) {
+      store.update((db) => patchIn(db.leads, leadId, patch))
+    },
+    remove(leadId) {
+      store.update((db) => {
+        removeFrom(db.leads, leadId)
+        // Visits booked against the lead go with it; a converted client stays.
+        db.siteVisits = db.siteVisits.filter((v) => v.leadId !== leadId)
+      })
+    },
+
     setStatus(leadId, status) {
       store.update((db) => {
         const lead = db.leads.find((l) => l.id === leadId)
@@ -239,9 +283,17 @@ export const adapter: Api = {
       return client
     },
     update(clientId, patch) {
+      store.update((db) => patchIn(db.clients, clientId, patch))
+    },
+    /** Callers block this while the client still has projects. */
+    remove(clientId) {
       store.update((db) => {
-        const client = db.clients.find((c) => c.id === clientId)
-        if (client) Object.assign(client, patch)
+        removeFrom(db.clients, clientId)
+        for (const lead of db.leads) if (lead.clientId === clientId) lead.clientId = undefined
+        db.clarifications = db.clarifications.filter((c) => c.clientId !== clientId)
+        db.chatMessages = db.chatMessages.filter((c) => c.clientId !== clientId)
+        db.followUps = db.followUps.filter((f) => f.clientId !== clientId)
+        db.siteVisits = db.siteVisits.filter((v) => v.clientId !== clientId)
       })
     },
   },
@@ -297,24 +349,74 @@ export const adapter: Api = {
   },
 
   employees: {
-    update(employeeId, patch) {
+    create(input): Employee {
+      const employee: Employee = { ...input, id: nextId('e') }
       store.update((db) => {
-        const employee = db.employees.find((e) => e.id === employeeId)
-        if (employee) Object.assign(employee, patch)
+        db.employees.push(employee)
+      })
+      return employee
+    },
+    update(employeeId, patch) {
+      store.update((db) => patchIn(db.employees, employeeId, patch))
+    },
+    remove(employeeId) {
+      store.update((db) => {
+        // Their direct reports move up to whoever they reported to.
+        const leaving = db.employees.find((e) => e.id === employeeId)
+        removeFrom(db.employees, employeeId)
+        for (const e of db.employees) if (e.reportsTo === employeeId) e.reportsTo = leaving?.reportsTo
+        db.attendance = db.attendance.filter((a) => !(a.kind === 'employee' && a.personId === employeeId))
+        db.siteAssignments = db.siteAssignments.filter((a) => a.foremanId !== employeeId)
       })
     },
-    setAttendance(employeeId, date, status) {
+  },
+
+  workers: {
+    create(input): Worker {
+      const worker: Worker = { ...input, id: nextId('w') }
       store.update((db) => {
-        const index = db.staffAttendance.findIndex((a) => a.employeeId === employeeId && a.date === date)
-        if (status === null) {
-          if (index >= 0) db.staffAttendance.splice(index, 1)
+        db.workers.push(worker)
+      })
+      return worker
+    },
+    update(workerId, patch) {
+      store.update((db) => patchIn(db.workers, workerId, patch))
+    },
+    /** Past reports keep the worker's lines; they simply show the id. Deactivate to keep history readable. */
+    remove(workerId) {
+      store.update((db) => {
+        removeFrom(db.workers, workerId)
+        db.attendance = db.attendance.filter((a) => !(a.kind === 'worker' && a.personId === workerId))
+      })
+    },
+  },
+
+  attendance: {
+    set(kind, personId, date, patch) {
+      store.update((db) => {
+        const index = db.attendance.findIndex((a) => a.kind === kind && a.personId === personId && a.date === date)
+        if (patch === null) {
+          if (index >= 0) db.attendance.splice(index, 1)
           return
         }
-        const checkIn = status === 'Present' || status === 'Half Day' ? '09:00' : undefined
-        const checkOut = status === 'Present' ? '18:00' : status === 'Half Day' ? '13:30' : undefined
-        const entry = { employeeId, date, status, checkIn, checkOut }
-        if (index >= 0) db.staffAttendance[index] = entry
-        else db.staffAttendance.push(entry)
+        const existing = index >= 0 ? db.attendance[index] : undefined
+        const status = patch.status ?? existing?.status ?? 'Present'
+        const working = status === 'Present' || status === 'Half Day'
+        const entry = {
+          kind, personId, date, status,
+          // Marking someone in notes the time as their time in; leave and absence clear the times.
+          checkIn: working ? (patch.checkIn ?? existing?.checkIn ?? (date === today() ? nowTime() : '09:00')) : undefined,
+          checkOut: working ? (patch.checkOut ?? existing?.checkOut) : undefined,
+          otHours: working ? (patch.otHours ?? existing?.otHours) : undefined,
+        }
+        if (index >= 0) db.attendance[index] = entry
+        else db.attendance.push(entry)
+      })
+    },
+    setHoliday(date, off) {
+      store.update((db) => {
+        const rest = db.settings.holidays.filter((d) => d !== date)
+        db.settings.holidays = off ? [...rest, date].sort() : rest
       })
     },
   },
@@ -333,6 +435,18 @@ export const adapter: Api = {
         if (!record) return
         record.status = status
         if (notes !== undefined) record.notes = notes
+      })
+    },
+    postpone(consultationId, date, start, reason, by) {
+      store.update((db) => {
+        const record = db.consultations.find((c) => c.id === consultationId)
+        if (!record) return
+        record.postponements = [
+          ...(record.postponements ?? []),
+          { fromDate: record.date, fromStart: record.start, toDate: date, toStart: start, reason, by, at: `${today()}T${nowTime()}` },
+        ]
+        record.date = date
+        record.start = start
       })
     },
   },
@@ -363,6 +477,31 @@ export const adapter: Api = {
       })
       return record
     },
+    update(visitId, patch) {
+      store.update((db) => patchIn(db.siteVisits, visitId, patch))
+    },
+    remove(visitId) {
+      store.update((db) => removeFrom(db.siteVisits, visitId))
+    },
+  },
+
+  quotations: {
+    create(input): Quotation {
+      const year = input.date.slice(0, 4)
+      const prefix = input.kind === 'BOQ' ? 'BOQ' : 'QT'
+      const seq = store.db.quotations.filter((q) => q.number.startsWith(`${prefix}-${year}`)).length + 31
+      const record: Quotation = { ...input, id: nextId('q'), number: `${prefix}-${year}-${String(seq).padStart(3, '0')}` }
+      store.update((db) => {
+        db.quotations.unshift(record)
+      })
+      return record
+    },
+    update(quotationId, patch) {
+      store.update((db) => patchIn(db.quotations, quotationId, patch))
+    },
+    remove(quotationId) {
+      store.update((db) => removeFrom(db.quotations, quotationId))
+    },
   },
 
   tasks: {
@@ -378,6 +517,12 @@ export const adapter: Api = {
         db.tasks.push(record)
       })
       return record
+    },
+    update(taskId, patch) {
+      store.update((db) => patchIn(db.tasks, taskId, patch))
+    },
+    remove(taskId) {
+      store.update((db) => removeFrom(db.tasks, taskId))
     },
   },
 

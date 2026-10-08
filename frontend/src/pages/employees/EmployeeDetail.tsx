@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
-import { ROLES, can, navForRole } from '../../domain/roles'
+import { ROLES, titleOf } from '../../domain/roles'
+import { usePermissions } from '../../state/permissions'
 import { daysBetween, formatDateLong, today } from '../../domain/format'
 import { BLOOD_GROUPS, DEPARTMENTS, type Department, type Employee } from '../../domain/types'
 import {
-  PageHeader, Section, EmptyState, Avatar, Badge, DepartmentBadge, Tabs, Field, ProgressBar,
+  PageHeader, Section, EmptyState, Avatar, DepartmentBadge, Tabs, Field, ProgressBar, ConfirmDialog,
 } from '../../components/ui'
 import { ContactNumbers, PhoneWhatsAppFields } from '../../components/ContactFields'
 import { RepeaterList } from '../../components/RepeaterList'
@@ -16,6 +17,7 @@ import { resizeImage } from '../../components/imageResize'
 import { NoAccess } from '../misc/Fallbacks'
 import { EmployeeWorks } from './EmployeeWorks'
 import { EmployeeAttendance } from './EmployeeAttendance'
+import { EmployeeFormModal } from './EmployeeForm'
 
 type Tab = 'profile' | 'works' | 'attendance' | 'role'
 
@@ -58,8 +60,12 @@ function span(from: string, to: string): string {
 export function EmployeeDetail() {
   const { employeeId = '' } = useParams()
   const db = useDb()
-  const { user, roleKey } = useSession()
+  const { user } = useSession()
+  const { can, canView: canOpen } = usePermissions()
+  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('profile')
+  const [editing, setEditing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const employee = db.employees.find((e) => e.id === employeeId)
   if (!employee) {
@@ -68,11 +74,11 @@ export function EmployeeDetail() {
 
   // Personal and family details are sensitive: Employees-section roles, or the person themself.
   const isSelf = employee.id === user.id
-  const canView = isSelf || navForRole(roleKey).some((s) => s.label === 'Employees')
+  const canView = isSelf || canOpen('Employees')
   if (!canView) return <NoAccess />
 
-  const canEditPersonal = isSelf || can.manageEmployees(roleKey)
-  const canEditOrg = can.manageEmployees(roleKey)
+  const canEditPersonal = isSelf || can('Employees', 'edit')
+  const canEditOrg = can('Employees', 'edit')
   const filled = [...PERSONAL, ...FAMILY].filter((f) => employee[f.key]?.trim()).length
   const total = PERSONAL.length + FAMILY.length
 
@@ -80,8 +86,32 @@ export function EmployeeDetail() {
     <div>
       <PageHeader
         title={employee.name}
-        subtitle={<span className="flex flex-wrap items-center gap-2">{ROLES[employee.role].title} <DepartmentBadge department={employee.department} /></span>}
+        subtitle={<span className="flex flex-wrap items-center gap-2">{titleOf(employee)} <DepartmentBadge department={employee.department} /></span>}
+        actions={<>
+          {canEditOrg && (
+            <button onClick={() => setEditing(true)} className="btn-secondary">
+              <Icon name="edit" className="h-4 w-4" /> Edit
+            </button>
+          )}
+          {can('Employees', 'delete') && !isSelf && employee.role !== 'super_admin' && (
+            <button onClick={() => setDeleting(true)} className="btn-danger">
+              <Icon name="trash" className="h-4 w-4" /> Delete
+            </button>
+          )}
+        </>}
       />
+      {editing && <EmployeeFormModal employee={employee} onClose={() => setEditing(false)} />}
+      {deleting && (
+        <ConfirmDialog
+          title={`Delete ${employee.name}?`}
+          onClose={() => setDeleting(false)}
+          onConfirm={() => { api.employees.remove(employee.id); navigate('/employees') }}
+          blocked={db.projects.some((p) => p.projectManagerId === employee.id)
+            ? `${employee.name} manages ${db.projects.filter((p) => p.projectManagerId === employee.id).length} project(s). Reassign them to another manager first.`
+            : undefined}
+          message="This removes their login, profile and attendance. Their tasks stay on the projects without an assignee."
+        />
+      )}
 
       {/* Keyed by id so per-person state resets when moving between profiles. */}
       <ProfileHeader key={`h-${employee.id}`} employee={employee} canEdit={canEditPersonal} filled={filled} total={total} />
@@ -99,7 +129,7 @@ export function EmployeeDetail() {
 
       {tab === 'profile' && <ProfileDetails key={employee.id} employee={employee} canEdit={canEditPersonal} />}
       {tab === 'works' && <EmployeeWorks key={employee.id} employee={employee} />}
-      {tab === 'attendance' && <EmployeeAttendance key={employee.id} employee={employee} canEdit={can.manageEmployees(roleKey)} />}
+      {tab === 'attendance' && <EmployeeAttendance key={employee.id} employee={employee} canEdit={can('Employees', 'edit')} />}
       {tab === 'role' && <RoleInCompany key={employee.id} employee={employee} canEdit={canEditOrg} />}
 
       <Link to="/employees" className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-stone-500 hover:text-stone-800">
@@ -305,7 +335,6 @@ function RoleInCompany({ employee, canEdit }: { employee: Employee; canEdit: boo
   const db = useDb()
   const role = ROLES[employee.role]
   const reports = db.employees.filter((e) => e.reportsTo === employee.id)
-  const sections = navForRole(employee.role)
   const [responsibilities, setResponsibilities] = useState<string[]>(employee.responsibilities?.length ? employee.responsibilities : [''])
   const [saved, setSaved] = useState(false)
 
@@ -318,6 +347,23 @@ function RoleInCompany({ employee, canEdit }: { employee: Employee; canEdit: boo
               <dt className="label">System Role</dt>
               <dd className="mt-1 text-sm font-semibold text-stone-900">{role.title}</dd>
               <dd className="mt-0.5 text-sm text-stone-600">{role.remit}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="label">Designation</dt>
+              <dd className="mt-1">
+                {canEdit ? (
+                  <input
+                    className="input" defaultValue={employee.designation ?? ''} placeholder={role.title}
+                    onBlur={(e) => api.employees.update(employee.id, { designation: e.target.value.trim() || undefined })}
+                    aria-label="Designation"
+                  />
+                ) : (
+                  <span className="text-sm font-medium text-stone-800">{titleOf(employee)}</span>
+                )}
+                <span className="mt-1 block text-xs text-stone-400">
+                  Shown on the profile and in lists instead of the role title — e.g. Co-Founder.
+                </span>
+              </dd>
             </div>
             <div>
               <dt className="label">Department</dt>
@@ -342,7 +388,7 @@ function RoleInCompany({ employee, canEdit }: { employee: Employee; canEdit: boo
                   >
                     <option value="">No one</option>
                     {db.employees.filter((e) => e.id !== employee.id).map((e) => (
-                      <option key={e.id} value={e.id}>{e.name} — {ROLES[e.role].title}</option>
+                      <option key={e.id} value={e.id}>{e.name} — {titleOf(e)}</option>
                     ))}
                   </select>
                 ) : db.employees.find((e) => e.id === employee.reportsTo)?.name ?? '—'}
@@ -400,7 +446,7 @@ function RoleInCompany({ employee, canEdit }: { employee: Employee; canEdit: boo
                     <Avatar name={r.name} size="sm" src={r.photo} />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium text-stone-800">{r.name}</span>
-                      <span className="block truncate text-xs text-stone-500">{ROLES[r.role].title}</span>
+                      <span className="block truncate text-xs text-stone-500">{titleOf(r)}</span>
                     </span>
                   </Link>
                 </li>
@@ -409,13 +455,6 @@ function RoleInCompany({ employee, canEdit }: { employee: Employee; canEdit: boo
           )}
         </Section>
 
-        <Section title="System Access">
-          <div className="flex flex-wrap gap-1.5 px-5 py-4">
-            {employee.role === 'foreman'
-              ? <Badge tone="clay">Field app only — My Sites and Daily Work Report</Badge>
-              : sections.map((s) => <Badge key={s.label} tone="stone">{s.label}</Badge>)}
-          </div>
-        </Section>
       </div>
     </div>
   )

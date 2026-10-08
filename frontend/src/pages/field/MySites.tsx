@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatDateLong, today } from '../../domain/format'
+import { PHOTO_SESSIONS } from '../../domain/types'
 import { SiteName, StatusBadge } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { FieldCard } from '../../shells/FieldShell'
@@ -50,6 +51,22 @@ export function MySites() {
                   )}
                   <Icon name="chevron" className="h-5 w-5 text-stone-300" />
                 </div>
+              </div>
+              <div className="mt-3 flex gap-2">
+                {PHOTO_SESSIONS.map((session) => {
+                  const done = report?.photos.some((p) => p.session === session)
+                  return (
+                    <span
+                      key={session}
+                      className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                        done ? 'bg-brand-50 text-brand-700' : 'bg-stone-100 text-stone-500'
+                      }`}
+                    >
+                      <Icon name={done ? 'check' : session === 'Morning' ? 'sun' : 'moon'} className="h-3.5 w-3.5" />
+                      {session} photo{done ? '' : ' due'}
+                    </span>
+                  )
+                })}
               </div>
               {report?.status === 'Sent Back' && report.reviewNote && (
                 <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">

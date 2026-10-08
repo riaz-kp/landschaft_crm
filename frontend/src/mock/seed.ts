@@ -1,10 +1,14 @@
 import { addDays, today } from '../domain/format'
+import { defaultPermissions } from '../domain/roles'
 import type {
-  CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
+  AttendanceEntry, CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
   DocumentRecord, Employee, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
-  PaymentRequest, Phase, Project, Quotation, Settings, SiteAssignment, SiteVisit,
-  StaffAttendance, StaffAttendanceStatus, Task, Worker,
+  PaymentRequest, Phase, PhotoSession, Project, Quotation, ReportPhoto, Settings, SiteAssignment,
+  SiteVisit, StaffAttendanceStatus, Task, Worker,
 } from '../domain/types'
+import { placeholderSitePhoto } from './photos'
+import { CHECKLISTS } from '../domain/commercial'
+import type { ChecklistTick } from '../domain/types'
 
 const phase = (enabled: boolean, progress = 0): Phase => ({ enabled, progress })
 
@@ -12,7 +16,7 @@ const phase = (enabled: boolean, progress = 0): Phase => ({ enabled, progress })
 export const employees: Employee[] = [
   { id: 'e0', name: 'System Administrator', role: 'super_admin', department: 'Management', phone: '+91 90000 00000', email: 'admin@landschaft.in' },
   { id: 'e1', name: 'Ashfaq', role: 'ceo', department: 'Management', phone: '+91 98470 11001', email: 'ashfaq@landschaft.in' },
-  { id: 'e2', name: 'Anees', role: 'design_director', department: 'Design', reportsTo: 'e1', phone: '+91 98470 11002', email: 'anees@landschaft.in' },
+  { id: 'e2', name: 'Anees', role: 'design_director', designation: 'Co-Founder & Design Director', department: 'Design', reportsTo: 'e1', phone: '+91 98470 11002', email: 'anees@landschaft.in' },
   { id: 'e3', name: 'Sai Krishna', role: 'design_pm', department: 'Design', reportsTo: 'e2', phone: '+91 98470 11003', email: 'saikrishna@landschaft.in' },
   { id: 'e4', name: 'Mustafa', role: 'design_member', department: 'Design', reportsTo: 'e3', phone: '+91 98470 11004', email: 'mustafa@landschaft.in' },
   { id: 'e5', name: 'Nihal', role: 'design_member', department: 'Design', reportsTo: 'e3', phone: '+91 98470 11005', email: 'nihal@landschaft.in' },
@@ -29,19 +33,30 @@ export const employees: Employee[] = [
 
 /** Site labour. Workers are recorded by foremen and do not log in. */
 export const workers: Worker[] = [
-  { id: 'w1', name: 'Ashiq', skill: 'Foreman / Planting', phone: '+91 97450 20001', active: true },
-  { id: 'w2', name: 'Niyas', skill: 'Foreman / Hardscape', phone: '+91 97450 20002', active: true },
-  { id: 'w3', name: 'Shihab', skill: 'Foreman / Lawn', phone: '+91 97450 20003', active: true },
-  { id: 'w4', name: 'Junaid', skill: 'Mason', phone: '+91 97450 20004', active: true },
-  { id: 'w5', name: 'Rafeeq', skill: 'Mason', phone: '+91 97450 20005', active: true },
-  { id: 'w6', name: 'Sabu', skill: 'Gardener', phone: '+91 97450 20006', active: true },
-  { id: 'w7', name: 'Manoj', skill: 'Gardener', phone: '+91 97450 20007', active: true },
-  { id: 'w8', name: 'Vinod', skill: 'Helper', phone: '+91 97450 20008', active: true },
-  { id: 'w9', name: 'Salim', skill: 'Plumber / Irrigation', phone: '+91 97450 20009', active: true },
-  { id: 'w10', name: 'Faisal', skill: 'Electrician', phone: '+91 97450 20010', active: true },
-  { id: 'w11', name: 'Anand', skill: 'Helper', phone: '+91 97450 20011', active: true },
-  { id: 'w12', name: 'Basheer', skill: 'Driver / Helper', phone: '+91 97450 20012', active: false },
+  { id: 'w1', name: 'Ashiq', skill: 'Foreman / Planting', phone: '+91 97450 20001', active: true, joinedOn: '2021-06-14', dailyWage: 1400 },
+  { id: 'w2', name: 'Niyas', skill: 'Foreman / Hardscape', phone: '+91 97450 20002', active: true, joinedOn: '2020-11-02', dailyWage: 1400 },
+  { id: 'w3', name: 'Shihab', skill: 'Foreman / Lawn', phone: '+91 97450 20003', active: true, joinedOn: '2022-03-21', dailyWage: 1350 },
+  { id: 'w4', name: 'Junaid', skill: 'Mason', phone: '+91 97450 20004', active: true, joinedOn: '2022-08-01', dailyWage: 1100 },
+  { id: 'w5', name: 'Rafeeq', skill: 'Mason', phone: '+91 97450 20005', active: true, joinedOn: '2023-01-16', dailyWage: 1100 },
+  { id: 'w6', name: 'Sabu', skill: 'Gardener', phone: '+91 97450 20006', active: true, joinedOn: '2021-09-06', dailyWage: 950 },
+  { id: 'w7', name: 'Manoj', skill: 'Gardener', phone: '+91 97450 20007', active: true, joinedOn: '2023-05-08', dailyWage: 950 },
+  { id: 'w8', name: 'Vinod', skill: 'Helper', phone: '+91 97450 20008', active: true, joinedOn: '2024-02-12', dailyWage: 850 },
+  { id: 'w9', name: 'Salim', skill: 'Plumber / Irrigation', phone: '+91 97450 20009', active: true, joinedOn: '2022-10-10', dailyWage: 1200 },
+  { id: 'w10', name: 'Faisal', skill: 'Electrician', phone: '+91 97450 20010', active: true, joinedOn: '2023-07-03', dailyWage: 1200 },
+  { id: 'w11', name: 'Anand', skill: 'Helper', phone: '+91 97450 20011', active: true, joinedOn: '2024-06-17', dailyWage: 850 },
+  { id: 'w12', name: 'Basheer', skill: 'Driver / Helper', phone: '+91 97450 20012', active: false, joinedOn: '2021-01-04', dailyWage: 900, notes: 'On long leave since July.' },
+  { id: 'w13', name: 'Rasheed', skill: 'Tile & Paver Layer', phone: '+91 97450 20013', active: true, joinedOn: '2023-03-13', dailyWage: 1150 },
+  { id: 'w14', name: 'Bijoy', skill: 'Gardener', phone: '+91 97450 20014', active: true, joinedOn: '2024-01-08', dailyWage: 950 },
+  { id: 'w15', name: 'Shameer', skill: 'Mason', phone: '+91 97450 20015', active: true, joinedOn: '2022-12-05', dailyWage: 1100 },
+  { id: 'w16', name: 'Santhosh', skill: 'Helper', phone: '+91 97450 20016', active: true, joinedOn: '2024-04-22', dailyWage: 850 },
+  { id: 'w17', name: 'Nazar', skill: 'Welder / Fabricator', phone: '+91 97450 20017', active: true, joinedOn: '2023-09-18', dailyWage: 1250 },
+  { id: 'w18', name: 'Riyas', skill: 'Gardener', phone: '+91 97450 20018', active: true, joinedOn: '2022-06-27', dailyWage: 950 },
+  { id: 'w19', name: 'Sunil', skill: 'Helper', phone: '+91 97450 20019', active: true, joinedOn: '2024-08-05', dailyWage: 850 },
+  { id: 'w20', name: 'Hamza', skill: 'Lawn Specialist', phone: '+91 97450 20020', active: true, joinedOn: '2021-11-15', dailyWage: 1050 },
 ]
+
+/** Company holidays on top of the Sunday weekly off. */
+const HOLIDAYS = ['2026-08-26', '2026-10-02', '2026-11-08', '2026-12-25']
 
 export const clients: Client[] = [
   { id: 'c1', name: 'ABC Holdings', phone: '+91 94470 30001', whatsapp: '+91 94470 30001', email: 'contact@abcholdings.in', address: 'Kowdiar, Thiruvananthapuram', leadId: 'l1', createdAt: '2026-04-12' },
@@ -70,6 +85,14 @@ export const siteVisits: SiteVisit[] = [
   { id: 'sv5', leadId: 'l8', location: 'Varkala', date: addDays(today(), -20), assignedTo: 'e2', status: 'Cancelled', notes: 'Client postponed, later lost.' },
 ]
 
+const BOQ_ALL = CHECKLISTS.BOQ.map((i) => i.id)
+const QUOTATION_ALL = CHECKLISTS.Quotation.map((i) => i.id)
+
+/** Checklist items already ticked on a seeded project. */
+function ticks(ids: string[], by: string): Record<string, ChecklistTick> {
+  return Object.fromEntries(ids.map((id, i) => [id, { done: true, by, on: addDays(today(), -40 + i * 2) }]))
+}
+
 /**
  * The three worked examples from the structure document, seeded so the client
  * recognises their own numbers: 45% design-only, 55% execution-only, 82% both.
@@ -83,6 +106,7 @@ export const projects: Project[] = [
     design: { concept: phase(true, 100), threeD: phase(true, 80), civilWork: phase(true, 0), boq: phase(true, 0) },
     execution: { hardscape: phase(false), softscape: phase(false), mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } }, maintenance: phase(false) },
     value: 850000, delayed: false,
+    siteCoords: { lat: 8.5241, lng: 76.9606 }, checklist: ticks(['boq.measure', 'boq.quantities'], 'e3'),
   },
   {
     id: 'p2', code: 'LS-2026-002', name: 'Villa Landscape Execution', clientId: 'c2',
@@ -96,6 +120,7 @@ export const projects: Project[] = [
       maintenance: phase(true, 0),
     },
     value: 2400000, delayed: false,
+    siteCoords: { lat: 9.9580, lng: 76.2950 }, checklist: ticks(QUOTATION_ALL, 'e8'),
   },
   {
     id: 'p3', code: 'LS-2026-003', name: 'Resort Landscape', clientId: 'c3',
@@ -108,6 +133,7 @@ export const projects: Project[] = [
       maintenance: phase(true, 0),
     },
     value: 8600000, delayed: false,
+    siteCoords: { lat: 8.4004, lng: 76.9787 }, checklist: ticks([...BOQ_ALL, ...QUOTATION_ALL], 'e3'),
   },
   {
     id: 'p4', code: 'LS-2026-004', name: 'Edava Residence Garden', clientId: 'c4',
@@ -121,6 +147,7 @@ export const projects: Project[] = [
       maintenance: phase(true, 0),
     },
     value: 1150000, delayed: true,
+    siteCoords: { lat: 8.7650, lng: 76.6960 }, checklist: ticks(QUOTATION_ALL, 'e8'),
   },
   {
     id: 'p5', code: 'LS-2026-005', name: 'Greenfield Common Areas', clientId: 'c5',
@@ -133,6 +160,7 @@ export const projects: Project[] = [
       maintenance: phase(false),
     },
     value: 3200000, delayed: true,
+    siteCoords: { lat: 11.2588, lng: 75.7804 }, checklist: ticks(['boq.measure', 'boq.quantities', 'boq.specs', 'qt.scope', 'qt.survey'], 'e3'),
   },
   {
     id: 'p6', code: 'LS-2026-006', name: 'Kovalam Villa Concept', clientId: 'c3',
@@ -142,6 +170,7 @@ export const projects: Project[] = [
     design: { concept: phase(true, 40), threeD: phase(true, 0), civilWork: phase(false), boq: phase(true, 0) },
     execution: { hardscape: phase(false), softscape: phase(false), mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } }, maintenance: phase(false) },
     value: 420000, delayed: false,
+    siteCoords: { lat: 8.3930, lng: 76.9820 }, checklist: ticks(['boq.measure'], 'e3'),
   },
   {
     id: 'p7', code: 'LS-2025-018', name: 'Sea Breeze Villa', clientId: 'c2',
@@ -154,6 +183,7 @@ export const projects: Project[] = [
       maintenance: phase(true, 40),
     },
     value: 5400000, delayed: false,
+    siteCoords: { lat: 9.9658, lng: 76.2421 }, checklist: ticks([...BOQ_ALL, ...QUOTATION_ALL], 'e8'),
   },
   {
     id: 'p8', code: 'LS-2026-007', name: 'Cyber Park Softscape', clientId: 'c5',
@@ -167,6 +197,7 @@ export const projects: Project[] = [
       maintenance: phase(true, 0),
     },
     value: 1900000, delayed: false,
+    siteCoords: { lat: 11.2470, lng: 75.8330 }, checklist: ticks(['qt.scope', 'qt.survey', 'qt.pricing', 'qt.terms'], 'e8'),
   },
 ]
 
@@ -243,53 +274,86 @@ const present = (ids: string[], all: string[], checkIn = '10:00', checkOut = '15
     checkOut: ids.includes(workerId) ? checkOut : undefined,
   }))
 
+const projectName = (id: string) => projects.find((p) => p.id === id)?.name ?? ''
+
+/** A foreman's morning and evening site photographs for one report. */
+function sitePhotos(
+  reportId: string, projectId: string, date: string,
+  shots: { session: PhotoSession; time: string; caption: string }[],
+): ReportPhoto[] {
+  return shots.map((shot, i) => ({
+    id: `${reportId}-ph${i + 1}`,
+    src: placeholderSitePhoto(`${projectId}${date}${shot.session}${i}`, projectName(projectId), shot.session, shot.time),
+    caption: shot.caption,
+    session: shot.session,
+    takenAt: shot.time,
+  }))
+}
+
 /**
  * Today's site reports, matching the document's example table:
  * Edava / Ashiq / 1 / Planting / Submitted
  * Kozhikode / Niyas / 6 / Hardscape / Approved
  * Kochi / Shihab / 4 / Lawn work / Pending
  */
-export const reports: DailyWorkReport[] = [
+const recentReports: DailyWorkReport[] = [
   {
     id: 'r1', projectId: 'p4', siteLocation: 'എടവ', date: today(), foremanId: 'e11',
-    attendance: present(['w1'], ['w1', 'w4', 'w6', 'w8', 'w11']),
+    attendance: present(['w1'], ['w1', 'w6', 'w8', 'w11']),
     startTime: '10:00', endTime: '15:40', otHours: 0,
     workDone: ['Soil preparation completed', '25 plants planted', 'Lawn area levelled'],
     issues: ['Nothing'],
     nextDayPlan: ['Continue planting in the rear garden', 'Begin drip line layout'],
     ta: [{ workerId: 'w1', distanceKm: 12 }],
-    photos: [], status: 'Submitted', submittedAt: '16:15', submittedBy: 'e11',
+    photos: sitePhotos('r1', 'p4', today(), [
+      { session: 'Morning', time: '09:52', caption: 'Rear garden before planting' },
+      { session: 'Evening', time: '15:35', caption: '25 plants in, lawn levelled' },
+    ]),
+    status: 'Submitted', submittedAt: '16:15', submittedBy: 'e11',
   },
   {
     id: 'r2', projectId: 'p5', siteLocation: 'Kozhikode', date: today(), foremanId: 'e12',
-    attendance: present(['w2', 'w4', 'w5', 'w8', 'w11', 'w7'], ['w2', 'w4', 'w5', 'w8', 'w11', 'w7', 'w6'], '09:00', '17:00'),
+    attendance: present(['w2', 'w4', 'w5', 'w8', 'w11', 'w13'], ['w2', 'w4', 'w5', 'w8', 'w11', 'w13'], '09:00', '17:00'),
     startTime: '09:00', endTime: '17:00', otHours: 1,
     workDone: ['Walkway kerb casting — 40 running metres', 'Paver base compaction at block B'],
     issues: ['Nothing'],
     nextDayPlan: ['Continue kerb casting', 'Paver laying at block B'],
     ta: [{ workerId: 'w2', distanceKm: 8 }, { workerId: 'w4', distanceKm: 15 }],
-    photos: [], status: 'Approved', submittedAt: '17:20', submittedBy: 'e12',
+    photos: sitePhotos('r2', 'p5', today(), [
+      { session: 'Morning', time: '08:48', caption: 'Kerb line set out' },
+      { session: 'Morning', time: '08:55', caption: 'Block B sub-base' },
+      { session: 'Evening', time: '16:52', caption: '40 m of kerb cast' },
+    ]),
+    status: 'Approved', submittedAt: '17:20', submittedBy: 'e12',
     reviewedAt: '18:05', reviewedBy: 'e7', reviewNote: 'Good progress. Keep the kerb line true to the drawing.',
   },
   {
+    // Still a draft: the morning photo is in, the evening one is still to come.
     id: 'r3', projectId: 'p8', siteLocation: 'Kochi', date: today(), foremanId: 'e13',
-    attendance: present(['w3', 'w6', 'w7', 'w8'], ['w3', 'w6', 'w7', 'w8', 'w11'], '09:30', '16:30'),
+    attendance: present(['w3', 'w6', 'w14', 'w7'], ['w3', 'w6', 'w14', 'w7', 'w20'], '09:30', '16:30'),
     startTime: '09:30', endTime: '16:30', otHours: 0,
     workDone: ['Lawn work — levelling and grading at the front lawn'],
     issues: [],
     nextDayPlan: ['Lay lawn turf if the material arrives'],
     ta: [{ workerId: 'w3', distanceKm: 20 }],
-    photos: [], status: 'Draft',
+    photos: sitePhotos('r3', 'p8', today(), [
+      { session: 'Morning', time: '09:24', caption: 'Front lawn before grading' },
+    ]),
+    status: 'Draft',
   },
   {
     id: 'r4', projectId: 'p4', siteLocation: 'എടവ', date: addDays(today(), -1), foremanId: 'e11',
-    attendance: present(['w1', 'w6', 'w8'], ['w1', 'w4', 'w6', 'w8', 'w11']),
+    attendance: present(['w1', 'w6', 'w8'], ['w1', 'w6', 'w8', 'w11']),
     startTime: '10:00', endTime: '16:00', otHours: 0,
     workDone: ['Marked out planting beds', 'Removed construction debris'],
     issues: ['Water connection at the site was cut off for two hours'],
     nextDayPlan: ['Soil preparation', 'Start planting'],
     ta: [{ workerId: 'w1', distanceKm: 12 }],
-    photos: [], status: 'Approved', submittedAt: '16:30', submittedBy: 'e11',
+    photos: sitePhotos('r4', 'p4', addDays(today(), -1), [
+      { session: 'Morning', time: '09:41', caption: 'Debris before clearing' },
+      { session: 'Evening', time: '15:58', caption: 'Planting beds marked out' },
+    ]),
+    status: 'Approved', submittedAt: '16:30', submittedBy: 'e11',
     reviewedAt: '17:10', reviewedBy: 'e7', reviewNote: 'Noted. Raised the water supply issue with the client.',
   },
   {
@@ -300,31 +364,113 @@ export const reports: DailyWorkReport[] = [
     issues: ['Paver delivery short by 200 units, supplier notified'],
     nextDayPlan: ['Complete pool deck paving', 'Lay irrigation trunk line'],
     ta: [{ workerId: 'w2', distanceKm: 25 }, { workerId: 'w5', distanceKm: 25 }],
-    photos: [], status: 'Approved', submittedAt: '18:00', submittedBy: 'e12',
+    photos: sitePhotos('r5', 'p3', addDays(today(), -1), [
+      { session: 'Morning', time: '08:20', caption: 'Pool deck — paving starts' },
+      { session: 'Evening', time: '17:22', caption: 'Pool deck at 60%' },
+      { session: 'Evening', time: '17:25', caption: 'Irrigation trench' },
+    ]),
+    status: 'Approved', submittedAt: '18:00', submittedBy: 'e12',
     reviewedAt: '19:00', reviewedBy: 'e7',
   },
-{
+  {
     id: 'r6', projectId: 'p3', siteLocation: 'Kovalam', date: today(), foremanId: 'e12',
-    attendance: present(['w2', 'w5', 'w9', 'w10', 'w11', 'w4', 'w8'], ['w2', 'w5', 'w9', 'w10', 'w11', 'w4', 'w8'], '08:30', '17:30'),
+    attendance: present(['w9', 'w10', 'w15', 'w16', 'w17'], ['w9', 'w10', 'w15', 'w16', 'w17'], '08:30', '17:30'),
     startTime: '08:30', endTime: '17:30', otHours: 1,
     workDone: ['Pool deck paving completed', 'Irrigation trunk line laid to zone 3'],
     issues: ['Nothing'],
     nextDayPlan: ['Begin planting to the entrance beds', 'Pressure-test irrigation zone 3'],
-    ta: [{ workerId: 'w2', distanceKm: 25 }, { workerId: 'w5', distanceKm: 25 }],
-    photos: [], status: 'Approved', submittedAt: '17:55', submittedBy: 'e12',
+    ta: [{ workerId: 'w9', distanceKm: 25 }, { workerId: 'w15', distanceKm: 22 }],
+    photos: sitePhotos('r6', 'p3', today(), [
+      { session: 'Morning', time: '08:24', caption: 'Pool deck — last section' },
+      { session: 'Evening', time: '17:18', caption: 'Pool deck complete' },
+      { session: 'Evening', time: '17:21', caption: 'Zone 3 trunk line' },
+    ]),
+    status: 'Approved', submittedAt: '17:55', submittedBy: 'e12',
     reviewedAt: '18:40', reviewedBy: 'e7',
   },
   {
     id: 'r7', projectId: 'p2', siteLocation: 'Panampilly Nagar, Kochi', date: today(), foremanId: 'e13',
-    attendance: present(['w3', 'w6', 'w7', 'w8', 'w11'], ['w3', 'w6', 'w7', 'w8', 'w11'], '09:00', '16:30'),
+    attendance: present(['w18', 'w19', 'w20'], ['w18', 'w19', 'w20'], '09:00', '16:30'),
     startTime: '09:00', endTime: '16:30', otHours: 0,
     workDone: ['Softscape bed preparation at the rear garden', 'Palm pit excavation'],
     issues: ['Nothing'],
     nextDayPlan: ['Set out palms per the planting drawing'],
-    ta: [{ workerId: 'w3', distanceKm: 18 }],
-    photos: [], status: 'Submitted', submittedAt: '16:50', submittedBy: 'e13',
+    ta: [{ workerId: 'w18', distanceKm: 18 }],
+    photos: sitePhotos('r7', 'p2', today(), [
+      { session: 'Morning', time: '08:57', caption: 'Rear garden beds' },
+      { session: 'Evening', time: '16:24', caption: 'Palm pits ready' },
+    ]),
+    status: 'Submitted', submittedAt: '16:50', submittedBy: 'e13',
   },
 ]
+
+/**
+ * Two weeks of approved reports behind today's, so attendance, the gallery
+ * and each worker's history have something to show. Each foreman alternates
+ * between their two sites, and each site keeps its own crew so no worker is
+ * ever in two places on one day.
+ */
+const ROTATION: { foremanId: string; even: string; odd: string; crews: Record<string, string[]> }[] = [
+  { foremanId: 'e11', even: 'p4', odd: 'p2', crews: { p4: ['w1', 'w8', 'w11', 'w6'], p2: ['w1', 'w18', 'w19', 'w20', 'w7'] } },
+  { foremanId: 'e12', even: 'p5', odd: 'p3', crews: { p5: ['w2', 'w4', 'w5', 'w13'], p3: ['w2', 'w9', 'w10', 'w15', 'w16', 'w17'] } },
+  { foremanId: 'e13', even: 'p2', odd: 'p8', crews: { p2: ['w3', 'w18', 'w19', 'w20', 'w7'], p8: ['w3', 'w6', 'w14', 'w8', 'w11'] } },
+]
+
+const WORK_LINES: Record<string, string[]> = {
+  p2: ['Driveway edging snags cleared', 'Palm pits marked and excavated', 'Topsoil spread at the rear garden', 'Boundary hedge planting'],
+  p3: ['Pool deck paving continued', 'Irrigation trench excavation', 'Entrance plaza joints grouted', 'Retaining wall coping fixed'],
+  p4: ['Garden wall plastering', 'Stepping stone path laid', 'Planting bed preparation', 'Ground cover planting'],
+  p5: ['Walkway kerb casting', 'Paver base compaction', 'Clubhouse lawn levelling', 'Storm drain chamber cast'],
+  p8: ['Soil testing at block C', 'Drainage line trenching', 'Shrub planting along the spine road', 'Lawn grading at the entrance'],
+}
+
+const ISSUE_LINES = [
+  'Rain stopped work for an hour after lunch',
+  'Cement delivery arrived two hours late',
+  'Client asked to hold the bed layout until their visit',
+]
+
+
+const isWorkday = (date: string) =>
+  new Date(date + 'T00:00:00').getDay() !== 0 && !HOLIDAYS.includes(date)
+
+const historicReports: DailyWorkReport[] = Array.from({ length: 13 }, (_, i) => addDays(today(), -(i + 2)))
+  .filter(isWorkday)
+  .flatMap((date) => {
+    const parity = new Date(date + 'T00:00:00').getDate() % 2
+    return ROTATION.map(({ foremanId, even, odd, crews }): DailyWorkReport => {
+      const projectId = parity === 0 ? even : odd
+      const crew = crews[projectId]
+      const h = hash(projectId + date)
+      // The foreman's own crew member is always there; others miss the odd day.
+      const here = crew.filter((w, i) => i === 0 || hash(w + date) % 100 >= 12)
+      const start = ['08:30', '09:00', '09:30'][h % 3]
+      const end = ['16:30', '17:00', '17:30'][(h >>> 2) % 3]
+      const lines = WORK_LINES[projectId]
+      const issue = h % 7 === 0 ? ISSUE_LINES[h % ISSUE_LINES.length] : 'Nothing'
+      const id = `rh-${projectId}-${date}`
+      const project = projects.find((p) => p.id === projectId)!
+      return {
+        id, projectId, siteLocation: project.siteLocation, date, foremanId,
+        attendance: present(here, crew, start, end),
+        startTime: start, endTime: end, otHours: h % 5 === 0 ? 1 : 0,
+        workDone: [lines[h % lines.length], lines[(h + 1) % lines.length]],
+        issues: [issue],
+        nextDayPlan: [lines[(h + 2) % lines.length]],
+        ta: [{ workerId: crew[0], distanceKm: 8 + (h % 20) }],
+        photos: sitePhotos(id, projectId, date, [
+          { session: 'Morning', time: `08:${String(10 + (h % 40)).padStart(2, '0')}`, caption: 'Start of day' },
+          ...(h % 3 === 0 ? [{ session: 'Morning' as const, time: `08:${String(52 + (h % 7)).padStart(2, '0')}`, caption: lines[h % lines.length] }] : []),
+          { session: 'Evening', time: `${end.slice(0, 2)}:${String(5 + (h % 20)).padStart(2, '0')}`, caption: 'End of day' },
+        ]),
+        status: 'Approved',
+        submittedAt: end, submittedBy: foremanId,
+        reviewedAt: '19:00', reviewedBy: 'e7',
+      }
+    })
+  })
+
+export const reports: DailyWorkReport[] = [...recentReports, ...historicReports]
 
 export const issues: Issue[] = [
   { id: 'i1', projectId: 'p4', reportId: 'r4', text: 'Water connection at the site was cut off for two hours', raisedBy: 'e11', assignedTo: 'e7', date: addDays(today(), -1), status: 'Resolved' },
@@ -333,10 +479,13 @@ export const issues: Issue[] = [
 ]
 
 export const quotations: Quotation[] = [
-  { id: 'q1', number: 'QT-2026-011', projectId: 'p1', clientId: 'c1', date: '2026-04-20', status: 'Accepted', items: [{ description: 'Concept design', quantity: 1, unit: 'LS', rate: 425000 }, { description: '3D presentation', quantity: 1, unit: 'LS', rate: 170000 }, { description: 'Civil drawings', quantity: 1, unit: 'LS', rate: 127500 }, { description: 'BOQ preparation', quantity: 1, unit: 'LS', rate: 127500 }] },
-  { id: 'q2', number: 'QT-2026-014', projectId: 'p2', clientId: 'c2', date: '2026-05-18', status: 'Accepted', items: [{ description: 'Hardscape works', quantity: 1, unit: 'LS', rate: 1200000 }, { description: 'Softscape works', quantity: 1, unit: 'LS', rate: 850000 }, { description: 'Irrigation and electrical', quantity: 1, unit: 'LS', rate: 350000 }] },
-  { id: 'q3', number: 'QT-2026-021', projectId: 'p6', clientId: 'c3', date: '2026-07-28', status: 'Sent', items: [{ description: 'Concept design', quantity: 1, unit: 'LS', rate: 210000 }, { description: '3D presentation', quantity: 1, unit: 'LS', rate: 105000 }, { description: 'BOQ preparation', quantity: 1, unit: 'LS', rate: 105000 }] },
-  { id: 'q4', number: 'QT-2026-023', projectId: 'p8', clientId: 'c5', date: '2026-08-05', status: 'Draft', items: [{ description: 'Campus softscape', quantity: 1, unit: 'LS', rate: 1450000 }, { description: 'Irrigation and drainage', quantity: 1, unit: 'LS', rate: 450000 }] },
+  { id: 'q1', kind: 'BOQ', number: 'BOQ-2026-011', projectId: 'p1', clientId: 'c1', date: '2026-04-20', status: 'Accepted', items: [{ description: 'Concept design', quantity: 1, unit: 'LS', rate: 425000 }, { description: '3D presentation', quantity: 1, unit: 'LS', rate: 170000 }, { description: 'Civil drawings', quantity: 1, unit: 'LS', rate: 127500 }, { description: 'BOQ preparation', quantity: 1, unit: 'LS', rate: 127500 }] },
+  { id: 'q2', kind: 'Quotation', number: 'QT-2026-014', projectId: 'p2', clientId: 'c2', date: '2026-05-18', status: 'Accepted', items: [{ description: 'Hardscape works', quantity: 1, unit: 'LS', rate: 1200000 }, { description: 'Softscape works', quantity: 1, unit: 'LS', rate: 850000 }, { description: 'Irrigation and electrical', quantity: 1, unit: 'LS', rate: 350000 }] },
+  { id: 'q3', kind: 'BOQ', number: 'BOQ-2026-021', projectId: 'p6', clientId: 'c3', date: '2026-07-28', status: 'Sent', items: [{ description: 'Concept design', quantity: 1, unit: 'LS', rate: 210000 }, { description: '3D presentation', quantity: 1, unit: 'LS', rate: 105000 }, { description: 'BOQ preparation', quantity: 1, unit: 'LS', rate: 105000 }] },
+  { id: 'q4', kind: 'Quotation', number: 'QT-2026-023', projectId: 'p8', clientId: 'c5', date: '2026-08-05', status: 'Draft', items: [{ description: 'Campus softscape', quantity: 1, unit: 'LS', rate: 1450000 }, { description: 'Irrigation and drainage', quantity: 1, unit: 'LS', rate: 450000 }] },
+  // Design + Execution carries both documents.
+  { id: 'q5', kind: 'BOQ', number: 'BOQ-2026-009', projectId: 'p3', clientId: 'c3', date: '2026-04-05', status: 'Accepted', items: [{ description: 'Masterplan concept', quantity: 1, unit: 'LS', rate: 600000 }, { description: '3D presentation', quantity: 1, unit: 'LS', rate: 240000 }, { description: 'Civil and structural drawings', quantity: 1, unit: 'LS', rate: 180000 }] },
+  { id: 'q6', kind: 'Quotation', number: 'QT-2026-012', projectId: 'p3', clientId: 'c3', date: '2026-05-02', status: 'Accepted', items: [{ description: 'Hardscape — pool deck and plazas', quantity: 2400, unit: 'sq ft', rate: 1250 }, { description: 'Softscape and planting', quantity: 1, unit: 'LS', rate: 2600000 }, { description: 'MEP — irrigation, lighting, drainage', quantity: 1, unit: 'LS', rate: 1980000 }] },
 ]
 
 export const paymentRequests: PaymentRequest[] = [
@@ -436,7 +585,8 @@ function workday(offset: number): string {
 export const consultations: Consultation[] = [
   { id: 'cs1', date: workday(1), start: '10:00', durationMins: 60, purpose: 'Resort pool deck finish and milestone payment', clientId: 'c3', mode: 'Office', bookedBy: 'e7', status: 'Scheduled' },
   { id: 'cs2', date: workday(1), start: '15:00', durationMins: 30, purpose: 'Lakeview Villas — common area proposal walkthrough', leadId: 'l5', mode: 'Video', bookedBy: 'e10', status: 'Scheduled' },
-  { id: 'cs3', date: workday(2), start: '11:30', durationMins: 45, purpose: 'Greenfield delay — recovery plan with the association', clientId: 'c5', mode: 'Site', bookedBy: 'e6', status: 'Scheduled' },
+  { id: 'cs3', date: workday(2), start: '11:30', durationMins: 45, purpose: 'Greenfield delay — recovery plan with the association', clientId: 'c5', mode: 'Site', bookedBy: 'e6', status: 'Scheduled',
+    postponements: [{ fromDate: workday(1), fromStart: '16:00', toDate: workday(2), toStart: '11:30', reason: 'Association secretary travelling — asked to move it a day', by: 'e6', at: `${addDays(today(), -1)}T10:20` }] },
   { id: 'cs4', date: workday(3), start: '09:30', durationMins: 30, purpose: 'Pergola material decision', clientId: 'c1', mode: 'Phone', bookedBy: 'e3', status: 'Scheduled' },
   { id: 'cs5', date: workday(4), start: '16:00', durationMins: 60, purpose: 'Quarterly accounts review', attendee: 'Arshad, Anaswara', mode: 'Office', bookedBy: 'e8', status: 'Scheduled' },
   { id: 'cs6', date: workday(-2), start: '10:30', durationMins: 60, purpose: 'Terrace garden quotation discussion', leadId: 'l4', mode: 'Office', bookedBy: 'e10', status: 'Completed', notes: 'Client wants a revised quote with fewer planters.' },
@@ -451,36 +601,42 @@ function hash(text: string): number {
 }
 
 /**
- * Sixty days of office attendance for each employee, Sundays off. Generated
- * rather than hand-written, so it always ends at today.
+ * Sixty days of office attendance for each employee, Sundays and holidays
+ * off. Generated rather than hand-written, so it always ends at today. Today
+ * is left unmarked for a few people so the register has something to do.
+ * Site workers have no rows here — their days come from the daily reports.
  */
-export const staffAttendance: StaffAttendance[] = employees
+export const attendance: AttendanceEntry[] = employees
   .filter((e) => e.role !== 'super_admin')
   .flatMap((employee) =>
     Array.from({ length: 60 }, (_, i) => addDays(today(), -i))
-      .filter((date) => new Date(date + 'T00:00:00').getDay() !== 0)
-      .map((date): StaffAttendance => {
+      .filter((date) => isWorkday(date))
+      .filter((date) => date !== today() || hash(employee.id) % 4 !== 0)
+      .map((date): AttendanceEntry => {
         const roll = hash(employee.id + date) % 100
         const status: StaffAttendanceStatus =
           roll < 3 ? 'Absent' : roll < 8 ? 'Leave' : roll < 12 ? 'Half Day' : 'Present'
         const minute = String(hash(date + employee.id) % 25).padStart(2, '0')
         return {
-          employeeId: employee.id,
+          kind: 'employee',
+          personId: employee.id,
           date,
           status,
           checkIn: status === 'Present' || status === 'Half Day' ? `09:${minute}` : undefined,
           // Today's check-out is still to come.
           checkOut: date === today() ? undefined
             : status === 'Present' ? '18:00' : status === 'Half Day' ? '13:30' : undefined,
+          otHours: status === 'Present' && date !== today() && roll > 93 ? 1 + (roll % 2) : undefined,
         }
       }),
   )
 
+/**
+ * Deadlines and meetings. Site visits, AMC visits, task due dates and CEO
+ * consultations are drawn onto the calendar from their own records.
+ */
 export const calendarEvents: CalendarEvent[] = [
-  { id: 'ce1', title: 'Site visit — Lakeview Villas', date: addDays(today(), 2), type: 'Site Visit', assigneeId: 'e2' },
-  { id: 'ce2', title: 'Site visit — Fathima Beevi', date: addDays(today(), 4), type: 'Site Visit', assigneeId: 'e3' },
   { id: 'ce3', title: '3D presentation due — ABC Residence', date: addDays(today(), 3), type: 'Deadline', projectId: 'p1', assigneeId: 'e4' },
-  { id: 'ce4', title: 'AMC visit — Sea Breeze Villa', date: addDays(today(), 5), type: 'Maintenance', projectId: 'p7', assigneeId: 'e6' },
   { id: 'ce5', title: 'Edava softscape completion', date: addDays(today(), 1), type: 'Deadline', projectId: 'p4', assigneeId: 'e7' },
   { id: 'ce6', title: 'Weekly execution review', date: addDays(today(), 6), type: 'Meeting', assigneeId: 'e6' },
   { id: 'ce7', title: 'Greenfield association walkthrough', date: addDays(today(), 8), type: 'Meeting', projectId: 'p5', assigneeId: 'e7' },
@@ -499,6 +655,8 @@ export const settings: Settings = {
   photosMandatory: true,
   otAdjustRoles: ['super_admin', 'ceo', 'execution_head', 'execution_pm'],
   freeMaintenanceMonths: 1,
+  permissions: defaultPermissions(),
+  holidays: HOLIDAYS,
 }
 
 /** Counters shown on the execution dashboard, per the document's example. */

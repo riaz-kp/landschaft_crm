@@ -1,123 +1,193 @@
-import { useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { navForRole } from '../domain/roles'
+import { useEffect, useState } from 'react'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { navForRole, sectionForPath, titleOf, type NavSection } from '../domain/roles'
+import { formatDateLong, today } from '../domain/format'
 import { useSession } from '../state/session'
+import { useDb } from '../state/useDb'
+import { usePermissions } from '../state/permissions'
 import { Icon } from '../components/Icon'
+import { Avatar } from '../components/ui'
 import { RoleSwitcher } from '../components/RoleSwitcher'
+import { GlobalSearch } from '../components/GlobalSearch'
+import { NoAccess } from '../pages/misc/Fallbacks'
 
 function Logo() {
   return (
-    <div className="flex items-center gap-2.5 px-5 py-5">
-      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-base font-bold text-white">
-        L
+    <Link to="/dashboard" className="flex items-center gap-3 px-5 pb-5 pt-6">
+      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-lg shadow-black/20">
+        <Icon name="leaf" className="h-5 w-5 text-white" />
       </span>
       <span>
-        <span className="block text-sm font-bold leading-tight tracking-tight text-white">Landschaft</span>
-        <span className="block text-[11px] font-medium uppercase leading-tight tracking-widest text-brand-300">CRM</span>
+        <span className="block font-display text-[15px] font-bold leading-tight tracking-tight text-white">Landschaft</span>
+        <span className="block text-[10px] font-semibold uppercase leading-tight tracking-[0.2em] text-brand-300">CRM</span>
       </span>
+    </Link>
+  )
+}
+
+/** The child tab whose path is the longest prefix of the URL, so detail pages keep their tab lit. */
+function activeChild(section: NavSection, pathname: string) {
+  return section.children
+    ?.filter((c) => pathname === c.path || pathname.startsWith(c.path + '/'))
+    .sort((a, b) => b.path.length - a.path.length)[0]
+}
+
+/** A section's sub-pages, shown as tabs across the top of the page. */
+function SectionTabs({ section, pathname }: { section: NavSection; pathname: string }) {
+  const active = activeChild(section, pathname)
+  return (
+    <div className="no-scrollbar -mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+      <nav className="inline-flex min-w-max gap-1 rounded-2xl border border-stone-200/80 bg-white p-1 shadow-card">
+        {section.children!.map((child) => {
+          const on = child.path === active?.path
+          return (
+            <Link
+              key={child.path}
+              to={child.path}
+              className={`rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
+                on ? 'bg-brand-600 text-white shadow-sm' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-800'
+              }`}
+            >
+              {child.label}
+            </Link>
+          )
+        })}
+      </nav>
     </div>
   )
 }
 
 /** Desktop CRM shell. Foremen never reach this — they are routed to /field. */
 export function AdminShell() {
-  const { roleKey } = useSession()
-  const location = useLocation()
+  const { user, roleKey } = useSession()
+  const { settings } = useDb()
+  const { canView } = usePermissions()
+  const { pathname } = useLocation()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const sections = navForRole(roleKey)
+  const sections = navForRole(roleKey, settings.permissions)
+  const current = sectionForPath(pathname)
+  const tab = current && activeChild(current, pathname)
+
+  // Close the drawer and return to the top whenever the page changes.
+  useEffect(() => {
+    setMobileNavOpen(false)
+    window.scrollTo({ top: 0 })
+  }, [pathname])
+
+  // Anyone may open their own profile, whatever the Employees permission says.
+  const ownProfile = pathname === `/employees/${user.id}`
+  const allowed = !current || ownProfile || canView(current.label)
 
   const nav = (
-    <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-6">
+    <nav className="sidebar-scroll flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
       {sections.map((section) => {
-        if (!section.children) {
-          return (
-            <NavLink
-              key={section.label}
-              to={section.path!}
-              onClick={() => setMobileNavOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive ? 'bg-brand-600 text-white' : 'text-brand-100 hover:bg-brand-800/60'
-                }`
-              }
-            >
-              <Icon name={section.icon} className="h-[18px] w-[18px]" />
-              {section.label}
-            </NavLink>
-          )
-        }
-        const sectionActive = section.children.some(
-          (c) => location.pathname === c.path || location.pathname.startsWith(c.path + '/'),
-        )
+        const active = current?.label === section.label
         return (
-          <div key={section.label} className="pt-2">
-            <p className="flex items-center gap-3 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-400">
-              <Icon name={section.icon} className="h-[18px] w-[18px]" />
-              {section.label}
-            </p>
-            <div className="space-y-0.5 pl-[30px]">
-              {section.children.map((child) => (
-                <NavLink
-                  key={child.path}
-                  to={child.path}
-                  end={['/projects', '/execution', '/employees', '/amc'].includes(child.path)}
-                  onClick={() => setMobileNavOpen(false)}
-                  className={({ isActive }) =>
-                    `block rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                      isActive
-                        ? 'bg-brand-600 font-semibold text-white'
-                        : `${sectionActive ? 'text-brand-100' : 'text-brand-200'} hover:bg-brand-800/60`
-                    }`
-                  }
-                >
-                  {child.label}
-                </NavLink>
-              ))}
-            </div>
-          </div>
+          <NavLink
+            key={section.label}
+            to={section.path}
+            className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+              active
+                ? 'bg-white/[0.12] text-white shadow-inner shadow-black/10'
+                : 'text-brand-100/80 hover:bg-white/[0.06] hover:text-white'
+            }`}
+          >
+            {active && <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-300" />}
+            <Icon
+              name={section.icon}
+              className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-brand-200' : 'text-brand-300/70 group-hover:text-brand-200'}`}
+            />
+            <span className="truncate">{section.label}</span>
+          </NavLink>
         )
       })}
     </nav>
   )
 
+  const sidebar = (
+    <>
+      <Logo />
+      {nav}
+      <Link
+        to={`/employees/${user.id}`}
+        className="m-3 flex items-center gap-3 rounded-xl bg-white/[0.06] p-3 transition hover:bg-white/[0.1]"
+      >
+        <Avatar name={user.name} size="sm" src={user.photo} />
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-semibold text-white">{user.name}</span>
+          <span className="block truncate text-[11px] text-brand-200/80">{titleOf(user)}</span>
+        </span>
+      </Link>
+    </>
+  )
+
   return (
-    <div className="flex min-h-screen bg-stone-100">
+    <div className="flex min-h-screen bg-canvas">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-brand-900 lg:flex">
-        <Logo />
-        {nav}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-gradient-to-b from-brand-900 via-brand-950 to-brand-950 lg:flex">
+        {sidebar}
       </aside>
 
       {/* Mobile drawer */}
       {mobileNavOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-stone-900/50" onClick={() => setMobileNavOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 flex w-64 flex-col bg-brand-900">
-            <Logo />
-            {nav}
+          <div className="absolute inset-0 bg-stone-950/50 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] animate-fade-in flex-col bg-gradient-to-b from-brand-900 to-brand-950 shadow-2xl">
+            <button
+              onClick={() => setMobileNavOpen(false)}
+              className="absolute right-3 top-6 rounded-lg p-1.5 text-brand-200 hover:bg-white/10"
+              aria-label="Close navigation"
+            >
+              <Icon name="x" className="h-5 w-5" />
+            </button>
+            {sidebar}
           </aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-stone-200 bg-white/90 px-4 py-2.5 backdrop-blur sm:px-6">
-          <button
-            onClick={() => setMobileNavOpen(true)}
-            className="btn-ghost -ml-2 px-2 lg:hidden"
-            aria-label="Open navigation"
-          >
-            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
-            </svg>
-          </button>
-          <p className="hidden text-sm text-stone-500 sm:block">
-            Internal CRM · Design, Execution &amp; AMC
-          </p>
-          <RoleSwitcher />
+        <header className="sticky top-0 z-20 border-b border-stone-200/70 bg-white/80 backdrop-blur-xl">
+          <div className="flex items-center gap-3 px-4 py-2.5 sm:px-6 lg:px-8">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="btn-icon -ml-1 h-10 w-10 lg:hidden"
+              aria-label="Open navigation"
+            >
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M4 6h16M4 12h10M4 18h16" strokeLinecap="round" />
+              </svg>
+            </button>
+
+            {current && (
+              <p className="hidden min-w-0 items-center gap-2 text-sm md:flex">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                  <Icon name={current.icon} className="h-4 w-4" />
+                </span>
+                <span className="font-semibold text-stone-800">{current.label}</span>
+                {tab && current.children && (
+                  <>
+                    <Icon name="chevron" className="h-3.5 w-3.5 text-stone-300" />
+                    <span className="truncate text-stone-500">{tab.label}</span>
+                  </>
+                )}
+              </p>
+            )}
+
+            <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
+              <GlobalSearch />
+              <span className="hidden whitespace-nowrap rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-500 xl:inline">
+                {formatDateLong(today())}
+              </span>
+              <RoleSwitcher />
+            </div>
+          </div>
         </header>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
-          <Outlet />
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto max-w-[1440px] animate-fade-in" key={current?.label}>
+            {allowed && current?.children && <SectionTabs section={current} pathname={pathname} />}
+            {allowed ? <Outlet /> : <NoAccess />}
+          </div>
         </main>
       </div>
     </div>

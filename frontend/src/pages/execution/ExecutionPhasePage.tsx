@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
-import { useSession } from '../../state/session'
-import { can } from '../../domain/roles'
+import { usePermissions } from '../../state/permissions'
 import { formatDate } from '../../domain/format'
 import { MEP_LABELS, MEP_SERVICES, PHASE_LABELS } from '../../domain/types'
 import {
@@ -19,8 +18,8 @@ const DESCRIPTIONS: Record<Key, string> = {
 
 export function ExecutionPhasePage({ phase }: { phase: Key }) {
   const db = useDb()
-  const { roleKey } = useSession()
-  const editable = can.createProject(roleKey) || roleKey === 'execution_pm'
+  const { can } = usePermissions()
+  const editable = can('Execution', 'edit')
 
   const projects = db.projects.filter(
     (p) => p.services.execution && p.execution[phase].enabled,

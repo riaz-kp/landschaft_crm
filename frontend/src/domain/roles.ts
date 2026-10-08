@@ -1,4 +1,7 @@
-import type { Role, RoleKey } from './types'
+import {
+  MODULES, type Employee, type ModuleKey, type ModulePermission, type PermissionAction,
+  type PermissionMatrix, type Role, type RoleKey,
+} from './types'
 
 /**
  * The ten login roles from the structure document. Internal employees only —
@@ -57,6 +60,11 @@ export const ROLES: Record<RoleKey, Role> = {
   },
 }
 
+/** The title to show for a person — their designation when set, otherwise the login role. */
+export function titleOf(employee: Pick<Employee, 'role' | 'designation'>): string {
+  return employee.designation?.trim() || ROLES[employee.role].title
+}
+
 // ---------------------------------------------------------------- navigation
 
 export interface NavItem {
@@ -65,15 +73,17 @@ export interface NavItem {
 }
 
 export interface NavSection {
-  label: string
-  /** Sections without children navigate directly. */
-  path?: string
+  label: ModuleKey
+  /** Where the sidebar link goes — the first tab for sections that have them. */
+  path: string
   icon: string
+  /** Shown as tabs across the top of the section, not in the sidebar. */
   children?: NavItem[]
 }
 
 /**
- * The full navigation tree, exactly as specified. Materials, Inventory,
+ * The navigation tree. The sidebar lists only these main sections; each
+ * section's sub-pages appear as tabs inside it. Materials, Inventory,
  * Purchasing and Vendors were removed by the client and appear nowhere.
  */
 export const NAV: NavSection[] = [
@@ -81,6 +91,7 @@ export const NAV: NavSection[] = [
   { label: 'CEO Consultations', path: '/consultations', icon: 'clock' },
   {
     label: 'CRM',
+    path: '/crm/leads',
     icon: 'users',
     children: [
       { label: 'Leads', path: '/crm/leads' },
@@ -90,6 +101,7 @@ export const NAV: NavSection[] = [
   },
   {
     label: 'Projects',
+    path: '/projects',
     icon: 'folder',
     children: [
       { label: 'All Projects', path: '/projects' },
@@ -99,15 +111,18 @@ export const NAV: NavSection[] = [
   },
   {
     label: 'Tasks',
+    path: '/tasks/mine',
     icon: 'check',
     children: [
       { label: 'My Tasks', path: '/tasks/mine' },
       { label: 'Team Tasks', path: '/tasks/team' },
+      { label: 'All Tasks', path: '/tasks/all' },
       { label: 'Task Board', path: '/tasks/board' },
     ],
   },
   {
     label: 'Design',
+    path: '/design/concept',
     icon: 'pen',
     children: [
       { label: 'Concept', path: '/design/concept' },
@@ -118,6 +133,7 @@ export const NAV: NavSection[] = [
   },
   {
     label: 'Execution',
+    path: '/execution',
     icon: 'hammer',
     children: [
       { label: 'Projects', path: '/execution' },
@@ -130,6 +146,7 @@ export const NAV: NavSection[] = [
   {
     // AMC is its own department, no longer a sub-page of Execution.
     label: 'AMC',
+    path: '/amc',
     icon: 'leaf',
     children: [
       { label: 'Contracts', path: '/amc' },
@@ -139,15 +156,17 @@ export const NAV: NavSection[] = [
   },
   {
     label: 'Accounts',
+    path: '/accounts/quotations',
     icon: 'rupee',
     children: [
-      { label: 'Quotations', path: '/accounts/quotations' },
+      { label: 'BOQ & Quotations', path: '/accounts/quotations' },
       { label: 'Payment Requests', path: '/accounts/payment-requests' },
       { label: 'Payments', path: '/accounts/payments' },
     ],
   },
   {
     label: 'Employees',
+    path: '/employees',
     icon: 'id',
     children: [
       { label: 'Employees', path: '/employees' },
@@ -156,49 +175,128 @@ export const NAV: NavSection[] = [
       { label: 'Work Reports', path: '/employees/work-reports' },
     ],
   },
+  { label: 'Gallery', path: '/gallery', icon: 'image' },
   { label: 'Documents', path: '/documents', icon: 'doc' },
   { label: 'Calendar', path: '/calendar', icon: 'calendar' },
   { label: 'Reports', path: '/reports', icon: 'chart' },
   { label: 'Settings', path: '/settings', icon: 'cog' },
 ]
 
+/** Paths that sit inside a section without being one of its tabs. */
+const EXTRA_PREFIXES: Partial<Record<ModuleKey, string[]>> = {
+  CRM: ['/crm'],
+  Projects: ['/projects'],
+  Tasks: ['/tasks'],
+  Design: ['/design'],
+  Execution: ['/execution'],
+  AMC: ['/amc'],
+  Accounts: ['/accounts'],
+  Employees: ['/employees'],
+}
+
+const matches = (path: string, prefix: string) => path === prefix || path.startsWith(prefix + '/')
+
+/** The section a URL belongs to, used for the sidebar highlight, the tab bar and the access check. */
+export function sectionForPath(path: string): NavSection | undefined {
+  return NAV.find((section) =>
+    matches(path, section.path)
+    || section.children?.some((c) => matches(path, c.path))
+    || EXTRA_PREFIXES[section.label]?.some((p) => matches(path, p)),
+  )
+}
+
 // ---------------------------------------------------------------- permissions
 
+const ALL: ModulePermission = { view: true, create: true, edit: true, delete: true }
+const NONE: ModulePermission = { view: false, create: false, edit: false, delete: false }
+
 /**
- * Top-level sections each role may open. Foremen are absent entirely — they
- * are redirected to the field app and never reach this shell.
+ * Starting permissions, matching the remits in the structure document. The
+ * CEO can change any of these from Settings → Roles & Permissions.
+ *   view   — the section appears in the sidebar and opens
+ *   manage — create and edit records in it
+ *   remove — delete records in it
  */
-const SECTION_ACCESS: Record<RoleKey, string[] | '*'> = {
-  super_admin: '*',
-  ceo: '*',
-  design_director: ['Dashboard', 'CRM', 'Projects', 'Tasks', 'Design', 'Documents', 'Calendar', 'Reports'],
-  design_pm: ['Dashboard', 'Projects', 'Tasks', 'Design', 'Documents', 'Calendar'],
-  design_member: ['Dashboard', 'Projects', 'Tasks', 'Design', 'Documents'],
-  execution_head: [
-    'Dashboard', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Documents', 'Calendar', 'Reports',
-  ],
-  execution_pm: ['Dashboard', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Documents', 'Calendar'],
-  foreman: [],
-  accounts: ['Dashboard', 'CRM', 'Projects', 'Accounts', 'Documents', 'Reports'],
-  marketing: ['Dashboard', 'CRM', 'Calendar'],
+const DEFAULTS: Record<Exclude<RoleKey, 'super_admin' | 'ceo' | 'foreman'>, {
+  view: ModuleKey[]; manage: ModuleKey[]; remove: ModuleKey[]
+}> = {
+  design_director: {
+    view: ['Dashboard', 'CEO Consultations', 'CRM', 'Projects', 'Tasks', 'Design', 'Gallery', 'Documents', 'Calendar', 'Reports'],
+    manage: ['CEO Consultations', 'CRM', 'Projects', 'Tasks', 'Design', 'Documents'],
+    remove: ['Tasks', 'Design', 'Documents'],
+  },
+  design_pm: {
+    view: ['Dashboard', 'CEO Consultations', 'Projects', 'Tasks', 'Design', 'Gallery', 'Documents', 'Calendar'],
+    manage: ['CEO Consultations', 'Tasks', 'Design', 'Documents'],
+    remove: ['Tasks'],
+  },
+  design_member: {
+    view: ['Dashboard', 'CEO Consultations', 'Projects', 'Tasks', 'Design', 'Documents'],
+    manage: ['CEO Consultations', 'Tasks', 'Documents'],
+    remove: [],
+  },
+  execution_head: {
+    view: ['Dashboard', 'CEO Consultations', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Gallery', 'Documents', 'Calendar', 'Reports'],
+    manage: ['CEO Consultations', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Documents'],
+    remove: ['Tasks', 'Execution', 'AMC', 'Employees'],
+  },
+  execution_pm: {
+    view: ['Dashboard', 'CEO Consultations', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Gallery', 'Documents', 'Calendar'],
+    manage: ['CEO Consultations', 'Tasks', 'Execution', 'AMC', 'Documents'],
+    remove: ['Tasks'],
+  },
+  accounts: {
+    view: ['Dashboard', 'CEO Consultations', 'CRM', 'Projects', 'Accounts', 'Documents', 'Reports'],
+    manage: ['CEO Consultations', 'CRM', 'Accounts', 'Documents'],
+    remove: ['Accounts'],
+  },
+  marketing: {
+    view: ['Dashboard', 'CEO Consultations', 'CRM', 'Calendar'],
+    manage: ['CEO Consultations', 'CRM'],
+    remove: ['CRM'],
+  },
 }
 
-/** Sections every shell user can open — anyone may view and book the CEO's consultations. */
-const OPEN_TO_ALL = ['CEO Consultations']
+export function defaultPermissions(): PermissionMatrix {
+  const build = (fn: (m: ModuleKey) => ModulePermission) =>
+    Object.fromEntries(MODULES.map((m) => [m, fn(m)])) as Record<ModuleKey, ModulePermission>
 
-export function navForRole(role: RoleKey): NavSection[] {
-  const allowed = SECTION_ACCESS[role]
-  if (allowed === '*') return NAV
+  const matrix = {} as PermissionMatrix
+  matrix.super_admin = build(() => ({ ...ALL }))
+  matrix.ceo = build(() => ({ ...ALL }))
+  // Foremen only ever see the field app, so they hold no module access.
+  matrix.foreman = build(() => ({ ...NONE }))
+  for (const [role, d] of Object.entries(DEFAULTS) as [keyof typeof DEFAULTS, (typeof DEFAULTS)[keyof typeof DEFAULTS]][]) {
+    matrix[role] = build((m) => ({
+      view: d.view.includes(m),
+      create: d.manage.includes(m),
+      edit: d.manage.includes(m),
+      delete: d.remove.includes(m),
+    }))
+  }
+  return matrix
+}
+
+/**
+ * Roles whose access is fixed: the super admin always holds everything, and
+ * foremen are confined to the field app.
+ */
+export const LOCKED_ROLES: RoleKey[] = ['super_admin', 'foreman']
+
+export function hasPermission(
+  matrix: PermissionMatrix | undefined, role: RoleKey, module: ModuleKey, action: PermissionAction,
+): boolean {
+  if (role === 'super_admin') return true
+  if (role === 'foreman') return false
+  const entry = (matrix ?? defaultPermissions())[role]?.[module]
+  if (!entry) return false
+  // Any action implies being able to see the module.
+  return action === 'view' ? entry.view : entry.view && entry[action]
+}
+
+export function navForRole(role: RoleKey, matrix?: PermissionMatrix): NavSection[] {
   if (role === 'foreman') return []
-  return NAV.filter((section) => allowed.includes(section.label) || OPEN_TO_ALL.includes(section.label))
-}
-
-export function canAccessPath(role: RoleKey, path: string): boolean {
-  const sections = navForRole(role)
-  return sections.some((section) => {
-    if (section.path && path.startsWith(section.path)) return true
-    return section.children?.some((child) => path === child.path || path.startsWith(child.path + '/'))
-  })
+  return NAV.filter((section) => hasPermission(matrix, role, section.label, 'view'))
 }
 
 /** Capability checks used where a role gates an action rather than a screen. */
@@ -207,10 +305,6 @@ export const can = {
     ['super_admin', 'ceo', 'execution_head', 'execution_pm'].includes(role),
   adjustOt: (role: RoleKey) =>
     ['super_admin', 'ceo', 'execution_head', 'execution_pm'].includes(role),
-  createProject: (role: RoleKey) =>
-    ['super_admin', 'ceo', 'design_director', 'execution_head'].includes(role),
-  editSettings: (role: RoleKey) => ['super_admin', 'ceo'].includes(role),
-  manageEmployees: (role: RoleKey) => ['super_admin', 'ceo', 'execution_head'].includes(role),
   /** Everyone can book; only the CEO's office can mark a consultation done or cancel others' bookings. */
   manageConsultations: (role: RoleKey) => ['super_admin', 'ceo'].includes(role),
   manageAmc: (role: RoleKey) => ['super_admin', 'ceo', 'execution_head', 'execution_pm'].includes(role),

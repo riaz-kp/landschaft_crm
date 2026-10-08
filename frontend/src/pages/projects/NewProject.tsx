@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { addDays, today } from '../../domain/format'
-import { PageHeader, Section, Field, Checkbox } from '../../components/ui'
+import { PageHeader, Section, Field, Checkbox, Badge } from '../../components/ui'
+import { MapPicker } from '../../components/MapPicker'
+import { CHECKLISTS, commercialDocs } from '../../domain/commercial'
+import type { LatLng } from '../../domain/types'
+import { usePermissions } from '../../state/permissions'
+import { NoAccess } from '../misc/Fallbacks'
 import { Icon } from '../../components/Icon'
 
 /**
@@ -14,7 +19,9 @@ import { Icon } from '../../components/Icon'
 export function NewProject() {
   const db = useDb()
   const navigate = useNavigate()
+  const { can } = usePermissions()
   const [error, setError] = useState<string | null>(null)
+  const [siteCoords, setSiteCoords] = useState<LatLng | undefined>()
 
   const [form, setForm] = useState({
     name: '',
@@ -39,6 +46,10 @@ export function NewProject() {
     ['design_pm', 'design_director', 'execution_pm', 'execution_head'].includes(e.role),
   )
 
+  if (!can('Projects', 'create')) return <NoAccess />
+
+  const docs = commercialDocs({ design, execution })
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim()) return setError('Enter a project name.')
@@ -59,6 +70,7 @@ export function NewProject() {
     setError(null)
     const project = api.projects.create({
       ...form,
+      siteCoords,
       services: { design, execution },
       designPhases,
       executionPhases,
@@ -67,7 +79,7 @@ export function NewProject() {
   }
 
   return (
-    <form onSubmit={submit} className="max-w-3xl">
+    <form onSubmit={submit} className="mx-auto max-w-4xl">
       <PageHeader
         title="New Project"
         subtitle="A project carries Design, Execution, or both — only the services actually required."
@@ -131,6 +143,23 @@ export function NewProject() {
               className="input"
             />
           </Field>
+        </div>
+      </Section>
+
+      {/* Site on the map */}
+      <Section
+        title="Site Location on Map"
+        description="Search for the place or click the map to drop a pin on the exact site. Foremen and the site team can open it in Google Maps."
+        className="mb-6"
+        actions={siteCoords && <Badge tone="green">Pinned</Badge>}
+      >
+        <div className="px-5 py-5">
+          <MapPicker
+            value={siteCoords}
+            onChange={setSiteCoords}
+            onPlaceName={(name) => setForm((f) => (f.siteLocation.trim() ? f : { ...f, siteLocation: name }))}
+            initialQuery={form.siteLocation}
+          />
         </div>
       </Section>
 
@@ -242,6 +271,39 @@ export function NewProject() {
               Free Maintenance and AMC are added automatically once execution completes.
             </p>
           </div>
+        </Section>
+      )}
+
+      {/* Commercial documents follow the services chosen above. */}
+      {docs.length > 0 && (
+        <Section
+          title="BOQ & Quotation"
+          description={
+            design && execution ? 'Design + Execution carries both a BOQ and a Quotation.'
+              : design ? 'Design only carries a BOQ — no quotation.'
+              : 'Execution only carries a Quotation — no BOQ.'
+          }
+          className="mb-6"
+        >
+          <div className={`grid gap-4 px-5 py-5 ${docs.length === 2 ? 'sm:grid-cols-2' : ''}`}>
+            {docs.map((doc) => (
+              <div key={doc} className="rounded-xl border border-stone-200 bg-stone-50/60 p-4">
+                <p className="flex items-center gap-2 font-semibold text-stone-900">
+                  <Icon name="doc" className="h-4 w-4 text-brand-600" /> {doc} checklist
+                </p>
+                <ul className="mt-3 space-y-1.5">
+                  {CHECKLISTS[doc].map((item) => (
+                    <li key={item.id} className="flex items-center gap-2 text-sm text-stone-600">
+                      <span className="h-3.5 w-3.5 shrink-0 rounded border border-stone-300 bg-white" /> {item.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <p className="border-t border-stone-100 px-5 py-3 text-xs text-stone-400">
+            Tick these off on the project's BOQ &amp; Quotation tab as the work moves along.
+          </p>
         </Section>
       )}
 

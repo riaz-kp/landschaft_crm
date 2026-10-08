@@ -42,6 +42,8 @@ export interface Employee {
   id: ID
   name: string
   role: RoleKey
+  /** Title shown on the profile when it differs from the login role, e.g. Co-Founder. */
+  designation?: string
   department: Department
   reportsTo?: ID
   phone: string
@@ -65,14 +67,25 @@ export interface Employee {
 }
 
 export type StaffAttendanceStatus = 'Present' | 'Half Day' | 'Leave' | 'Absent'
+export const ATTENDANCE_STATUSES: StaffAttendanceStatus[] = ['Present', 'Half Day', 'Leave', 'Absent']
 
-/** Office staff attendance. Site labour attendance comes from daily reports instead. */
-export interface StaffAttendance {
-  employeeId: ID
+/** Office staff and site workers share one register. */
+export type PersonKind = 'employee' | 'worker'
+
+/**
+ * One person's day on the attendance register. For site workers a missing
+ * entry falls back to the foreman's daily report, so the register only stores
+ * what someone marked or corrected by hand.
+ */
+export interface AttendanceEntry {
+  kind: PersonKind
+  personId: ID
   date: string
   status: StaffAttendanceStatus
   checkIn?: string
   checkOut?: string
+  /** Overtime in hours, recorded separately from the working day. */
+  otHours?: number
 }
 
 /** Site labour. Workers do not log in — foremen record them. */
@@ -81,7 +94,15 @@ export interface Worker {
   name: string
   skill: string
   phone: string
+  whatsapp?: string
   active: boolean
+  photo?: string
+  address?: string
+  joinedOn?: string
+  /** Day rate in rupees. */
+  dailyWage?: number
+  emergencyContact?: string
+  notes?: string
 }
 
 // ---------------------------------------------------------------- CRM
@@ -99,6 +120,7 @@ export interface Lead {
   ownerId: ID
   requirement: string
   createdAt: string
+  notes?: string
   /** Set when the lead converts, linking the two records. */
   clientId?: ID
 }
@@ -159,6 +181,18 @@ export interface PaymentFollowUp {
 
 export type ConsultationStatus = 'Scheduled' | 'Completed' | 'Cancelled'
 
+/** A record of a consultation being moved, kept so the diary shows its history. */
+export interface Postponement {
+  fromDate: string
+  fromStart: string
+  toDate: string
+  toStart: string
+  reason: string
+  by: ID
+  /** Local date-time the change was made, YYYY-MM-DDTHH:mm. */
+  at: string
+}
+
 /** A slot on the CEO's consultation schedule. Anyone may book one. */
 export interface Consultation {
   id: ID
@@ -174,6 +208,7 @@ export interface Consultation {
   bookedBy: ID
   status: ConsultationStatus
   notes?: string
+  postponements?: Postponement[]
 }
 
 export type SiteVisitStatus = 'Scheduled' | 'Completed' | 'Cancelled'
@@ -233,6 +268,23 @@ export interface MepPhase extends Phase {
 
 export type ProjectStatus = 'Planning' | 'In Progress' | 'On Hold' | 'Completed'
 
+export interface LatLng {
+  lat: number
+  lng: number
+}
+
+/**
+ * Commercial documents. Which ones a project carries follows its services:
+ * Design only → BOQ, Execution only → Quotation, Design + Execution → both.
+ */
+export type CommercialDoc = 'BOQ' | 'Quotation'
+
+export interface ChecklistTick {
+  done: boolean
+  by?: ID
+  on?: string
+}
+
 export interface Project {
   id: ID
   code: string
@@ -255,6 +307,10 @@ export interface Project {
   value: number
   /** Flagged when the expected completion has passed and work is unfinished. */
   delayed: boolean
+  /** Pin dropped on the map at creation. */
+  siteCoords?: LatLng
+  /** BOQ and quotation checklist, keyed by checklist item id. */
+  checklist?: Record<string, ChecklistTick>
 }
 
 /** Project type is derived, never stored — the services decide it. */
@@ -300,11 +356,18 @@ export interface TaEntry {
   distanceKm: number
 }
 
+/** Foremen photograph the site twice a day. */
+export type PhotoSession = 'Morning' | 'Evening'
+export const PHOTO_SESSIONS: PhotoSession[] = ['Morning', 'Evening']
+
 export interface ReportPhoto {
   id: ID
   /** Data URL in the prototype; an object-store key in production. */
   src: string
   caption?: string
+  session: PhotoSession
+  /** HH:mm the photo was added. */
+  takenAt?: string
 }
 
 export type ReportStatus = 'Draft' | 'Submitted' | 'Approved' | 'Sent Back'
@@ -359,6 +422,8 @@ export interface QuotationItem {
 
 export interface Quotation {
   id: ID
+  /** BOQ for design work, Quotation for execution work. */
+  kind: CommercialDoc
   number: string
   projectId: ID
   clientId: ID
@@ -459,4 +524,22 @@ export interface Settings {
   /** Roles permitted to adjust the OT figure on a submitted report. */
   otAdjustRoles: RoleKey[]
   freeMaintenanceMonths: number
+  /** Module access per role, edited from Settings → Roles & Permissions. */
+  permissions: PermissionMatrix
+  /** Company-wide off days (holidays) on top of Sundays. */
+  holidays: string[]
 }
+
+// ---------------------------------------------------------------- permissions
+
+/** Every module a role can be granted, matching the sidebar. */
+export const MODULES = [
+  'Dashboard', 'CEO Consultations', 'CRM', 'Projects', 'Tasks', 'Design', 'Execution', 'AMC',
+  'Accounts', 'Employees', 'Gallery', 'Documents', 'Calendar', 'Reports', 'Settings',
+] as const
+export type ModuleKey = (typeof MODULES)[number]
+
+export const PERMISSION_ACTIONS = ['view', 'create', 'edit', 'delete'] as const
+export type PermissionAction = (typeof PERMISSION_ACTIONS)[number]
+export type ModulePermission = Record<PermissionAction, boolean>
+export type PermissionMatrix = Record<RoleKey, Record<ModuleKey, ModulePermission>>

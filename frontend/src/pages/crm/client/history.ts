@@ -55,7 +55,7 @@ export function clientHistory(db: DbShape, clientId: ID): HistoryItem[] {
     const total = quote.items.reduce((sum, i) => sum + i.quantity * i.rate, 0)
     items.push({
       id: `q-${quote.id}`, date: quote.date, department: 'Accounts', icon: 'doc',
-      title: `Quotation ${quote.number} — ${quote.status}`, detail: formatCurrency(total),
+      title: `${quote.kind} ${quote.number} — ${quote.status}`, detail: formatCurrency(total),
       to: '/accounts/quotations',
     })
   }

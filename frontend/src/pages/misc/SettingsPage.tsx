@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
-import { useSession } from '../../state/session'
-import { can } from '../../domain/roles'
+import { usePermissions } from '../../state/permissions'
+import { PermissionMatrixEditor } from './PermissionMatrix'
 import { DESIGN_PHASES, PHASE_LABELS, type Settings } from '../../domain/types'
 import {
   PageHeader, Section, Field, Checkbox, Badge, ProgressBar,
@@ -22,8 +22,8 @@ const SPLIT_PRESETS: { label: string; split: Settings['designPaymentSplit'] }[] 
  */
 export function SettingsPage() {
   const db = useDb()
-  const { roleKey } = useSession()
-  const editable = can.editSettings(roleKey)
+  const { can } = usePermissions()
+  const editable = can('Settings', 'edit')
   const [draft, setDraft] = useState<Settings>(() => structuredClone(db.settings))
   const [saved, setSaved] = useState(false)
 
@@ -37,17 +37,36 @@ export function SettingsPage() {
 
   const save = () => {
     if (!valid) return
-    api.settings.save(draft)
+    // Holidays are marked from the attendance register, so keep whatever is stored now.
+    api.settings.save({ ...draft, holidays: db.settings.holidays })
     setSaved(true)
   }
 
+  const { holidays: _a, ...draftRest } = draft
+  const { holidays: _b, ...storedRest } = db.settings
+  const dirty = JSON.stringify(draftRest) !== JSON.stringify(storedRest)
+
   return (
-    <div className="max-w-3xl">
+    <div className="mx-auto max-w-5xl pb-20">
       <PageHeader
         title="Settings"
-        subtitle="The parts of the system the client asked to keep configurable."
+        subtitle="Roles and permissions, and the parts of the system the client asked to keep configurable."
         actions={!editable && <Badge tone="stone">Read only for your role</Badge>}
       />
+
+      <Section
+        title="Roles & Permissions"
+        description="Tick what each role may view, create, edit and delete in every module. Changes apply to everyone with that role once saved."
+        className="mb-6"
+      >
+        <div className="px-5 pt-4 pb-5">
+          <PermissionMatrixEditor
+            value={draft.permissions}
+            onChange={(permissions) => patch({ permissions })}
+            disabled={!editable}
+          />
+        </div>
+      </Section>
 
       <Section
         title="Design Payment Structure"
@@ -151,7 +170,7 @@ export function SettingsPage() {
           <Checkbox
             checked={draft.photosMandatory}
             disabled={!editable}
-            label="Require at least one site photo before a report can be submitted"
+            label="Require a morning and an evening site photo before a report can be submitted"
             onChange={(photosMandatory) => patch({ photosMandatory })}
           />
           <div>
@@ -183,14 +202,27 @@ export function SettingsPage() {
         </div>
       </Section>
 
-      {editable && (
-        <div className="flex flex-wrap items-center gap-3">
-          <button onClick={save} disabled={!valid} className="btn-primary">Save Settings</button>
-          {saved && (
-            <span className="flex items-center gap-1.5 text-sm font-medium text-brand-700">
-              <Icon name="check" className="h-4 w-4" /> Saved
-            </span>
-          )}
+      {editable && (dirty || saved) && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 backdrop-blur lg:left-64">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            {saved && !dirty ? (
+              <span className="flex items-center gap-1.5 text-sm font-medium text-brand-700">
+                <Icon name="check" className="h-4 w-4" /> Settings saved
+              </span>
+            ) : (
+              <span className="text-sm text-stone-600">
+                You have unsaved changes{!valid && <span className="font-medium text-red-700"> — the payment split must total 100%</span>}.
+              </span>
+            )}
+            <div className="flex gap-2">
+              {dirty && (
+                <button onClick={() => { setDraft(structuredClone(db.settings)); setSaved(false) }} className="btn-secondary">
+                  Discard
+                </button>
+              )}
+              <button onClick={save} disabled={!valid || !dirty} className="btn-primary">Save settings</button>
+            </div>
+          </div>
         </div>
       )}
 

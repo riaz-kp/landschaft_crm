@@ -238,7 +238,7 @@ export function ReportReview() {
         </Section>
       </div>
 
-      <Section title="Photos" className="mt-6">
+      <Section title="Site Photos" description="Taken by the foreman in the morning and the evening." className="mt-6">
         <div className="px-5 py-4">
           <PhotoGrid photos={report.photos} onChange={() => {}} disabled />
         </div>

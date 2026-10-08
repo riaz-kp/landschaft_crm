@@ -3,23 +3,28 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
-import { can } from '../../domain/roles'
+import { usePermissions } from '../../state/permissions'
+import { CHECKLISTS, checklistProgress, commercialDocs } from '../../domain/commercial'
+import { MapPicker, mapsUrl } from '../../components/MapPicker'
+import { PhotoGallery } from '../gallery/Gallery'
 import { computeProgress, projectType } from '../../domain/progress'
 import { formatCurrency, formatDate } from '../../domain/format'
 import { MEP_LABELS, MEP_SERVICES, type PhaseKey } from '../../domain/types'
 import {
-  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, ProgressBar,
+  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, ProgressBar, Tabs, Checkbox,
 } from '../../components/ui'
 import { PhaseStrip, ProjectProgressPanel } from '../../components/ProjectProgress'
 import { RepeaterView } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
 
-type Tab = 'overview' | 'phases' | 'tasks' | 'reports' | 'accounts' | 'maintenance'
+type Tab = 'overview' | 'phases' | 'tasks' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance'
 
 export function ProjectDetail() {
   const { projectId = '' } = useParams()
   const db = useDb()
-  const { roleKey } = useSession()
+  const { user } = useSession()
+  const { can } = usePermissions()
+  const [pinning, setPinning] = useState(false)
   const [tab, setTab] = useState<Tab>('overview')
 
   const project = db.projects.find((p) => p.id === projectId)
@@ -37,19 +42,28 @@ export function ProjectDetail() {
   const maintenance = db.maintenance.filter((m) => m.projectId === project.id)
   const received = payments.reduce((sum, p) => sum + p.amount, 0)
 
-  const editable = can.createProject(roleKey)
+  const editable = can('Projects', 'edit')
   const phaseRows: { key: PhaseKey; label: string; progress: number; group: string }[] = [
     ...(progress.design?.phases.map((p) => ({ ...p, group: 'Design' })) ?? []),
     ...(progress.execution?.phases.map((p) => ({ ...p, group: 'Execution' })) ?? []),
   ]
+
+  const docs = commercialDocs(project.services)
+  const photoCount = reports.reduce((s, r) => s + r.photos.length, 0)
+  // BOQ is design's to tick, the quotation accounts' or execution's; project editors can do either.
+  const canTick = (doc: string) => editable || (doc === 'BOQ' ? can('Design', 'edit') : can('Accounts', 'edit') || can('Execution', 'edit'))
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'phases', label: 'Phases', count: phaseRows.length },
     { key: 'tasks', label: 'Tasks', count: tasks.length },
     ...(project.services.execution
-      ? [{ key: 'reports' as Tab, label: 'Daily Reports', count: reports.length }]
+      ? [
+          { key: 'reports' as Tab, label: 'Daily Reports', count: reports.length },
+          { key: 'photos' as Tab, label: 'Site Photos', count: photoCount },
+        ]
       : []),
+    { key: 'commercial', label: docs.join(' & '), count: docs.reduce((s, d) => s + checklistProgress(project, d).done, 0) },
     { key: 'accounts', label: 'Accounts' },
     ...(maintenance.length ? [{ key: 'maintenance' as Tab, label: 'AMC' }] : []),
   ]
@@ -80,24 +94,7 @@ export function ProjectDetail() {
         <PhaseStrip project={project} />
       </div>
 
-      <nav className="mb-5 flex flex-wrap gap-1 border-b border-stone-200">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === t.key
-                ? 'border-brand-600 text-brand-800'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
-            }`}
-          >
-            {t.label}
-            {t.count !== undefined && (
-              <span className="ml-1.5 text-xs tabular-nums text-stone-400">{t.count}</span>
-            )}
-          </button>
-        ))}
-      </nav>
+      <Tabs<Tab> tabs={tabs} active={tab} onChange={setTab} />
 
       {tab === 'overview' && (
         <div className="grid gap-6 lg:grid-cols-3">
@@ -140,6 +137,107 @@ export function ProjectDetail() {
               <ProjectProgressPanel project={project} />
             </div>
           </Section>
+
+          <Section
+            title="Site on the Map"
+            description={<SiteName name={project.siteLocation} />}
+            className="lg:col-span-3"
+            actions={
+              <div className="flex flex-wrap gap-2">
+                {project.siteCoords && (
+                  <a href={mapsUrl(project.siteCoords)} target="_blank" rel="noreferrer" className="btn-secondary py-1.5">
+                    <Icon name="map" className="h-4 w-4" /> Open in Google Maps
+                  </a>
+                )}
+                {editable && !pinning && (
+                  <button onClick={() => setPinning(true)} className="btn-secondary py-1.5">
+                    <Icon name="pin" className="h-4 w-4" /> {project.siteCoords ? 'Move pin' : 'Pin the site'}
+                  </button>
+                )}
+                {pinning && <button onClick={() => setPinning(false)} className="btn-primary py-1.5">Done</button>}
+              </div>
+            }
+          >
+            <div className="p-4">
+              {project.siteCoords || pinning ? (
+                <MapPicker
+                  key={pinning ? 'edit' : 'view'}
+                  value={project.siteCoords}
+                  onChange={pinning ? (siteCoords) => api.projects.update(project.id, { siteCoords }) : undefined}
+                  initialQuery={project.siteLocation}
+                  height={300}
+                />
+              ) : (
+                <EmptyState title="The site has not been pinned on the map yet." hint={editable ? 'Use “Pin the site” to drop a pin.' : undefined} icon="map" />
+              )}
+            </div>
+          </Section>
+        </div>
+      )}
+
+      {tab === 'photos' && <PhotoGallery projectId={project.id} />}
+
+      {tab === 'commercial' && (
+        <div className={`grid gap-6 ${docs.length === 2 ? 'xl:grid-cols-2' : 'max-w-3xl'}`}>
+          {docs.map((doc) => {
+            const { done, total } = checklistProgress(project, doc)
+            const records = db.quotations.filter((q) => q.projectId === project.id && q.kind === doc)
+            return (
+              <Section
+                key={doc}
+                title={`${doc} Checklist`}
+                description={doc === 'BOQ' ? 'Bill of quantities for the design work.' : 'Priced quotation for the execution work.'}
+                actions={<Badge tone={done === total ? 'green' : done ? 'amber' : 'stone'}>{done} / {total}</Badge>}
+              >
+                <div className="px-5 pt-4"><ProgressBar value={(done / total) * 100} tone={done === total ? 'green' : 'amber'} /></div>
+                <ul className="divide-y divide-stone-100 px-2 py-2">
+                  {CHECKLISTS[doc].map((item) => {
+                    const tick = project.checklist?.[item.id]
+                    return (
+                      <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+                        <Checkbox
+                          checked={Boolean(tick?.done)}
+                          disabled={!canTick(doc)}
+                          onChange={(v) => api.projects.setChecklist(project.id, item.id, v, user.id)}
+                          label={<span className={tick?.done ? 'text-stone-400 line-through' : ''}>{item.label}</span>}
+                        />
+                        {tick?.done && tick.on && (
+                          <span className="text-xs text-stone-400">
+                            {db.employees.find((e) => e.id === tick.by)?.name ?? '—'} · {formatDate(tick.on)}
+                          </span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+                <div className="border-t border-stone-100 px-5 py-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="label">{doc} documents</p>
+                    {can('Accounts', 'view') && (
+                      <Link to={`/accounts/quotations?project=${project.id}&kind=${doc}`} className="text-xs font-semibold text-brand-700">
+                        {can('Accounts', 'create') ? `New ${doc}` : 'View all'}
+                      </Link>
+                    )}
+                  </div>
+                  {records.length === 0 ? (
+                    <p className="text-sm text-stone-400">No {doc} issued yet.</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {records.map((q) => (
+                        <li key={q.id} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="font-medium text-stone-800">{q.number}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="tabular-nums text-stone-600">{formatCurrency(q.items.reduce((s, i) => s + i.quantity * i.rate, 0))}</span>
+                            <StatusBadge status={q.status} />
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </Section>
+            )
+          })}
         </div>
       )}
 

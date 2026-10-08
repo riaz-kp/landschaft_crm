@@ -11,7 +11,7 @@ import { SiteVisits } from './pages/crm/SiteVisits'
 import { ProjectList } from './pages/projects/ProjectList'
 import { ProjectDetail } from './pages/projects/ProjectDetail'
 import { NewProject } from './pages/projects/NewProject'
-import { MyTasks, TeamTasks, TaskBoard } from './pages/tasks/Tasks'
+import { AllTasks, MyTasks, TeamTasks, TaskBoard } from './pages/tasks/Tasks'
 import { DesignPhasePage } from './pages/design/DesignPhasePage'
 import { ExecutionProjects } from './pages/execution/ExecutionProjects'
 import { ExecutionPhasePage } from './pages/execution/ExecutionPhasePage'
@@ -27,6 +27,8 @@ import { Payments } from './pages/accounts/Payments'
 import { Employees } from './pages/employees/Employees'
 import { EmployeeDetail } from './pages/employees/EmployeeDetail'
 import { ExecutionWorkers } from './pages/employees/ExecutionWorkers'
+import { WorkerDetail } from './pages/employees/WorkerDetail'
+import { Gallery } from './pages/gallery/Gallery'
 import { Attendance } from './pages/employees/Attendance'
 import { WorkReports } from './pages/employees/WorkReports'
 import { Documents } from './pages/misc/Documents'
@@ -78,6 +80,7 @@ export function App() {
 
           <Route path="/tasks/mine" element={<MyTasks />} />
           <Route path="/tasks/team" element={<TeamTasks />} />
+          <Route path="/tasks/all" element={<AllTasks />} />
           <Route path="/tasks/board" element={<TaskBoard />} />
 
           <Route path="/design/concept" element={<DesignPhasePage phase="concept" />} />
@@ -104,10 +107,12 @@ export function App() {
 
           <Route path="/employees" element={<Employees />} />
           <Route path="/employees/workers" element={<ExecutionWorkers />} />
+          <Route path="/employees/workers/:workerId" element={<WorkerDetail />} />
           <Route path="/employees/attendance" element={<Attendance />} />
           <Route path="/employees/work-reports" element={<WorkReports />} />
           <Route path="/employees/:employeeId" element={<EmployeeDetail />} />
 
+          <Route path="/gallery" element={<Gallery />} />
           <Route path="/documents" element={<Documents />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/reports" element={<ReportsPage />} />

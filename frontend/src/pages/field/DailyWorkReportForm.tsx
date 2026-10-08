@@ -5,7 +5,7 @@ import { can } from '../../domain/roles'
 import {
   formatDate, formatDuration, formatTime, minutesBetween, today,
 } from '../../domain/format'
-import type { DailyWorkReport, ReportWorkerEntry } from '../../domain/types'
+import { PHOTO_SESSIONS, type DailyWorkReport, type ReportWorkerEntry } from '../../domain/types'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { RepeaterList } from '../../components/RepeaterList'
@@ -110,8 +110,11 @@ export function DailyWorkReportForm() {
     if (!draft.startTime || !draft.endTime) return setError('Enter the work start and end time.')
     if (regularMinutes === 0) return setError('The end time must be after the start time.')
     if (!draft.workDone.some((w) => w.trim())) return setError('Record at least one item of work done.')
-    if (settings.photosMandatory && draft.photos.length === 0) {
-      return setError('At least one site photo is required before submitting.')
+    if (settings.photosMandatory && !draft.photos.some((p) => p.session === 'Morning')) {
+      return setError('Add the morning site photo before submitting.')
+    }
+    if (settings.photosMandatory && !draft.photos.some((p) => p.session === 'Evening')) {
+      return setError('Add the evening site photo before submitting.')
     }
     setError(null)
     api.reports.submit(draft.id, user.id)
@@ -308,8 +311,8 @@ export function DailyWorkReportForm() {
         ) : (
           <div className="space-y-2">
             {presentWorkers.map((entry) => (
-              <div key={entry.workerId} className="flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
+              <div key={entry.workerId} className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 px-3 py-2">
+                <span className="w-full truncate text-sm font-medium text-stone-800 sm:w-auto sm:min-w-0 sm:flex-1">
                   {workerName(entry.workerId)}
                 </span>
                 <input
@@ -318,7 +321,7 @@ export function DailyWorkReportForm() {
                     attendance: draft.attendance.map((a) =>
                       a.workerId === entry.workerId ? { ...a, checkIn: e.target.value } : a),
                   })}
-                  className="input w-28 py-1"
+                  className="input min-w-0 flex-1 py-1 sm:w-28 sm:flex-none"
                   aria-label={`Check-in for ${workerName(entry.workerId)}`}
                 />
                 <span className="text-stone-400">–</span>
@@ -328,7 +331,7 @@ export function DailyWorkReportForm() {
                     attendance: draft.attendance.map((a) =>
                       a.workerId === entry.workerId ? { ...a, checkOut: e.target.value } : a),
                   })}
-                  className="input w-28 py-1"
+                  className="input min-w-0 flex-1 py-1 sm:w-28 sm:flex-none"
                   aria-label={`Check-out for ${workerName(entry.workerId)}`}
                 />
               </div>
@@ -338,10 +341,31 @@ export function DailyWorkReportForm() {
       </FormSection>
 
       <FormSection
-        n={8} title="Photos"
-        hint={settings.photosMandatory ? 'At least one photo is required.' : 'Photos are optional.'}
+        n={8} title="Site Photos"
+        hint={settings.photosMandatory
+          ? 'Photograph the site twice a day — in the morning before work starts and in the evening when it ends. Both are required.'
+          : 'Photograph the site in the morning before work starts and in the evening when it ends.'}
       >
-        <PhotoGrid photos={draft.photos} onChange={(photos) => patch({ photos })} disabled={locked} />
+        <div className="space-y-4">
+          {PHOTO_SESSIONS.map((session) => {
+            const count = draft.photos.filter((p) => p.session === session).length
+            return (
+              <div key={session} className={`rounded-xl border p-3 ${count ? 'border-brand-200 bg-brand-50/40' : 'border-stone-200'}`}>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-stone-800">
+                    <Icon name={session === 'Morning' ? 'sun' : 'moon'} className={`h-4 w-4 ${session === 'Morning' ? 'text-amber-500' : 'text-violet-500'}`} />
+                    {session} photo
+                    <span className="text-xs font-normal text-stone-400">{session === 'Morning' ? 'before work starts' : 'at the end of the day'}</span>
+                  </p>
+                  {count > 0
+                    ? <span className="flex items-center gap-1 text-xs font-semibold text-brand-700"><Icon name="check" className="h-3.5 w-3.5" /> {count} added</span>
+                    : <span className="text-xs font-medium text-amber-700">{settings.photosMandatory ? 'Required' : 'Not added'}</span>}
+                </div>
+                <PhotoGrid photos={draft.photos} session={session} onChange={(photos) => patch({ photos })} disabled={locked} />
+              </div>
+            )
+          })}
+        </div>
       </FormSection>
 
       {error && (

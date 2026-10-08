@@ -1,108 +1,104 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
-import { formatTime, today } from '../../domain/format'
-import type { Employee, StaffAttendanceStatus } from '../../domain/types'
+import { formatDuration, formatTime, today } from '../../domain/format'
+import {
+  CYCLE, STATUS_CELL, daysOfMonth, indexRegister, indexWorkerReports, isOffDay, resolveDay, totalsFor,
+} from '../../domain/attendance'
+import { ATTENDANCE_STATUSES, type Employee, type ID, type PersonKind } from '../../domain/types'
 import { Section, StatTile } from '../../components/ui'
+import { Icon } from '../../components/Icon'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-/** Clicking a day steps through these, then back to unrecorded. */
-const CYCLE: (StaffAttendanceStatus | null)[] = ['Present', 'Half Day', 'Leave', 'Absent', null]
-
-const CELL: Record<StaffAttendanceStatus, string> = {
-  Present: 'bg-brand-100 text-brand-800 ring-brand-600/20',
-  'Half Day': 'bg-amber-100 text-amber-800 ring-amber-600/20',
-  Leave: 'bg-sky-100 text-sky-800 ring-sky-600/20',
-  Absent: 'bg-red-100 text-red-800 ring-red-600/20',
-}
-
-export function EmployeeAttendance({ employee, canEdit }: { employee: Employee; canEdit: boolean }) {
+/** One person's month — employee or site worker — with their totals. */
+export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind; personId: ID; canEdit: boolean }) {
   const db = useDb()
   const [month, setMonth] = useState(() => today().slice(0, 7))
+  const register = useMemo(() => indexRegister(db.attendance), [db.attendance])
+  const workerReports = useMemo(() => indexWorkerReports(db.reports), [db.reports])
+  const holidays = db.settings.holidays
 
   const [year, monthIndex] = month.split('-').map(Number)
   const firstDay = new Date(year, monthIndex - 1, 1)
-  const daysInMonth = new Date(year, monthIndex, 0).getDate()
   const leadingBlanks = (firstDay.getDay() + 6) % 7
-
-  const entries = db.staffAttendance.filter((a) => a.employeeId === employee.id && a.date.startsWith(month))
-  const entryOn = (iso: string) => entries.find((a) => a.date === iso)
-  const count = (status: StaffAttendanceStatus) => entries.filter((a) => a.status === status).length
-  const worked = count('Present') + count('Half Day') / 2
-  const recorded = entries.length
-  const rate = recorded ? Math.round((worked / recorded) * 100) : 0
+  const days = daysOfMonth(month).map((date) => ({ date, day: resolveDay(kind, personId, date, register, workerReports) }))
+  const t = totalsFor(days, holidays)
+  const working = days.filter((d) => !isOffDay(d.date, holidays) && d.date <= today()).length
+  const rate = working ? Math.round((t.days / working) * 100) : 0
 
   const shiftMonth = (delta: number) => {
     const date = new Date(year, monthIndex - 1 + delta, 1)
     setMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
   }
 
-  const cycle = (iso: string) => {
-    const current = entryOn(iso)?.status ?? null
+  const cycle = (date: string, current: (typeof CYCLE)[number]) => {
     const next = CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length]
-    api.employees.setAttendance(employee.id, iso, next)
+    api.attendance.set(kind, personId, date, next ? { status: next } : null)
   }
+
+  const site = (id: ID) => db.projects.find((p) => p.id === id)?.siteLocation ?? ''
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatTile label="Present" value={count('Present')} tone="green" />
-        <StatTile label="Half Day" value={count('Half Day')} tone="amber" />
-        <StatTile label="Leave" value={count('Leave')} tone="blue" />
-        <StatTile label="Absent" value={count('Absent')} tone={count('Absent') ? 'red' : 'stone'} />
-        <StatTile label="Attendance" value={`${rate}%`} sub={`${worked} of ${recorded} recorded days`} />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <StatTile label="Present" value={t.present} tone="green" />
+        <StatTile label="Half Day" value={t.half} tone="amber" />
+        <StatTile label="Leave" value={t.leave} tone="violet" />
+        <StatTile label="Absent" value={t.absent} tone={t.absent ? 'red' : 'stone'} />
+        <StatTile label="Overtime" value={`${t.ot}h`} tone="blue" sub={t.minutes ? `${formatDuration(t.minutes)} worked` : undefined} />
+        <StatTile label="Attendance" value={`${rate}%`} sub={`${t.days} of ${working} working days so far`} />
       </div>
 
       <Section
         title={firstDay.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
-        description={canEdit ? 'Click a day to change its status. Sundays are the weekly off.' : 'Sundays are the weekly off.'}
+        description={canEdit ? 'Click a day to change its status. Sundays and holidays are off days.' : 'Sundays and holidays are off days.'}
         actions={
-          <div className="flex items-center gap-2">
-            <button onClick={() => shiftMonth(-1)} className="btn-secondary px-3" aria-label="Previous month">‹</button>
-            <button onClick={() => shiftMonth(1)} className="btn-secondary px-3" aria-label="Next month">›</button>
+          <div className="flex items-center gap-1">
+            <button onClick={() => shiftMonth(-1)} className="btn-icon" aria-label="Previous month"><Icon name="chevron" className="h-4 w-4 rotate-180" /></button>
+            <button onClick={() => setMonth(today().slice(0, 7))} className="btn-secondary py-1.5 text-xs">This month</button>
+            <button onClick={() => shiftMonth(1)} className="btn-icon" aria-label="Next month"><Icon name="chevron" className="h-4 w-4" /></button>
           </div>
         }
       >
         <div className="p-4">
           <div className="grid grid-cols-7 gap-1.5">
             {WEEKDAYS.map((d) => (
-              <div key={d} className="pb-1 text-center text-xs font-semibold uppercase tracking-wide text-stone-400">{d}</div>
+              <div key={d} className="pb-1 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-400">{d}</div>
             ))}
             {Array.from({ length: leadingBlanks }).map((_, i) => <div key={`b${i}`} />)}
-            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-              const iso = `${month}-${String(day).padStart(2, '0')}`
-              const entry = entryOn(iso)
-              const sunday = new Date(year, monthIndex - 1, day).getDay() === 0
-              const future = iso > today()
+            {days.map(({ date, day }) => {
+              const off = isOffDay(date, holidays)
+              const future = date > today()
               const clickable = canEdit && !future
-              const tone = entry ? CELL[entry.status] : sunday ? 'bg-stone-50 text-stone-300 ring-stone-200' : 'bg-white text-stone-500 ring-stone-200'
-              const title = entry
-                ? `${entry.status}${entry.checkIn ? ` · in ${formatTime(entry.checkIn)}` : ''}${entry.checkOut ? ` · out ${formatTime(entry.checkOut)}` : ''}`
-                : sunday ? 'Weekly off' : future ? '' : 'Not recorded'
+              const tone = day ? STATUS_CELL[day.status] : off ? 'bg-stone-50 text-stone-300 ring-stone-200' : 'bg-white text-stone-500 ring-stone-200'
+              const title = day
+                ? `${day.status}${day.checkIn ? ` · in ${formatTime(day.checkIn)}` : ''}${day.checkOut ? ` · out ${formatTime(day.checkOut)}` : ''}${day.otHours ? ` · OT ${day.otHours}h` : ''}`
+                : off ? 'Off day' : future ? '' : 'Not recorded'
               return (
                 <button
-                  key={iso}
+                  key={date}
                   type="button"
                   disabled={!clickable}
-                  onClick={() => cycle(iso)}
+                  onClick={() => cycle(date, day?.status ?? null)}
                   title={title}
-                  className={`flex min-h-14 flex-col items-start rounded-lg p-1.5 text-left ring-1 ring-inset transition ${tone} ${
+                  className={`relative flex min-h-16 flex-col items-start rounded-xl p-1.5 text-left ring-1 ring-inset transition ${tone} ${
                     clickable ? 'hover:brightness-95' : 'cursor-default'
-                  } ${iso === today() ? 'outline outline-2 outline-offset-1 outline-brand-500' : ''} ${future ? 'opacity-40' : ''}`}
+                  } ${date === today() ? 'outline outline-2 outline-offset-1 outline-brand-500' : ''} ${future ? 'opacity-40' : ''}`}
                 >
-                  <span className="text-xs font-semibold tabular-nums">{day}</span>
-                  <span className="mt-auto hidden text-[10px] font-medium leading-tight sm:block">
-                    {entry ? entry.status : sunday ? 'Off' : ''}
+                  <span className="text-xs font-semibold tabular-nums">{Number(date.slice(8))}</span>
+                  {day?.otHours ? <span className="absolute right-1.5 top-1.5 rounded bg-sky-500 px-1 text-[9px] font-bold text-white">+{day.otHours}h</span> : null}
+                  <span className="mt-auto hidden w-full truncate text-[10px] font-medium leading-tight sm:block">
+                    {day ? (day.projectIds.length ? site(day.projectIds[0]) : day.status) : off ? 'Off' : ''}
                   </span>
                 </button>
               )
             })}
           </div>
           <div className="mt-4 flex flex-wrap gap-3 text-xs text-stone-500">
-            {(Object.keys(CELL) as StaffAttendanceStatus[]).map((s) => (
+            {ATTENDANCE_STATUSES.map((s) => (
               <span key={s} className="flex items-center gap-1.5">
-                <span className={`h-3 w-3 rounded ring-1 ring-inset ${CELL[s]}`} /> {s}
+                <span className={`h-3 w-3 rounded ring-1 ring-inset ${STATUS_CELL[s]}`} /> {s}
               </span>
             ))}
           </div>
@@ -110,4 +106,8 @@ export function EmployeeAttendance({ employee, canEdit }: { employee: Employee; 
       </Section>
     </div>
   )
+}
+
+export function EmployeeAttendance({ employee, canEdit }: { employee: Employee; canEdit: boolean }) {
+  return <PersonAttendance kind="employee" personId={employee.id} canEdit={canEdit} />
 }

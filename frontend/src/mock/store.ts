@@ -3,7 +3,7 @@ import { today } from '../domain/format'
 import type {
   CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
   DocumentRecord, Employee, ID, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
-  PaymentRequest, Project, Quotation, Settings, SiteAssignment, SiteVisit, StaffAttendance,
+  PaymentRequest, Project, Quotation, Settings, SiteAssignment, SiteVisit, AttendanceEntry,
   Task, Worker,
 } from '../domain/types'
 
@@ -28,12 +28,13 @@ export interface DbShape {
   chatMessages: ChatMessage[]
   followUps: PaymentFollowUp[]
   consultations: Consultation[]
-  staffAttendance: StaffAttendance[]
+  attendance: AttendanceEntry[]
   settings: Settings
 }
 
-// v2 adds client WhatsApp numbers and the AMC, client and employee records.
-const STORAGE_KEY = 'landschaft-crm-prototype-v2'
+// v3 adds the permission matrix, the shared attendance register, morning/evening
+// site photos, BOQ & quotation checklists and project map pins.
+const STORAGE_KEY = 'landschaft-crm-prototype-v3'
 
 function freshDb(): DbShape {
   // Structured clone keeps the seed module pristine across resets.
@@ -58,7 +59,7 @@ function freshDb(): DbShape {
     chatMessages: seed.chatMessages,
     followUps: seed.followUps,
     consultations: seed.consultations,
-    staffAttendance: seed.staffAttendance,
+    attendance: seed.attendance,
     settings: seed.settings,
   })
 }
@@ -70,8 +71,9 @@ function load(): DbShape {
     const parsed = JSON.parse(raw) as DbShape
     // Guard against a half-written or older payload.
     if (!parsed.projects || !parsed.reports) return freshDb()
-    // Collections added after the payload was written start from the seed.
-    return { ...freshDb(), ...parsed }
+    // Collections and settings added after the payload was written start from the seed.
+    const fresh = freshDb()
+    return { ...fresh, ...parsed, settings: { ...fresh.settings, ...parsed.settings } }
   } catch {
     return freshDb()
   }

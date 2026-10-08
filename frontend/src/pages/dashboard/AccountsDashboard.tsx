@@ -74,11 +74,11 @@ export function AccountsDashboard() {
         </Section>
 
         <Section
-          title="Open Quotations"
+          title="Open BOQs & Quotations"
           actions={<Link to="/accounts/quotations" className="text-sm font-semibold text-brand-700">View all</Link>}
         >
           {openQuotes.length === 0 ? (
-            <EmptyState title="No open quotations." />
+            <EmptyState title="No open BOQs or quotations." />
           ) : (
             <Table head={['Number', 'Client', 'Value', 'Status']}>
               {openQuotes.map((quote) => (

@@ -1,30 +1,60 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
+import { usePermissions } from '../../state/permissions'
 import { formatCurrency, formatDate } from '../../domain/format'
 import { receivable } from '../../domain/finance'
-import { PageHeader, Section, Table, EmptyState, Badge } from '../../components/ui'
+import type { Client } from '../../domain/types'
+import {
+  PageHeader, Section, Table, EmptyState, Badge, SearchInput, Toolbar, RowActions, ConfirmDialog, StatTile, Avatar,
+} from '../../components/ui'
 import { ContactNumbers } from '../../components/ContactFields'
+import { Icon } from '../../components/Icon'
 import { ClientFormModal } from './ClientForm'
 
 export function Clients() {
   const db = useDb()
+  const { can } = usePermissions()
   const navigate = useNavigate()
-  const [creating, setCreating] = useState(false)
+  const [query, setQuery] = useState('')
+  const [editing, setEditing] = useState<Client | 'new' | null>(null)
+  const [deleting, setDeleting] = useState<Client | null>(null)
+
+  const q = query.trim().toLowerCase()
+  const clients = db.clients.filter((c) =>
+    !q || [c.name, c.phone, c.whatsapp, c.address, c.email ?? ''].some((v) => v.toLowerCase().includes(q)))
+  const totals = db.clients.map((c) => receivable(db, c.id))
+  const outstanding = totals.reduce((s, m) => s + m.outstanding, 0)
 
   return (
     <div>
       <PageHeader
         title="Clients"
         subtitle="Converted leads and their projects. Open a client for their full record."
-        actions={<button onClick={() => setCreating(true)} className="btn-primary">New Client</button>}
+        actions={can('CRM', 'create') && (
+          <button onClick={() => setEditing('new')} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New client</button>
+        )}
       />
+
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatTile label="Clients" value={db.clients.length} icon="users" />
+        <StatTile label="With Live Projects" value={db.clients.filter((c) => db.projects.some((p) => p.clientId === c.id && p.status !== 'Completed')).length} tone="green" icon="folder" />
+        <StatTile label="Contract Value" value={formatCurrency(totals.reduce((s, m) => s + m.contracted, 0), true)} tone="blue" icon="rupee" />
+        <StatTile label="Outstanding" value={formatCurrency(outstanding, true)} tone={outstanding ? 'amber' : 'green'} icon="alert" />
+      </div>
+
+      <Toolbar>
+        <p className="text-sm text-stone-500">{clients.length} of {db.clients.length} clients</p>
+        <SearchInput value={query} onChange={setQuery} placeholder="Search name, phone, address…" className="lg:w-80" />
+      </Toolbar>
+
       <Section>
-        {db.clients.length === 0 ? (
-          <EmptyState title="No clients yet." />
+        {clients.length === 0 ? (
+          <EmptyState title={q ? 'No clients match.' : 'No clients yet.'} icon="users" />
         ) : (
-          <Table head={['Client', 'Phone / WhatsApp', 'Address', 'Projects', 'Value', 'Outstanding', 'Since']}>
-            {db.clients.map((client) => {
+          <Table head={['Client', 'Phone / WhatsApp', 'Address', 'Projects', 'Value', 'Outstanding', 'Since', '']}>
+            {clients.map((client) => {
               const projects = db.projects.filter((p) => p.clientId === client.id)
               const money = receivable(db, client.id)
               const openClarifications = db.clarifications.filter(
@@ -33,10 +63,13 @@ export function Clients() {
               return (
                 <tr key={client.id} className="row-hover">
                   <td className="td">
-                    <Link to={`/crm/clients/${client.id}`} className="font-medium text-stone-900 hover:text-brand-700">
-                      {client.name}
+                    <Link to={`/crm/clients/${client.id}`} className="flex items-center gap-2.5">
+                      <Avatar name={client.name} size="sm" />
+                      <span className="min-w-0">
+                        <span className="block font-medium text-stone-900 hover:text-brand-700">{client.name}</span>
+                        {client.email && <span className="block truncate text-xs text-stone-400">{client.email}</span>}
+                      </span>
                     </Link>
-                    {client.email && <span className="block text-xs text-stone-400">{client.email}</span>}
                     {openClarifications > 0 && (
                       <span className="mt-1 block"><Badge tone="amber">{openClarifications} open clarification{openClarifications > 1 ? 's' : ''}</Badge></span>
                     )}
@@ -63,6 +96,12 @@ export function Clients() {
                     ) : '—'}
                   </td>
                   <td className="td tabular-nums">{formatDate(client.createdAt)}</td>
+                  <td className="td">
+                    <RowActions
+                      onEdit={can('CRM', 'edit') ? () => setEditing(client) : undefined}
+                      onDelete={can('CRM', 'delete') ? () => setDeleting(client) : undefined}
+                    />
+                  </td>
                 </tr>
               )
             })}
@@ -70,10 +109,22 @@ export function Clients() {
         )}
       </Section>
 
-      {creating && (
+      {editing && (
         <ClientFormModal
-          onClose={() => setCreating(false)}
-          onSaved={(client) => navigate(`/crm/clients/${client.id}`)}
+          client={editing === 'new' ? undefined : editing}
+          onClose={() => setEditing(null)}
+          onSaved={(client) => editing === 'new' && navigate(`/crm/clients/${client.id}`)}
+        />
+      )}
+      {deleting && (
+        <ConfirmDialog
+          title={`Delete ${deleting.name}?`}
+          onClose={() => setDeleting(null)}
+          onConfirm={() => api.clients.remove(deleting.id)}
+          blocked={db.projects.some((p) => p.clientId === deleting.id)
+            ? `${deleting.name} has ${db.projects.filter((p) => p.clientId === deleting.id).length} project(s). A client with projects cannot be deleted.`
+            : undefined}
+          message="The client record, its clarifications, team chat and payment follow-ups are removed. The original lead stays."
         />
       )}
     </div>

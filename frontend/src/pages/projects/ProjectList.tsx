@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
-import { useSession } from '../../state/session'
-import { can } from '../../domain/roles'
+import { usePermissions } from '../../state/permissions'
 import { projectType } from '../../domain/progress'
 import { formatCurrency, formatDate } from '../../domain/format'
 import {
@@ -26,7 +25,7 @@ const COPY = {
 
 export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' }) {
   const db = useDb()
-  const { roleKey } = useSession()
+  const { can } = usePermissions()
 
   const projects = db.projects.filter((p) => {
     if (scope === 'design') return p.services.design
@@ -43,7 +42,7 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' }
         title={COPY[scope].title}
         subtitle={COPY[scope].subtitle}
         actions={
-          can.createProject(roleKey) && (
+          can('Projects', 'create') && (
             <Link to="/projects/new" className="btn-primary">New Project</Link>
           )
         }

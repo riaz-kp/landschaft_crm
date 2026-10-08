@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ROLES } from '../domain/roles'
+import { titleOf } from '../domain/roles'
 import { useSession } from '../state/session'
 import { Avatar } from './ui'
 import { Icon } from './Icon'
@@ -10,7 +10,7 @@ import { Icon } from './Icon'
  * role's view without needing ten sets of credentials.
  */
 export function RoleSwitcher() {
-  const { user, role, people, signInAs } = useSession()
+  const { user, people, signInAs } = useSession()
   const [open, setOpen] = useState(false)
 
   return (
@@ -22,7 +22,7 @@ export function RoleSwitcher() {
         <Avatar name={user.name} src={user.photo} />
         <span className="hidden sm:block">
           <span className="block text-sm font-semibold leading-tight text-stone-900">{user.name}</span>
-          <span className="block text-xs leading-tight text-stone-500">{role.title}</span>
+          <span className="block max-w-[180px] truncate text-xs leading-tight text-stone-500">{titleOf(user)}</span>
         </span>
         <Icon name="chevron" className="h-4 w-4 rotate-90 text-stone-400" />
       </button>
@@ -60,7 +60,7 @@ export function RoleSwitcher() {
                   <Avatar name={person.name} size="sm" src={person.photo} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-stone-800">{person.name}</span>
-                    <span className="block truncate text-xs text-stone-500">{ROLES[person.role].title}</span>
+                    <span className="block truncate text-xs text-stone-500">{titleOf(person)}</span>
                   </span>
                   {person.id === user.id && (
                     <span className="text-xs font-semibold text-brand-700">Current</span>

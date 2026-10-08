@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
-import { useSession } from '../../state/session'
-import { can } from '../../domain/roles'
+import { usePermissions } from '../../state/permissions'
 import { formatCurrency, formatDate } from '../../domain/format'
 import { PHASE_LABELS, type DesignPhaseKey } from '../../domain/types'
 import {
@@ -19,8 +18,8 @@ const DESCRIPTIONS: Record<DesignPhaseKey, string> = {
 /** One screen per design phase, listing every project that carries it. */
 export function DesignPhasePage({ phase }: { phase: DesignPhaseKey }) {
   const db = useDb()
-  const { roleKey } = useSession()
-  const editable = can.createProject(roleKey)
+  const { can } = usePermissions()
+  const editable = can('Design', 'edit')
 
   const projects = db.projects.filter((p) => p.services.design && p.design[phase].enabled)
   const complete = projects.filter((p) => p.design[phase].progress === 100)
