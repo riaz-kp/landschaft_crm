@@ -612,3 +612,26 @@ export const PERMISSION_ACTIONS = ['view', 'create', 'edit', 'delete'] as const
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number]
 export type ModulePermission = Record<PermissionAction, boolean>
 export type PermissionMatrix = Record<RoleKey, Record<ModuleKey, ModulePermission>>
+
+// ---------------------------------------------------------------- reminders
+
+export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+
+/** A personal or team reminder added from the calendar. */
+export interface Reminder {
+  id: ID
+  title: string
+  date: string
+  /** HH:mm, optional — an all-day reminder has none. */
+  time?: string
+  repeat: ReminderRepeat
+  /** Last date a repeating reminder runs to. */
+  until?: string
+  notes?: string
+  projectId?: ID
+  createdBy: ID
+  /** Who sees it. Empty means everyone. */
+  forIds: ID[]
+  /** Dates ticked off — one entry per occurrence of a repeating reminder. */
+  doneDates: string[]
+}

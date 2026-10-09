@@ -1,14 +1,13 @@
 import { useSession } from '../../state/session'
+import { PeriodProvider } from '../../components/PeriodSwitch'
 import { ExecutionDashboard } from './ExecutionDashboard'
 import { DesignDashboard } from './DesignDashboard'
 import { OverviewDashboard } from './OverviewDashboard'
 import { AccountsDashboard } from './AccountsDashboard'
 import { MarketingDashboard } from './MarketingDashboard'
 
-/** Each role lands on the dashboard that matches what they actually run. */
-export function Dashboard() {
+function ForRole() {
   const { roleKey } = useSession()
-
   switch (roleKey) {
     case 'execution_head':
     case 'execution_pm':
@@ -24,4 +23,13 @@ export function Dashboard() {
     default:
       return <OverviewDashboard />
   }
+}
+
+/** Each role lands on the dashboard that matches what they actually run, filtered by the chosen time window. */
+export function Dashboard() {
+  return (
+    <PeriodProvider>
+      <ForRole />
+    </PeriodProvider>
+  )
 }

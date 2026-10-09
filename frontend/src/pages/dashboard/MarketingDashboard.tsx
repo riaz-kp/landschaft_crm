@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatDate, pad2 } from '../../domain/format'
+import { inRange, periodPhrase } from '../../domain/period'
+import { PeriodSwitch, useDashboardPeriod } from '../../components/PeriodSwitch'
 import type { LeadStatus } from '../../domain/types'
 import {
   PageHeader, Section, StatTile, StatusBadge, Table, EmptyState,
@@ -18,23 +20,27 @@ export function MarketingDashboard() {
   const open = myLeads.filter((l) => !['Won', 'Lost'].includes(l.status))
   const won = myLeads.filter((l) => l.status === 'Won')
   const upcomingVisits = db.siteVisits.filter((v) => v.status === 'Scheduled')
+  const { period, range } = useDashboardPeriod()
+  const when = periodPhrase(period)
+  const newLeads = myLeads.filter((l) => inRange(l.createdAt, range))
+  const visitsInPeriod = db.siteVisits.filter((v) => v.status !== 'Cancelled' && inRange(v.date, range))
 
   return (
     <div>
       <PageHeader
         title={`Good day, ${user.name}`}
         subtitle="Leads and marketing — Lead → Generate → Close."
-        actions={<Link to="/crm/leads" className="btn-primary">All Leads</Link>}
+        actions={<><PeriodSwitch /><Link to="/crm/leads" className="btn-primary">All Leads</Link></>}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile label="Open Leads" value={pad2(open.length)} to="/crm/leads" />
+        <StatTile label="New Leads" value={pad2(newLeads.length)} sub={`${open.length} open overall`} to="/crm/leads" icon="users" />
         <StatTile label="Won" value={pad2(won.length)} tone="green" to="/crm/leads" />
         <StatTile
           label="Conversion"
           value={myLeads.length ? `${Math.round((won.length / myLeads.length) * 100)}%` : '—'}
         />
-        <StatTile label="Visits Scheduled" value={pad2(upcomingVisits.length)} to="/crm/site-visits" />
+        <StatTile label="Site Visits" value={pad2(visitsInPeriod.length)} sub={`${when} · ${upcomingVisits.length} still to come`} to="/crm/site-visits" icon="pin" />
       </div>
 
       <Section title="Funnel" className="mt-6">

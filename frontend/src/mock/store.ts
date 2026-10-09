@@ -4,7 +4,7 @@ import type {
   CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
   DocumentRecord, Employee, ID, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
   PaymentRequest, Project, Quotation, Settings, SiteAssignment, SiteVisit, AttendanceEntry,
-  Task, Worker, ProjectMessage, PayRecord,
+  Task, Worker, ProjectMessage, PayRecord, Reminder,
 } from '../domain/types'
 
 export interface DbShape {
@@ -31,6 +31,7 @@ export interface DbShape {
   attendance: AttendanceEntry[]
   projectMessages: ProjectMessage[]
   payRecords: PayRecord[]
+  reminders: Reminder[]
   /** When each person last opened each project's remarks, keyed "personId:projectId". */
   chatReads: Record<string, string>
   settings: Settings
@@ -68,6 +69,7 @@ function freshDb(): DbShape {
     attendance: seed.attendance,
     projectMessages: seed.projectMessages,
     payRecords: seed.payRecords,
+    reminders: seed.reminders,
     chatReads: {},
     settings: seed.settings,
   })

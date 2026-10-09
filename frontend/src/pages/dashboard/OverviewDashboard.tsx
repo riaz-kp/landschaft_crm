@@ -5,8 +5,10 @@ import { useSession } from '../../state/session'
 import { computeProgress } from '../../domain/progress'
 import { receivable } from '../../domain/finance'
 import { partyName } from '../../domain/consultations'
+import { inRange, periodPhrase } from '../../domain/period'
+import { PeriodSwitch, useDashboardPeriod } from '../../components/PeriodSwitch'
 import { allOccurrences, renewalReminders } from '../../domain/amc'
-import { addDays, formatCurrency, formatDate, formatTime, pad2, today } from '../../domain/format'
+import { formatCurrency, formatDate, formatTime, pad2, today } from '../../domain/format'
 import { DESIGN_PHASES, type Employee } from '../../domain/types'
 import {
   PageHeader, Section, StatTile, StatusBadge, EmptyState, Badge, ProgressBar, Avatar, SiteName,
@@ -83,10 +85,17 @@ export function OverviewDashboard() {
   const headOf = (role: Employee['role']) => db.employees.find((e) => e.role === role)
   const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
 
+  const { period, range } = useDashboardPeriod()
+  const when = periodPhrase(period)
+  const inPeriod = (d?: string) => inRange(d, range)
+
   // ------------------------------------------------ company
   const openLeads = db.leads.filter((l) => !['Won', 'Lost'].includes(l.status))
-  const contracted = db.projects.reduce((sum, p) => sum + p.value, 0)
-  const received = db.payments.reduce((sum, p) => sum + p.amount, 0)
+  const newLeads = db.leads.filter((l) => inPeriod(l.createdAt))
+  const started = db.projects.filter((p) => inPeriod(p.startDate))
+  const newBusiness = started.reduce((sum, p) => sum + p.value, 0)
+  const paymentsIn = db.payments.filter((p) => inPeriod(p.date))
+  const received = paymentsIn.reduce((sum, p) => sum + p.amount, 0)
   const owed = db.clients.reduce((sum, c) => sum + receivable(db, c.id).outstanding, 0)
   const pendingRequests = db.paymentRequests.filter((r) => r.status === 'Pending')
 
@@ -96,19 +105,18 @@ export function OverviewDashboard() {
   const designAvg = designProjects.length
     ? Math.round(designProjects.reduce((s, p) => s + (computeProgress(p).design?.overall ?? 0), 0) / designProjects.length)
     : 0
-  const designReview = db.tasks.filter(
-    (t) => t.status === 'Review' && t.phase && (DESIGN_PHASES as readonly string[]).includes(t.phase),
-  )
   const designOverdue = db.tasks.filter((t) => designIds.has(t.projectId) && t.status !== 'Done' && t.dueDate < date &&
+    t.phase && (DESIGN_PHASES as readonly string[]).includes(t.phase))
+  const designDue = db.tasks.filter((t) => designIds.has(t.projectId) && t.status !== 'Done' && inPeriod(t.dueDate) &&
     t.phase && (DESIGN_PHASES as readonly string[]).includes(t.phase))
   const designClarifications = db.clarifications.filter((c) => c.department === 'Design' && c.status === 'Open')
 
   // ------------------------------------------------ execution
   const executionProjects = db.projects.filter((p) => p.services.execution && p.status !== 'Completed')
-  const todaysReports = db.reports.filter((r) => r.date === date)
-  const filed = todaysReports.filter((r) => r.status !== 'Draft')
+  const periodReports = db.reports.filter((r) => inPeriod(r.date))
+  const filed = periodReports.filter((r) => r.status !== 'Draft')
   const pendingReports = db.reports.filter((r) => r.status === 'Submitted')
-  const workersToday = todaysReports.reduce((s, r) => s + r.attendance.filter((a) => a.present).length, 0)
+  const workerDays = periodReports.reduce((s, r) => s + r.attendance.filter((a) => a.present).length, 0)
   const openIssues = db.issues.filter((i) => i.status === 'Open')
   const delayed = executionProjects.filter((p) => p.delayed)
 
@@ -119,7 +127,8 @@ export function OverviewDashboard() {
   const nextVisits = allOccurrences(db.maintenance, date)
     .filter((o) => o.status !== 'Done')
     .map((o) => ({ visit: { id: o.visit?.id ?? `${o.record.id}-${o.date}`, date: o.date }, record: o.record }))
-  const visitsThisWeek = nextVisits.filter((v) => v.visit.date <= addDays(date, 7))
+  const amcInPeriod = allOccurrences(db.maintenance, date).filter((o) => inPeriod(o.date))
+  const amcDone = amcInPeriod.filter((o) => o.status === 'Done').length
   const overdueVisits = nextVisits.filter((v) => v.visit.date < date)
   const renewalsDue = renewalReminders(db.maintenance, date)
   // The AMC department's own people lead it once assigned; until then the Execution & Maintenance Head does.
@@ -127,9 +136,9 @@ export function OverviewDashboard() {
 
   // ------------------------------------------------ CEO diary
   const consultations = db.consultations
-    .filter((c) => c.status === 'Scheduled' && c.date >= date)
+    .filter((c) => c.status === 'Scheduled' && c.date >= date && inPeriod(c.date))
     .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
-  const todaysConsultations = consultations.filter((c) => c.date === date)
+  const consultationsHeld = db.consultations.filter((c) => c.status === 'Completed' && inPeriod(c.date)).length
 
   return (
     <div>
@@ -137,17 +146,18 @@ export function OverviewDashboard() {
         title={`Good day, ${user.name}`}
         subtitle="Design, Execution and AMC at a glance — plus money in, money owed and your consultations."
         actions={<>
+          <PeriodSwitch />
           <Link to="/consultations" className="btn-secondary">My schedule</Link>
           <Link to="/projects/new" className="btn-primary">New Project</Link>
         </>}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile label="Open Leads" value={pad2(openLeads.length)} sub="Not yet won or lost" to="/crm/leads" />
-        <StatTile label="Contracted Value" value={formatCurrency(contracted, true)} sub="All projects" to="/accounts/payments" />
+        <StatTile label="New Leads" value={pad2(newLeads.length)} sub={`${openLeads.length} open in the pipeline`} to="/crm/leads" icon="users" />
+        <StatTile label="New Business" value={formatCurrency(newBusiness, true)} sub={`${started.length} project${started.length === 1 ? '' : 's'} started ${when}`} to="/projects" icon="folder" />
         <StatTile
           label="Received" value={formatCurrency(received, true)}
-          sub={`${contracted ? Math.round((received / contracted) * 100) : 0}% of contracted`}
+          sub={`${paymentsIn.length} payment${paymentsIn.length === 1 ? '' : 's'} ${when}`} icon="rupee"
           tone="green" to="/accounts/payments"
         />
         <StatTile label="Receivable" value={formatCurrency(owed, true)} sub="Across all clients" tone="amber" to="/crm/clients" />
@@ -161,7 +171,7 @@ export function OverviewDashboard() {
           metrics={[
             { label: 'Active Projects', value: pad2(designProjects.length), to: '/projects/design' },
             { label: 'Avg Progress', value: `${designAvg}%` },
-            { label: 'In Review', value: pad2(designReview.length), to: '/tasks/board' },
+            { label: period === 'today' ? 'Due Today' : 'Tasks Due', value: pad2(designDue.length), to: '/tasks/team' },
             { label: 'Overdue Tasks', value: pad2(designOverdue.length), alert: designOverdue.length > 0, to: '/tasks/team' },
           ]}
           listTitle="Projects"
@@ -197,9 +207,9 @@ export function OverviewDashboard() {
           to="/execution" linkLabel="Open execution"
           metrics={[
             { label: 'Active Sites', value: pad2(executionProjects.length), to: '/execution' },
-            { label: "Today's Reports", value: `${pad2(filed.length)}/${pad2(executionProjects.length)}`, to: '/execution/reports' },
+            { label: period === 'today' ? "Today's Reports" : 'Reports Filed', value: period === 'today' ? `${pad2(filed.length)}/${pad2(executionProjects.length)}` : pad2(filed.length), to: '/execution/reports' },
             { label: 'Pending Review', value: pad2(pendingReports.length), alert: pendingReports.length > 0, to: '/execution/reports' },
-            { label: 'Workers Today', value: pad2(workersToday), to: '/employees/attendance' },
+            { label: period === 'today' ? 'Workers Today' : 'Worker-Days', value: pad2(workerDays), to: '/employees/attendance' },
           ]}
           listTitle="Sites"
         >
@@ -241,7 +251,7 @@ export function OverviewDashboard() {
           metrics={[
             { label: 'Active AMCs', value: pad2(amcContracts.length), to: '/amc' },
             { label: 'Annual Value', value: formatCurrency(amcValue, true), to: '/amc/renewals' },
-            { label: 'Visits · 7 Days', value: pad2(visitsThisWeek.length), alert: overdueVisits.length > 0, to: '/amc/visits' },
+            { label: 'Visits Done', value: `${pad2(amcDone)}/${pad2(amcInPeriod.length)}`, alert: overdueVisits.length > 0, to: '/amc/calendar' },
             { label: 'Renewals Due', value: pad2(renewalsDue.length), alert: renewalsDue.length > 0, to: '/amc/renewals' },
           ]}
           listTitle="Next visits"
@@ -274,7 +284,7 @@ export function OverviewDashboard() {
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Section
           title="My Consultations"
-          description={todaysConsultations.length ? `${todaysConsultations.length} today` : 'Nothing booked today'}
+          description={`${consultations.length} coming up ${when}${consultationsHeld ? ` · ${consultationsHeld} held` : ''}`}
           actions={<Link to="/consultations" className="text-sm font-semibold text-brand-700">Schedule</Link>}
         >
           {consultations.length === 0 ? (

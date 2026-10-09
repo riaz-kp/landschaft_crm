@@ -4,7 +4,7 @@ import type {
   AttendanceEntry, CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
   DocumentRecord, Employee, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
   MaintenanceVisit, PaymentRequest, Phase, PhotoSession, Project, Quotation, ReportPhoto, Settings, SiteAssignment,
-  SiteVisit, StaffAttendanceStatus, Task, Worker, ProjectMessage, PayRecord,
+  SiteVisit, StaffAttendanceStatus, Task, Worker, ProjectMessage, PayRecord, Reminder,
 } from '../domain/types'
 import { placeholderSitePhoto } from './photos'
 import { CHECKLISTS } from '../domain/commercial'
@@ -785,4 +785,12 @@ export const payRecords: PayRecord[] = [
         type: 'Wages', period: sat.slice(0, 7), method: 'Cash', note: `${days} days`, paidBy: 'e9',
       }
     })),
+]
+
+/** Reminders added from the calendar. */
+export const reminders: Reminder[] = [
+  { id: 'rm1', title: 'Weekly execution review', date: workday(1), time: '17:00', repeat: 'weekly', createdBy: 'e6', forIds: ['e6', 'e7'], doneDates: [], notes: 'Go through each site, delays and next week’s plan.' },
+  { id: 'rm2', title: 'Follow up Greenfield association on walkway sign-off', date: today(), time: '11:00', repeat: 'none', createdBy: 'e1', forIds: ['e1'], doneDates: [], projectId: 'p5' },
+  { id: 'rm3', title: 'Salary run — foremen and site workers', date: `${today().slice(0, 7)}-28`, repeat: 'monthly', createdBy: 'e8', forIds: ['e8', 'e9', 'e1'], doneDates: [] },
+  { id: 'rm4', title: 'Renew vehicle insurance — site pickup', date: addDays(today(), 12), repeat: 'yearly', createdBy: 'e1', forIds: [], doneDates: [] },
 ]

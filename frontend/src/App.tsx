@@ -11,6 +11,7 @@ import { SiteVisits } from './pages/crm/SiteVisits'
 import { ProjectList } from './pages/projects/ProjectList'
 import { ProjectDetail } from './pages/projects/ProjectDetail'
 import { NewProject } from './pages/projects/NewProject'
+import { ProjectsMap } from './pages/projects/ProjectsMap'
 import { AllTasks, MyTasks, TeamTasks, TaskBoard } from './pages/tasks/Tasks'
 import { DesignPhasePage } from './pages/design/DesignPhasePage'
 import { ExecutionProjects } from './pages/execution/ExecutionProjects'
@@ -86,6 +87,7 @@ export function App() {
           <Route path="/projects/design" element={<ProjectList scope="design" />} />
           <Route path="/projects/execution" element={<ProjectList scope="execution" />} />
           <Route path="/projects/amc" element={<ProjectList scope="amc" />} />
+          <Route path="/projects/map" element={<ProjectsMap />} />
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
 
           <Route path="/tasks/mine" element={<MyTasks />} />

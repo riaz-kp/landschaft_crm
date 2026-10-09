@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatCurrency, formatDate, pad2 } from '../../domain/format'
+import { inRange, periodPhrase } from '../../domain/period'
+import { PeriodSwitch, useDashboardPeriod } from '../../components/PeriodSwitch'
 import {
   PageHeader, Section, StatTile, StatusBadge, Table, EmptyState, ProgressBar,
 } from '../../components/ui'
@@ -13,6 +15,10 @@ export function AccountsDashboard() {
 
   const contracted = db.projects.reduce((sum, p) => sum + p.value, 0)
   const received = db.payments.reduce((sum, p) => sum + p.amount, 0)
+  const { period, range } = useDashboardPeriod()
+  const when = periodPhrase(period)
+  const paymentsIn = db.payments.filter((p) => inRange(p.date, range))
+  const requestsRaised = db.paymentRequests.filter((r) => inRange(r.date, range))
   const pending = db.paymentRequests.filter((r) => r.status === 'Pending')
   const approved = db.paymentRequests.filter((r) => r.status === 'Approved')
   const openQuotes = db.quotations.filter((q) => ['Draft', 'Sent'].includes(q.status))
@@ -23,11 +29,12 @@ export function AccountsDashboard() {
       <PageHeader
         title={`Good day, ${user.name}`}
         subtitle="Accounts — quotations, payment requests and client payments."
+        actions={<PeriodSwitch />}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile label="Contracted" value={formatCurrency(contracted, true)} />
-        <StatTile label="Received" value={formatCurrency(received, true)} tone="green" />
+        <StatTile label="Collected" value={formatCurrency(paymentsIn.reduce((s, p) => s + p.amount, 0), true)} sub={`${paymentsIn.length} payment${paymentsIn.length === 1 ? '' : 's'} ${when}`} tone="green" icon="rupee" />
+        <StatTile label="Requests Raised" value={pad2(requestsRaised.length)} sub={`${formatCurrency(requestsRaised.reduce((s, r) => s + r.amount, 0), true)} ${when}`} icon="doc" />
         <StatTile label="Outstanding" value={formatCurrency(contracted - received, true)} tone="amber" />
         <StatTile
           label="Requests Pending" value={pad2(pending.length)}

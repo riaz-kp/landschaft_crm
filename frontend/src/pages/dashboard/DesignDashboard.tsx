@@ -4,6 +4,8 @@ import { useSession } from '../../state/session'
 import { computeProgress } from '../../domain/progress'
 import { DESIGN_PHASES, PHASE_LABELS } from '../../domain/types'
 import { formatDate, pad2 } from '../../domain/format'
+import { PERIOD_LABELS, inRange } from '../../domain/period'
+import { PeriodSwitch, useDashboardPeriod } from '../../components/PeriodSwitch'
 import {
   PageHeader, Section, StatTile, StatusBadge, Table, EmptyState, ProgressBar,
 } from '../../components/ui'
@@ -29,6 +31,9 @@ export function DesignDashboard() {
     (t) => t.status === 'Review' && mine.some((p) => p.id === t.projectId),
   )
   const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
+  const { period, range } = useDashboardPeriod()
+  const dueInPeriod = myTasks.filter((t) => inRange(t.dueDate, range))
+  const doneInPeriod = db.tasks.filter((t) => t.status === 'Done' && inRange(t.dueDate, range) && mine.some((p) => p.id === t.projectId))
 
   // How far each of the four design phases has progressed across the portfolio.
   const phaseAverages = DESIGN_PHASES.map((key) => {
@@ -46,6 +51,7 @@ export function DesignDashboard() {
       <PageHeader
         title={`Good day, ${user.name}`}
         subtitle="Design Dashboard — concept through to BOQ."
+        actions={<PeriodSwitch />}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -56,12 +62,9 @@ export function DesignDashboard() {
           tone={inReview.length ? 'amber' : 'green'} to="/tasks/board"
         />
         <StatTile
-          label="Due This Week"
-          value={pad2(myTasks.filter((t) => {
-            const days = (new Date(t.dueDate).getTime() - Date.now()) / 86400000
-            return days <= 7
-          }).length)}
-          tone="amber" to="/tasks/mine"
+          label={period === 'today' ? 'Due Today' : `Due — ${PERIOD_LABELS[period]}`}
+          value={pad2(dueInPeriod.length)}
+          sub={`${doneInPeriod.length} done in the team`} tone="amber" to="/tasks/mine"
         />
       </div>
 

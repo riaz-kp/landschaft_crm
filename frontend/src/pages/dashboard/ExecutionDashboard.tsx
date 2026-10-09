@@ -3,6 +3,9 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { today, pad2 } from '../../domain/format'
 import { executionDashboardSeed } from '../../mock/seed'
+import { PERIOD_LABELS, inRange, periodPhrase } from '../../domain/period'
+import { allOccurrences } from '../../domain/amc'
+import { PeriodSwitch, useDashboardPeriod } from '../../components/PeriodSwitch'
 import {
   PageHeader, Section, StatTile, StatusBadge, SiteName, Table, EmptyState,
 } from '../../components/ui'
@@ -20,8 +23,11 @@ export function ExecutionDashboard() {
   const executionProjects = db.projects.filter(
     (p) => p.services.execution && p.status !== 'Completed',
   )
-  const todaysReports = db.reports.filter((r) => r.date === date)
-  const submitted = todaysReports.filter((r) => r.status === 'Submitted')
+  const { period, range } = useDashboardPeriod()
+  const when = periodPhrase(period)
+  const todaysReports = db.reports.filter((r) => inRange(r.date, range))
+  // Waiting for review is a standing queue, whatever the period.
+  const submitted = db.reports.filter((r) => r.status === 'Submitted')
   const filed = todaysReports.filter((r) => r.status !== 'Draft')
 
   const activeSites = Math.max(executionProjects.length, executionDashboardSeed.activeSites)
@@ -30,7 +36,9 @@ export function ExecutionDashboard() {
   )
   const delayed = db.projects.filter((p) => p.delayed && p.status !== 'Completed')
   const openIssues = db.issues.filter((i) => i.status === 'Open')
-  const completedTasks = db.tasks.filter((t) => t.status === 'Done')
+  const issuesRaised = db.issues.filter((i) => inRange(i.date, range))
+  const completedTasks = db.tasks.filter((t) => t.status === 'Done' && inRange(t.dueDate, range))
+  const amcVisits = allOccurrences(db.maintenance, date).filter((o) => inRange(o.date, range))
 
   const foremanName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
 
@@ -38,15 +46,16 @@ export function ExecutionDashboard() {
     <div>
       <PageHeader
         title={`Good day, ${user.name}`}
-        subtitle="Execution Dashboard — sites, reports and today's workforce."
+        subtitle="Execution Dashboard — sites, reports and the workforce."
+        actions={<PeriodSwitch />}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile label="Active Sites" value={pad2(activeSites)} to="/execution" />
         <StatTile
-          label="Today's Reports"
-          value={`${pad2(filed.length)}/${pad2(activeSites)}`}
-          sub="Filed against active sites"
+          label={period === 'today' ? "Today's Reports" : 'Reports Filed'}
+          value={period === 'today' ? `${pad2(filed.length)}/${pad2(activeSites)}` : pad2(filed.length)}
+          sub={period === 'today' ? 'Filed against active sites' : `Daily reports ${when}`}
           to="/execution/reports"
         />
         <StatTile
@@ -56,7 +65,7 @@ export function ExecutionDashboard() {
           tone={submitted.length > 0 ? 'amber' : 'green'}
           to="/execution/reports"
         />
-        <StatTile label="Workers Today" value={pad2(workersToday)} to="/employees/attendance" />
+        <StatTile label={period === 'today' ? 'Workers Today' : 'Worker-Days'} value={pad2(workersToday)} sub={period === 'today' ? undefined : `On site ${when}`} to="/employees/attendance" />
         <StatTile
           label="Delayed Projects"
           value={pad2(delayed.length)}
@@ -66,16 +75,16 @@ export function ExecutionDashboard() {
         <StatTile
           label="Issues Reported"
           value={pad2(openIssues.length)}
-          sub="Open"
+          sub={`${issuesRaised.length} raised ${when}`}
           tone={openIssues.length > 0 ? 'red' : 'green'}
           to="/execution/reports"
         />
-        <StatTile label="Completed Tasks" value={pad2(completedTasks.length)} to="/tasks/board" />
+        <StatTile label="Completed Tasks" value={pad2(completedTasks.length)} sub={`Due ${when}`} to="/tasks/board" />
         <StatTile
           label="AMC Visits"
-          value={pad2(db.maintenance.flatMap((m) => m.visits).filter((v) => !v.done).length)}
-          sub="Upcoming"
-          to="/amc/visits"
+          value={`${pad2(amcVisits.filter((o) => o.status === 'Done').length)}/${pad2(amcVisits.length)}`}
+          sub={`Done of planned ${when}`}
+          to="/amc/calendar"
         />
       </div>
 
@@ -98,15 +107,15 @@ export function ExecutionDashboard() {
 
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Section
-          title="Today's Site Reports"
+          title={period === 'today' ? "Today's Site Reports" : `Site Reports — ${PERIOD_LABELS[period]}`}
           className="xl:col-span-2"
           actions={<Link to="/execution/reports" className="text-sm font-semibold text-brand-700">View all</Link>}
         >
           {todaysReports.length === 0 ? (
-            <EmptyState title="No reports filed today yet." />
+            <EmptyState title={`No reports filed ${when} yet.`} />
           ) : (
             <Table head={['Site', 'Foreman', 'Workers', 'Work', 'Status']}>
-              {todaysReports.map((report) => {
+              {[...todaysReports].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12).map((report) => {
                 const project = db.projects.find((p) => p.id === report.projectId)
                 return (
                   <tr key={report.id} className="row-hover">

@@ -3,7 +3,7 @@ import { addDays, today } from '../domain/format'
 import type {
   ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, Employee, ID,
   Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, Project, ProjectMessage, Quotation, Settings, SiteVisit,
-  Task, Worker,
+  Task, Worker, Reminder,
 } from '../domain/types'
 import type { Api, NewProjectInput } from './client'
 
@@ -534,6 +534,30 @@ export const adapter: Api = {
       if (!latest || (store.db.chatReads[key] ?? '') >= latest) return
       store.update((db) => {
         db.chatReads[key] = latest
+      })
+    },
+  },
+
+  reminders: {
+    create(input): Reminder {
+      const record: Reminder = { ...input, id: nextId('rm') }
+      store.update((db) => {
+        db.reminders.push(record)
+      })
+      return record
+    },
+    update(reminderId, patch) {
+      store.update((db) => patchIn(db.reminders, reminderId, patch))
+    },
+    remove(reminderId) {
+      store.update((db) => removeFrom(db.reminders, reminderId))
+    },
+    setDone(reminderId, date, done) {
+      store.update((db) => {
+        const reminder = db.reminders.find((r) => r.id === reminderId)
+        if (!reminder) return
+        const rest = reminder.doneDates.filter((d) => d !== date)
+        reminder.doneDates = done ? [...rest, date] : rest
       })
     },
   },

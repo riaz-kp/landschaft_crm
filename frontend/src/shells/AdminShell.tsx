@@ -10,6 +10,7 @@ import { Avatar } from '../components/ui'
 import { LogoLockup } from '../components/Logo'
 import { RoleSwitcher } from '../components/RoleSwitcher'
 import { GlobalSearch } from '../components/GlobalSearch'
+import { NotificationBell } from '../components/NotificationBell'
 import { NoAccess } from '../pages/misc/Fallbacks'
 
 function Logo() {
@@ -170,6 +171,7 @@ export function AdminShell() {
 
             <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
               <GlobalSearch />
+              <NotificationBell />
               <span className="hidden whitespace-nowrap rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-500 xl:inline">
                 {formatDateLong(today())}
               </span>

@@ -8,7 +8,7 @@
 import type {
   AttendanceEntry, ChatMessage, Clarification, Client, Consultation, ConsultationStatus,
   DailyWorkReport, DocumentRecord, Employee, ID, Issue, LatLng, Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, PersonKind,
-  ProjectMessage,
+  ProjectMessage, Reminder,
   Project, Quotation, Settings, SiteVisit, Task, Worker,
 } from '../domain/types'
 import * as mock from './mockAdapter'
@@ -109,6 +109,10 @@ export interface Api {
     remove(messageId: ID): void
     /** Notes that the person has read the project's remarks up to now. */
     markRead(personId: ID, projectId: ID): void
+  }
+  reminders: Crud<Reminder> & {
+    /** Ticks off (or reopens) one occurrence of a reminder. */
+    setDone(reminderId: ID, date: string, done: boolean): void
   }
   pay: {
     create(input: Omit<PayRecord, 'id'>): PayRecord

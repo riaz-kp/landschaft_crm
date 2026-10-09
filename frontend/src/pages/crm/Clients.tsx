@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
-import { formatCurrency, formatDate } from '../../domain/format'
+import { formatCurrency, formatDate, today } from '../../domain/format'
 import { receivable } from '../../domain/finance'
 import type { Client } from '../../domain/types'
 import {
@@ -12,6 +12,8 @@ import {
 import { ContactNumbers } from '../../components/ContactFields'
 import { Icon } from '../../components/Icon'
 import { ClientFormModal } from './ClientForm'
+import { ClientImportModal } from './ClientImport'
+import { RUPEES, excelDate, exportWorkbook, sheet } from '../../components/excel'
 
 export function Clients() {
   const db = useDb()
@@ -20,6 +22,7 @@ export function Clients() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Client | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Client | null>(null)
+  const [importing, setImporting] = useState(false)
 
   const q = query.trim().toLowerCase()
   const clients = db.clients.filter((c) =>
@@ -27,14 +30,39 @@ export function Clients() {
   const totals = db.clients.map((c) => receivable(db, c.id))
   const outstanding = totals.reduce((s, m) => s + m.outstanding, 0)
 
+  /** The client list as shown — search applied — with contact details and money. */
+  const exportClients = () => exportWorkbook(`Landschaft clients ${today()}`, [
+    sheet({
+      name: 'Clients',
+      rows: clients,
+      columns: [
+        { header: 'Name', value: (c) => c.name, width: 30 },
+        { header: 'Phone', value: (c) => c.phone, width: 18 },
+        { header: 'WhatsApp', value: (c) => c.whatsapp, width: 18 },
+        { header: 'Email', value: (c) => c.email, width: 28 },
+        { header: 'Address', value: (c) => c.address, width: 32 },
+        { header: 'Projects', value: (c) => db.projects.filter((p) => p.clientId === c.id).length, width: 10 },
+        { header: 'Contract value (₹)', value: (c) => receivable(db, c.id).contracted, width: 18, format: RUPEES },
+        { header: 'Outstanding (₹)', value: (c) => receivable(db, c.id).outstanding, width: 16, format: RUPEES },
+        { header: 'Client since', value: (c) => excelDate(c.createdAt), width: 13 },
+      ],
+    }),
+  ])
+
   return (
     <div>
       <PageHeader
         title="Clients"
         subtitle="Converted leads and their projects. Open a client for their full record."
-        actions={can('CRM', 'create') && (
-          <button onClick={() => setEditing('new')} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New client</button>
-        )}
+        actions={<>
+          <button onClick={exportClients} className="btn-secondary"><Icon name="upload" className="h-4 w-4 rotate-180" /> Export</button>
+          {can('CRM', 'create') && (
+            <>
+              <button onClick={() => setImporting(true)} className="btn-secondary"><Icon name="upload" className="h-4 w-4" /> Import from Excel</button>
+              <button onClick={() => setEditing('new')} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New client</button>
+            </>
+          )}
+        </>}
       />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -116,6 +144,7 @@ export function Clients() {
           onSaved={(client) => editing === 'new' && navigate(`/crm/clients/${client.id}`)}
         />
       )}
+      {importing && <ClientImportModal onClose={() => setImporting(false)} />}
       {deleting && (
         <ConfirmDialog
           title={`Delete ${deleting.name}?`}

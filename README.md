@@ -173,6 +173,44 @@ The data version moved to v4, so browser data is replaced by the new seed on
 first load. The sample salaries and wage payments for the foremen and site
 workers are invented for the demo.
 
+## Fourth review round
+
+- **Refreshing on Vercel no longer 404s.** `frontend/vercel.json` rewrites
+  every path to `index.html`, so a deep link such as `/projects/p3` loads
+  the app and the router shows the page. The Vercel project's root directory
+  must be `frontend`.
+- **Dashboard time filter.** Every dashboard has Today · Week · Month · Year.
+  Leads, new business, money received, reports, worker-days, tasks, AMC
+  visits and consultations follow the period. Standing figures such as
+  receivables and the review queue stay as they are today.
+- **Projects map** (`/projects/map`, the Map tab under Projects). Every
+  pinned site on one map, filtered by service, status, manager, client,
+  delayed only, or search. Pins are coloured by status or by service.
+  Clicking a pin shows the project with a directions link. Projects without
+  a pin are listed so they can be pinned.
+- **Reports** filter by period:
+  - presets: today, week, month, last month, quarter, year, all time
+  - or a custom date range.
+
+  They also filter by service, project status, manager, client and lead
+  source. **Export to Excel** downloads one `.xlsx` with the sheets Summary,
+  Projects, Payments, Leads, Daily Reports, Tasks, AMC Visits and Foremen,
+  all with the same filters and with real dates and amounts.
+- **Client import from Excel** (Clients → Import from Excel). The modal:
+  - offers a template to download
+  - reads `.xlsx` or `.csv`
+  - recognises common column titles (Name/Customer, Phone/Mobile,
+    Address/Location…)
+  - checks every row and flags duplicates against existing clients before
+    anything is saved.
+
+  **Export** downloads the client list.
+- **Calendar reminders.** *Add reminder* on the calendar (and on any day),
+  with a time and a repeat (daily, weekly, monthly or yearly, optionally
+  until a date). A reminder can be for yourself, chosen people or everyone,
+  and can be tied to a project. Repeats are ticked off one date at a time.
+  The bell in the header shows today's and missed reminders on every page.
+
 ## What the document asked to keep configurable
 
 These live in **Settings** rather than being hard-coded:

@@ -108,6 +108,7 @@ export const NAV: NavSection[] = [
       { label: 'Design Projects', path: '/projects/design' },
       { label: 'Execution Projects', path: '/projects/execution' },
       { label: 'AMC Projects', path: '/projects/amc' },
+      { label: 'Map', path: '/projects/map' },
     ],
   },
   {

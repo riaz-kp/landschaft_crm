@@ -2,14 +2,16 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
-import { formatDate, formatDateLong, formatTime, today } from '../../domain/format'
+import { addDays, formatDate, formatDateLong, formatTime, today } from '../../domain/format'
 import { partyName } from '../../domain/consultations'
+import { occurrencesBetween, visibleTo } from '../../domain/reminders'
+import { ReminderModal } from '../../components/ReminderModal'
 import { allOccurrences } from '../../domain/amc'
 import { PageHeader, Section, EmptyState } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 
 /** Everything that lands on the calendar, drawn from its own records. */
-const TYPES = ['Site Visit', 'Task Due', 'Deadline', 'Meeting', 'AMC Visit', 'Consultation', 'Project Due'] as const
+const TYPES = ['Reminder', 'Site Visit', 'Task Due', 'Deadline', 'Meeting', 'AMC Visit', 'Consultation', 'Project Due'] as const
 type EventType = (typeof TYPES)[number]
 
 const STYLE: Record<EventType, { dot: string; chip: string; label: string }> = {
@@ -19,6 +21,7 @@ const STYLE: Record<EventType, { dot: string; chip: string; label: string }> = {
   Meeting: { dot: 'bg-clay-500', chip: 'bg-clay-50 text-clay-800 border-clay-200', label: 'Meetings' },
   'AMC Visit': { dot: 'bg-brand-500', chip: 'bg-brand-50 text-brand-800 border-brand-200', label: 'AMC visits & renewals' },
   Consultation: { dot: 'bg-violet-500', chip: 'bg-violet-50 text-violet-800 border-violet-200', label: 'CEO consultations' },
+  Reminder: { dot: 'bg-rose-500', chip: 'bg-rose-50 text-rose-800 border-rose-200', label: 'Reminders' },
   'Project Due': { dot: 'bg-red-500', chip: 'bg-red-50 text-red-800 border-red-200', label: 'Project completions' },
 }
 
@@ -31,6 +34,8 @@ interface CalEvent {
   /** People this event belongs to, for the "only mine" filter. */
   people: string[]
   to?: string
+  /** Set on reminders, which open in a dialog rather than a page. */
+  reminder?: { id: string; date: string; done: boolean }
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -42,6 +47,8 @@ export function CalendarPage() {
   const [shown, setShown] = useState<Set<EventType>>(() => new Set(TYPES))
   const [onlyMine, setOnlyMine] = useState(false)
   const [selected, setSelected] = useState(today())
+  const [adding, setAdding] = useState<string | null>(null)
+  const [opened, setOpened] = useState<{ id: string; date: string } | null>(null)
 
   const [year, monthIndex] = month.split('-').map(Number)
   const firstDay = new Date(year, monthIndex - 1, 1)
@@ -53,7 +60,17 @@ export function CalendarPage() {
   const subject = (leadId?: string, clientId?: string) =>
     leadId ? db.leads.find((l) => l.id === leadId)?.name : db.clients.find((c) => c.id === clientId)?.name
 
+  // Repeating reminders are expanded across the month on show and the weeks after today.
+  const windowFrom = `${month}-01` < today() ? `${month}-01` : today()
+  const windowTo = addDays(`${month}-${String(daysInMonth).padStart(2, '0')}` > today() ? `${month}-${String(daysInMonth).padStart(2, '0')}` : today(), 60)
+  const reminderEvents = occurrencesBetween(visibleTo(db.reminders, user.id), windowFrom, windowTo).map((o): CalEvent => ({
+    id: `rem-${o.reminder.id}-${o.date}`, title: `${o.done ? '✓ ' : ''}${o.reminder.title}`, date: o.date, time: o.reminder.time,
+    type: 'Reminder', people: o.reminder.forIds.length ? o.reminder.forIds : [user.id],
+    reminder: { id: o.reminder.id, date: o.date, done: o.done },
+  }))
+
   const all: CalEvent[] = [
+    ...reminderEvents,
     ...db.siteVisits.filter((v) => v.status !== 'Cancelled').map((v): CalEvent => ({
       id: v.id, title: `Site visit — ${subject(v.leadId, v.clientId) ?? v.location}`, date: v.date, type: 'Site Visit',
       people: [v.assignedTo], to: '/crm/site-visits',
@@ -109,7 +126,8 @@ export function CalendarPage() {
     <div>
       <PageHeader
         title="Calendar"
-        subtitle="Site visits, task due dates, deadlines, meetings, AMC visits, CEO consultations and project completions — tick what to show."
+        subtitle="Reminders, site visits, task due dates, deadlines, meetings, AMC visits, CEO consultations and project completions — tick what to show."
+        actions={<button onClick={() => setAdding(selected)} className="btn-primary"><Icon name="bell" className="h-4 w-4" /> Add reminder</button>}
       />
 
       {/* Filters — tick what to show */}
@@ -206,12 +224,16 @@ export function CalendarPage() {
 
         {/* Selected day + what follows */}
         <div className="space-y-6">
-          <Section title={selected === today() ? 'Today' : formatDateLong(selected)} description={`${dayEvents.length} item${dayEvents.length === 1 ? '' : 's'}`}>
+          <Section
+            title={selected === today() ? 'Today' : formatDateLong(selected)}
+            description={`${dayEvents.length} item${dayEvents.length === 1 ? '' : 's'}`}
+            actions={<button onClick={() => setAdding(selected)} className="btn-secondary py-1.5 text-xs"><Icon name="plus" className="h-3.5 w-3.5" /> Reminder</button>}
+          >
             {dayEvents.length === 0 ? (
               <EmptyState title="Nothing on this day." icon="calendar" />
             ) : (
               <ul className="divide-y divide-stone-100">
-                {dayEvents.map((e) => <EventRow key={e.id} event={e} />)}
+                {dayEvents.map((e) => <EventRow key={e.id} event={e} onOpen={setOpened} />)}
               </ul>
             )}
           </Section>
@@ -220,22 +242,29 @@ export function CalendarPage() {
               <EmptyState title="Nothing after this day." icon="calendar" />
             ) : (
               <ul className="divide-y divide-stone-100">
-                {upcoming.map((e) => <EventRow key={e.id} event={e} showDate />)}
+                {upcoming.map((e) => <EventRow key={e.id} event={e} showDate onOpen={setOpened} />)}
               </ul>
             )}
           </Section>
         </div>
       </div>
+
+      {adding && <ReminderModal defaultDate={adding} onClose={() => setAdding(null)} />}
+      {opened && db.reminders.some((r) => r.id === opened.id) && (
+        <ReminderModal reminder={db.reminders.find((r) => r.id === opened.id)} occurrence={opened.date} onClose={() => setOpened(null)} />
+      )}
     </div>
   )
 }
 
-function EventRow({ event: e, showDate }: { event: CalEvent; showDate?: boolean }) {
+function EventRow({
+  event: e, showDate, onOpen,
+}: { event: CalEvent; showDate?: boolean; onOpen: (r: { id: string; date: string }) => void }) {
   const body = (
     <div className="flex items-start gap-3 px-5 py-3">
       <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${STYLE[e.type].dot}`} />
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-stone-800">{e.title}</span>
+        <span className={`block text-sm font-medium ${e.reminder?.done ? 'text-stone-400 line-through' : 'text-stone-800'}`}>{e.title}</span>
         <span className="block text-xs text-stone-400">
           {e.type}
           {showDate && ` · ${formatDate(e.date)}`}
@@ -244,5 +273,9 @@ function EventRow({ event: e, showDate }: { event: CalEvent; showDate?: boolean 
       </span>
     </div>
   )
+  if (e.reminder) {
+    const r = e.reminder
+    return <li><button onClick={() => onOpen({ id: r.id, date: r.date })} className="block w-full text-left hover:bg-stone-50">{body}</button></li>
+  }
   return <li>{e.to ? <Link to={e.to} className="block hover:bg-stone-50">{body}</Link> : body}</li>
 }
