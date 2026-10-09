@@ -6,6 +6,7 @@ import {
   type Project,
   type ProjectType,
 } from './types'
+import { daysBetween, today } from './format'
 
 export interface PhaseProgress {
   key: PhaseKey
@@ -19,6 +20,8 @@ export interface ProjectProgress {
   type: ProjectType
   design?: { phases: PhaseProgress[]; overall: number }
   execution?: { phases: PhaseProgress[]; overall: number }
+  /** AMC is measured by how much of the contract term has run. It only drives the overall figure on an AMC-only project. */
+  amc?: { overall: number }
   overall: number
 }
 
@@ -26,9 +29,16 @@ const mean = (values: number[]) =>
   values.length === 0 ? 0 : Math.floor(values.reduce((a, b) => a + b, 0) / values.length)
 
 export function projectType(project: Project): ProjectType {
-  const { design, execution } = project.services
-  if (design && execution) return 'Design + Execution'
-  return design ? 'Design Only' : 'Execution Only'
+  const { design, execution, amc } = project.services
+  const parts = [design && 'Design', execution && 'Execution', amc && 'AMC'].filter(Boolean) as string[]
+  return parts.length === 1 ? `${parts[0]} Only` : parts.join(' + ')
+}
+
+/** Share of an AMC's contract term already behind it — the project start to its expected completion. */
+export function amcTermElapsed(project: Project, on: string): number {
+  const total = daysBetween(project.startDate, project.expectedCompletion)
+  if (total <= 0) return 100
+  return Math.max(0, Math.min(100, Math.round((daysBetween(project.startDate, on) / total) * 100)))
 }
 
 /**
@@ -76,6 +86,11 @@ export function computeProgress(project: Project): ProjectProgress {
     const overall = mean(phases.filter((p) => p.counted).map((p) => p.progress))
     result.execution = { phases, overall }
     moduleScores.push(overall)
+  }
+
+  if (project.services.amc) {
+    result.amc = { overall: amcTermElapsed(project, today()) }
+    if (moduleScores.length === 0) moduleScores.push(result.amc.overall)
   }
 
   result.overall = mean(moduleScores)

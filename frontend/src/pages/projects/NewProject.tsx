@@ -5,6 +5,8 @@ import { useDb } from '../../state/useDb'
 import { addDays, today } from '../../domain/format'
 import { PageHeader, Section, Field, Checkbox, Badge } from '../../components/ui'
 import { MapPicker } from '../../components/MapPicker'
+import { ClientPicker } from './ClientPicker'
+import { AmcFields, draftToRecord, emptyAmcDraft, endOf, validateAmc, type AmcDraft } from '../amc/AmcContractForm'
 import { CHECKLISTS, commercialDocs } from '../../domain/commercial'
 import type { LatLng } from '../../domain/types'
 import { usePermissions } from '../../state/permissions'
@@ -34,6 +36,8 @@ export function NewProject() {
   })
   const [design, setDesign] = useState(true)
   const [execution, setExecution] = useState(false)
+  const [amc, setAmc] = useState(false)
+  const [amcDraft, setAmcDraft] = useState<AmcDraft>(() => emptyAmcDraft(today()))
   const [designPhases, setDesignPhases] = useState({
     concept: true, threeD: true, civilWork: true, boq: true,
   })
@@ -48,14 +52,14 @@ export function NewProject() {
 
   if (!can('Projects', 'create')) return <NoAccess />
 
-  const docs = commercialDocs({ design, execution })
+  const docs = commercialDocs({ design, execution, amc })
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim()) return setError('Enter a project name.')
     if (!form.clientId) return setError('Select a client.')
     if (!form.siteLocation.trim()) return setError('Enter the site location.')
-    if (!design && !execution) return setError('Select at least one service — Design or Execution.')
+    if (!design && !execution && !amc) return setError('Select at least one service — Design, Execution or AMC.')
     if (design && !Object.values(designPhases).some(Boolean)) {
       return setError('Select at least one design phase.')
     }
@@ -66,12 +70,21 @@ export function NewProject() {
         !executionPhases.irrigation && !executionPhases.electrical && !executionPhases.drainage) {
       return setError('Select at least one MEP service, or turn MEP off.')
     }
+    if (amc) {
+      const problem = validateAmc(amcDraft)
+      if (problem) return setError(`AMC: ${problem}`)
+    }
 
     setError(null)
     const project = api.projects.create({
       ...form,
       siteCoords,
-      services: { design, execution },
+      services: { design, execution, amc },
+      amc: amc ? draftToRecord(amcDraft) : undefined,
+      // An AMC-only project runs for the contract term and is worth the contract value.
+      ...(amc && !design && !execution
+        ? { expectedCompletion: endOf(amcDraft), value: form.value || amcDraft.value }
+        : {}),
       designPhases,
       executionPhases,
     })
@@ -82,7 +95,7 @@ export function NewProject() {
     <form onSubmit={submit} className="mx-auto max-w-4xl">
       <PageHeader
         title="New Project"
-        subtitle="A project carries Design, Execution, or both — only the services actually required."
+        subtitle="A project carries Design, Execution, an AMC — or any mix of them. Only the services actually sold."
       />
 
       {/* Step 1 — Basic Information */}
@@ -97,15 +110,13 @@ export function NewProject() {
               />
             </Field>
           </div>
-          <Field label="Client" required>
-            <select
-              value={form.clientId}
-              onChange={(e) => setForm({ ...form, clientId: e.target.value })}
-              className="input"
-            >
-              {db.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </Field>
+          {/* Not a <label>: the picker holds its own buttons, which a label would re-trigger. */}
+          <div>
+            <span className="label">Client<span className="ml-0.5 text-red-500">*</span></span>
+            <div className="mt-1.5">
+              <ClientPicker value={form.clientId} onChange={(clientId) => setForm((f) => ({ ...f, clientId }))} />
+            </div>
+          </div>
           <Field label="Site Location" required>
             <input
               type="text" value={form.siteLocation} placeholder="e.g. Kovalam, Thiruvananthapuram"
@@ -169,10 +180,11 @@ export function NewProject() {
         description="At least one must be selected."
         className="mb-6"
       >
-        <div className="grid gap-3 px-5 py-5 sm:grid-cols-2">
+        <div className="grid gap-3 px-5 py-5 sm:grid-cols-3">
           {[
             { on: design, set: setDesign, label: 'Design', hint: 'Concept, 3D, civil work, BOQ' },
             { on: execution, set: setExecution, label: 'Execution', hint: 'Hardscape, softscape, MEP, maintenance' },
+            { on: amc, set: setAmc, label: 'AMC', hint: 'Annual Maintenance Contract — repeat visits with reminders. Can be sold alone.' },
           ].map((service) => (
             <button
               key={service.label}
@@ -268,8 +280,22 @@ export function NewProject() {
             </div>
 
             <p className="text-xs text-stone-500">
-              Free Maintenance and AMC are added automatically once execution completes.
+              The free maintenance month follows execution automatically. Tick AMC above to add an annual contract now.
             </p>
+          </div>
+        </Section>
+      )}
+
+      {amc && (
+        <Section
+          title="AMC — Annual Maintenance Contract"
+          description={design || execution
+            ? "Runs alongside the project. Set how often the site is visited and how far ahead the team is reminded."
+            : "An AMC-only project: we maintain a garden someone else built. The project runs for the contract term."}
+          className="mb-6"
+        >
+          <div className="px-5 py-5">
+            <AmcFields draft={amcDraft} onChange={setAmcDraft} />
           </div>
         </Section>
       )}
@@ -281,7 +307,7 @@ export function NewProject() {
           description={
             design && execution ? 'Design + Execution carries both a BOQ and a Quotation.'
               : design ? 'Design only carries a BOQ — no quotation.'
-              : 'Execution only carries a Quotation — no BOQ.'
+              : execution ? 'Execution only carries a Quotation — no BOQ.' : 'An AMC is priced on a Quotation.'
           }
           className="mb-6"
         >

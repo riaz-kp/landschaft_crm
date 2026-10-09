@@ -66,6 +66,19 @@ export function ProjectProgressPanel({ project }: { project: Project }) {
         </div>
       )}
 
+      {progress.amc && (
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500">AMC Contract</h3>
+            <span className="text-sm font-bold tabular-nums text-clay-700">{progress.amc.overall}%</span>
+          </div>
+          <PhaseRow label="Contract term elapsed" value={progress.amc.overall} muted={Boolean(progress.design || progress.execution)} />
+          {(progress.design || progress.execution) && (
+            <p className="mt-1 text-xs text-stone-400">The AMC runs alongside the project and does not count toward its progress.</p>
+          )}
+        </div>
+      )}
+
       <div className="border-t border-stone-200 pt-4">
         <div className="mb-1.5 flex items-center justify-between">
           <span className="text-sm font-bold uppercase tracking-wider text-stone-700">Overall</span>
@@ -83,7 +96,11 @@ export function ProjectProgressPanel({ project }: { project: Project }) {
  */
 export function PhaseStrip({ project }: { project: Project }) {
   const progress = computeProgress(project)
-  const phases = [...(progress.design?.phases ?? []), ...(progress.execution?.phases ?? [])]
+  const phases = [
+    ...(progress.design?.phases ?? []),
+    ...(progress.execution?.phases ?? []),
+    ...(progress.amc ? [{ key: 'amc', label: 'AMC term', progress: progress.amc.overall, counted: !progress.design && !progress.execution }] : []),
+  ]
 
   return (
     <div className="scroll-x -mx-1 px-1 pb-2">

@@ -4,7 +4,7 @@ import { daysBetween, formatCurrency, formatDate, today } from '../../domain/for
 import { PageHeader, Section, Table, EmptyState, Badge, StatTile, StatusBadge } from '../../components/ui'
 import { ContactNumbers } from '../../components/ContactFields'
 
-/** A renewal is flagged once it is inside this many days. */
+/** Renewals are flagged inside each contract's own reminder window; this is the default when none is set. */
 const RENEWAL_WINDOW_DAYS = 60
 
 /** AMC renewals coming up, and handed-over sites not yet on an AMC. */
@@ -25,7 +25,8 @@ export function AmcRenewals() {
 
   const project = (id: string) => db.projects.find((p) => p.id === id)
   const clientOf = (projectId: string) => db.clients.find((c) => c.id === project(projectId)?.clientId)
-  const dueSoon = contracts.filter((c) => c.daysLeft <= RENEWAL_WINDOW_DAYS)
+  const windowOf = (c: { record: { renewalReminderDays?: number } }) => c.record.renewalReminderDays ?? RENEWAL_WINDOW_DAYS
+  const dueSoon = contracts.filter((c) => c.daysLeft <= windowOf(c))
 
   return (
     <div>
@@ -34,7 +35,7 @@ export function AmcRenewals() {
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile label="Active AMCs" value={contracts.length} />
         <StatTile
-          label={`Due in ${RENEWAL_WINDOW_DAYS} Days`} value={dueSoon.length}
+          label="Renewal Reminders" value={dueSoon.length}
           tone={dueSoon.length ? 'amber' : 'green'}
         />
         <StatTile
@@ -68,7 +69,7 @@ export function AmcRenewals() {
                     <span className="block tabular-nums">{formatDate(record.renewalDate!)}</span>
                     {daysLeft < 0 ? (
                       <Badge tone="red">Lapsed {-daysLeft}d ago</Badge>
-                    ) : daysLeft <= RENEWAL_WINDOW_DAYS ? (
+                    ) : daysLeft <= windowOf({ record }) ? (
                       <Badge tone="amber">Due in {daysLeft}d</Badge>
                     ) : (
                       <Badge tone="green">{daysLeft} days left</Badge>

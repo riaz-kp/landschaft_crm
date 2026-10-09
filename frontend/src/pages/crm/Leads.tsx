@@ -11,6 +11,7 @@ import {
   Modal, Field, FormError, StatTile,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { ContactNumbers, PhoneWhatsAppFields } from '../../components/ContactFields'
 
 const STATUSES: LeadStatus[] = ['New', 'Contacted', 'Site Visit', 'Quoted', 'Won', 'Lost']
 const SOURCES: Lead['source'][] = ['Instagram', 'Referral', 'Website', 'Walk-in', 'Google', 'Exhibition']
@@ -37,7 +38,7 @@ export function Leads() {
   const q = query.trim().toLowerCase()
   const leads = db.leads.filter((l) =>
     (filter === 'All' || l.status === filter)
-    && (!q || [l.name, l.phone, l.location, l.requirement, l.email ?? ''].some((v) => v.toLowerCase().includes(q))))
+    && (!q || [l.name, l.phone, l.whatsapp ?? '', l.location, l.requirement, l.email ?? ''].some((v) => v.toLowerCase().includes(q))))
   const ownerName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
   const open = db.leads.filter((l) => !['Won', 'Lost'].includes(l.status))
   const won = db.leads.filter((l) => l.status === 'Won').length
@@ -82,7 +83,8 @@ export function Leads() {
                   <button onClick={() => can('CRM', 'edit') && setEditing(lead)} className="text-left font-medium text-stone-900 hover:text-brand-700">
                     {lead.name}
                   </button>
-                  <span className="block text-xs text-stone-400">{lead.phone} · {formatDate(lead.createdAt)}</span>
+                  <span className="mt-0.5 block text-xs text-stone-500"><ContactNumbers phone={lead.phone} whatsapp={lead.whatsapp} /></span>
+                  <span className="block text-xs text-stone-400">Since {formatDate(lead.createdAt)}</span>
                 </td>
                 <td className="td">{lead.location}</td>
                 <td className="td"><Badge tone="stone">{lead.source}</Badge></td>
@@ -140,6 +142,7 @@ function LeadFormModal({ lead, onClose }: { lead?: Lead; onClose: () => void }) 
   const [form, setForm] = useState({
     name: lead?.name ?? '',
     phone: lead?.phone ?? '',
+    whatsapp: lead?.whatsapp ?? '',
     email: lead?.email ?? '',
     location: lead?.location ?? '',
     source: lead?.source ?? ('Instagram' as Lead['source']),
@@ -158,6 +161,8 @@ function LeadFormModal({ lead, onClose }: { lead?: Lead; onClose: () => void }) 
     const values = {
       name: form.name.trim(),
       phone: form.phone.trim(),
+      // An empty WhatsApp means the box was unticked and left blank — fall back to the phone.
+      whatsapp: form.whatsapp.trim() || form.phone.trim(),
       email: form.email.trim() || undefined,
       location: form.location.trim(),
       source: form.source,
@@ -182,13 +187,16 @@ function LeadFormModal({ lead, onClose }: { lead?: Lead; onClose: () => void }) 
       </>}
     >
       <div className="space-y-4">
+        <Field label="Name" required>
+          <input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} autoFocus />
+        </Field>
+        <PhoneWhatsAppFields
+          required
+          phone={form.phone}
+          whatsapp={form.whatsapp}
+          onChange={(numbers) => set(numbers)}
+        />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" required>
-            <input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} autoFocus />
-          </Field>
-          <Field label="Phone" required>
-            <input type="tel" className="input" value={form.phone} placeholder="+91 98470 00000" onChange={(e) => set({ phone: e.target.value })} />
-          </Field>
           <Field label="Email">
             <input type="email" className="input" value={form.email} onChange={(e) => set({ email: e.target.value })} />
           </Field>

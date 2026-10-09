@@ -3,6 +3,7 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatDateLong, today } from '../../domain/format'
 import { PHOTO_SESSIONS } from '../../domain/types'
+import { unreadRemarks } from '../../domain/chat'
 import { SiteName, StatusBadge } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { FieldCard } from '../../shells/FieldShell'
@@ -33,47 +34,59 @@ export function MySites() {
           const report = db.reports.find(
             (r) => r.projectId === site.id && r.foremanId === user.id && r.date === today(),
           )
+          const unread = unreadRemarks(db.projectMessages, db.chatReads, user.id, site.id)
           return (
-            <FieldCard key={site.id} onClick={() => navigate(`/field/report/${site.id}`)}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-base font-semibold text-stone-900">
-                    <SiteName name={site.siteLocation} />
+            <div key={site.id} className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-card">
+              <button onClick={() => navigate(`/field/report/${site.id}`)} className="block w-full p-4 text-left">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-base font-semibold text-stone-900">
+                      <SiteName name={site.siteLocation} />
+                    </p>
+                    <p className="mt-0.5 truncate text-sm text-stone-500">{site.name}</p>
+                    <p className="mt-2 text-xs font-medium text-stone-400">{site.code}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    {report ? (
+                      <StatusBadge status={report.status} />
+                    ) : (
+                      <span className="text-xs font-medium text-stone-400">Not started</span>
+                    )}
+                    <Icon name="chevron" className="h-5 w-5 text-stone-300" />
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  {PHOTO_SESSIONS.map((session) => {
+                    const done = report?.photos.some((p) => p.session === session)
+                    return (
+                      <span
+                        key={session}
+                        className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                          done ? 'bg-brand-50 text-brand-700' : 'bg-stone-100 text-stone-500'
+                        }`}
+                      >
+                        <Icon name={done ? 'check' : session === 'Morning' ? 'sun' : 'moon'} className="h-3.5 w-3.5" />
+                        {session} photo{done ? '' : ' due'}
+                      </span>
+                    )
+                  })}
+                </div>
+                {report?.status === 'Sent Back' && report.reviewNote && (
+                  <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+                    <span className="font-semibold">Sent back:</span> {report.reviewNote}
                   </p>
-                  <p className="mt-0.5 truncate text-sm text-stone-500">{site.name}</p>
-                  <p className="mt-2 text-xs font-medium text-stone-400">{site.code}</p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-2">
-                  {report ? (
-                    <StatusBadge status={report.status} />
-                  ) : (
-                    <span className="text-xs font-medium text-stone-400">Not started</span>
-                  )}
-                  <Icon name="chevron" className="h-5 w-5 text-stone-300" />
-                </div>
+                )}
+              </button>
+              <div className="grid grid-cols-2 border-t border-stone-100 text-sm font-semibold">
+                <button onClick={() => navigate(`/field/report/${site.id}`)} className="flex items-center justify-center gap-2 py-2.5 text-brand-700 hover:bg-stone-50">
+                  <Icon name="doc" className="h-4 w-4" /> Today's report
+                </button>
+                <button onClick={() => navigate(`/field/chat/${site.id}`)} className="flex items-center justify-center gap-2 border-l border-stone-100 py-2.5 text-stone-700 hover:bg-stone-50">
+                  <Icon name="chat" className="h-4 w-4" /> Remarks
+                  {unread > 0 && <span className="rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{unread}</span>}
+                </button>
               </div>
-              <div className="mt-3 flex gap-2">
-                {PHOTO_SESSIONS.map((session) => {
-                  const done = report?.photos.some((p) => p.session === session)
-                  return (
-                    <span
-                      key={session}
-                      className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                        done ? 'bg-brand-50 text-brand-700' : 'bg-stone-100 text-stone-500'
-                      }`}
-                    >
-                      <Icon name={done ? 'check' : session === 'Morning' ? 'sun' : 'moon'} className="h-3.5 w-3.5" />
-                      {session} photo{done ? '' : ' due'}
-                    </span>
-                  )
-                })}
-              </div>
-              {report?.status === 'Sent Back' && report.reviewNote && (
-                <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
-                  <span className="font-semibold">Sent back:</span> {report.reviewNote}
-                </p>
-              )}
-            </FieldCard>
+            </div>
           )
         })}
 

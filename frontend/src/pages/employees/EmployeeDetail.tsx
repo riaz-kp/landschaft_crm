@@ -18,8 +18,9 @@ import { NoAccess } from '../misc/Fallbacks'
 import { EmployeeWorks } from './EmployeeWorks'
 import { EmployeeAttendance } from './EmployeeAttendance'
 import { EmployeeFormModal } from './EmployeeForm'
+import { PersonPayments } from './PersonPayments'
 
-type Tab = 'profile' | 'works' | 'attendance' | 'role'
+type Tab = 'profile' | 'works' | 'attendance' | 'payments' | 'role'
 
 type FieldKey =
   | 'name' | 'dob' | 'address' | 'phone' | 'email' | 'bloodGroup' | 'qualification' | 'joinedOn'
@@ -79,6 +80,8 @@ export function EmployeeDetail() {
 
   const canEditPersonal = isSelf || can('Employees', 'edit')
   const canEditOrg = can('Employees', 'edit')
+  // Pay is private: the person themself, accounts, and whoever manages employees.
+  const canSeePay = isSelf || can('Accounts', 'view') || can('Employees', 'edit')
   const filled = [...PERSONAL, ...FAMILY].filter((f) => employee[f.key]?.trim()).length
   const total = PERSONAL.length + FAMILY.length
 
@@ -123,6 +126,7 @@ export function EmployeeDetail() {
           { key: 'profile', label: 'Profile' },
           { key: 'works', label: 'Works' },
           { key: 'attendance', label: 'Attendance' },
+          ...(canSeePay ? [{ key: 'payments' as Tab, label: 'Payments' }] : []),
           { key: 'role', label: 'Role in Company' },
         ]}
       />
@@ -130,6 +134,9 @@ export function EmployeeDetail() {
       {tab === 'profile' && <ProfileDetails key={employee.id} employee={employee} canEdit={canEditPersonal} />}
       {tab === 'works' && <EmployeeWorks key={employee.id} employee={employee} />}
       {tab === 'attendance' && <EmployeeAttendance key={employee.id} employee={employee} canEdit={can('Employees', 'edit')} />}
+      {tab === 'payments' && canSeePay && (
+        <PersonPayments key={employee.id} kind="employee" personId={employee.id} monthlySalary={employee.monthlySalary} canManage={can('Accounts', 'create') || can('Employees', 'edit')} />
+      )}
       {tab === 'role' && <RoleInCompany key={employee.id} employee={employee} canEdit={canEditOrg} />}
 
       <Link to="/employees" className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-stone-500 hover:text-stone-800">

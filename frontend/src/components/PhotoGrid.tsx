@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 import { PHOTO_SESSIONS, type PhotoSession, type ReportPhoto } from '../domain/types'
 import { currentTime, formatTime } from '../domain/format'
 import { Icon } from './Icon'
-import { resizeImage } from './imageResize'
+import { compressImage, formatKb } from './imageResize'
+import { useDb } from '../state/useDb'
 import { Lightbox } from './Lightbox'
 
 const SESSION_ICON: Record<PhotoSession, string> = { Morning: 'sun', Evening: 'moon' }
@@ -23,26 +24,40 @@ export function PhotoGrid({
   const galleryRef = useRef<HTMLInputElement>(null)
   const [viewing, setViewing] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(0)
+  const [saved, setSaved] = useState<{ before: number; after: number; count: number } | null>(null)
+  const { settings } = useDb()
 
   const shown = session ? photos.filter((p) => p.session === session) : photos
 
   const addFiles = async (files: FileList | null) => {
     if (!files || !session) return
     setError(null)
+    setBusy(files.length)
     const added: ReportPhoto[] = []
     for (const file of Array.from(files)) {
       try {
+        // Shrunk on the phone before it is saved, so uploads stay small on a site connection.
+        const shot = await compressImage(file, settings.photoMaxPx, settings.photoMaxKb)
         added.push({
           id: `ph${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
-          src: await resizeImage(file, 1280),
+          src: shot.dataUrl,
           session,
           takenAt: currentTime(),
+          sizeKb: shot.sizeKb,
+          originalKb: shot.originalKb,
         })
       } catch {
         setError(`${file.name} could not be read as an image.`)
       }
     }
-    if (added.length) onChange([...photos, ...added])
+    setBusy(0)
+    if (added.length) {
+      onChange([...photos, ...added])
+      const before = added.reduce((s, p) => s + (p.originalKb ?? 0), 0)
+      const after = added.reduce((s, p) => s + (p.sizeKb ?? 0), 0)
+      setSaved({ before, after, count: added.length })
+    }
   }
 
   const setCaption = (id: string, caption: string) =>
@@ -60,6 +75,11 @@ export function PhotoGrid({
           <Icon name={SESSION_ICON[photo.session]} className="h-3 w-3" />
           {photo.takenAt ? formatTime(photo.takenAt) : photo.session}
         </span>
+        {photo.sizeKb !== undefined && (
+          <span className="absolute bottom-1.5 left-1.5 rounded-md bg-stone-900/60 px-1.5 py-0.5 text-[10px] font-medium text-white" title={photo.originalKb ? `Original ${formatKb(photo.originalKb)}` : undefined}>
+            {formatKb(photo.sizeKb)}
+          </span>
+        )}
         {!disabled && (
           <button
             type="button"
@@ -104,6 +124,19 @@ export function PhotoGrid({
         </div>
       )}
       {error && <p className="mb-2 text-xs font-medium text-red-600">{error}</p>}
+      {busy > 0 && (
+        <p className="mb-2 flex items-center gap-2 text-xs font-medium text-stone-500">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          Compressing {busy} photo{busy === 1 ? '' : 's'}…
+        </p>
+      )}
+      {saved && busy === 0 && saved.before > saved.after && (
+        <p className="mb-2 flex items-center gap-1.5 text-xs text-brand-700">
+          <Icon name="check" className="h-3.5 w-3.5" />
+          {saved.count} photo{saved.count === 1 ? '' : 's'} compressed {formatKb(saved.before)} → {formatKb(saved.after)}
+          <span className="text-stone-400">({Math.round((1 - saved.after / saved.before) * 100)}% smaller)</span>
+        </p>
+      )}
 
       {shown.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-stone-300 px-4 py-7 text-center">

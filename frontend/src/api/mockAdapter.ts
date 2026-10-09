@@ -2,7 +2,8 @@ import { nextId, nowTime, store } from '../mock/store'
 import { addDays, today } from '../domain/format'
 import type {
   ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, Employee, ID,
-  Lead, PaymentFollowUp, Project, Quotation, Settings, SiteVisit, Task, Worker,
+  Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, Project, ProjectMessage, Quotation, Settings, SiteVisit,
+  Task, Worker,
 } from '../domain/types'
 import type { Api, NewProjectInput } from './client'
 
@@ -75,6 +76,10 @@ export const adapter: Api = {
       }
       store.update((db) => {
         db.projects.push(project)
+        // Selling AMC with the project opens its maintenance contract straight away.
+        if (input.services.amc && input.amc) {
+          db.maintenance.push({ ...input.amc, id: nextId('m'), projectId: id, type: 'AMC', visits: [] })
+        }
       })
       return project
     },
@@ -255,8 +260,8 @@ export const adapter: Api = {
         id: nextId('c'),
         name: lead?.name ?? 'New Client',
         phone: lead?.phone ?? '',
-        // Leads carry one number; it is assumed to be on WhatsApp until edited.
-        whatsapp: lead?.phone ?? '',
+        // The lead's WhatsApp carries over; older leads without one fall back to the phone.
+        whatsapp: lead?.whatsapp || lead?.phone || '',
         email: lead?.email,
         address: lead?.location ?? '',
         leadId,
@@ -452,10 +457,40 @@ export const adapter: Api = {
   },
 
   amc: {
-    scheduleVisit(recordId, date, teamIds) {
+    create(input): MaintenanceRecord {
+      const record: MaintenanceRecord = { ...input, id: nextId('m'), visits: [] }
+      store.update((db) => {
+        db.maintenance.push(record)
+        const project = db.projects.find((p) => p.id === input.projectId)
+        if (project && input.type === 'AMC') project.services = { ...project.services, amc: true }
+      })
+      return record
+    },
+    update(recordId, patch) {
       store.update((db) => {
         const record = db.maintenance.find((m) => m.id === recordId)
-        record?.visits.push({ id: nextId('mv'), date, teamIds, notes: '', issues: [], photoCount: 0, done: false })
+        if (record) Object.assign(record, patch)
+      })
+    },
+    remove(recordId) {
+      store.update((db) => {
+        const index = db.maintenance.findIndex((m) => m.id === recordId)
+        if (index >= 0) db.maintenance.splice(index, 1)
+      })
+    },
+    scheduleVisit(recordId, date, teamIds, plannedFor) {
+      store.update((db) => {
+        const record = db.maintenance.find((m) => m.id === recordId)
+        record?.visits.push({ id: nextId('mv'), date, teamIds, notes: '', issues: [], photoCount: 0, done: false, plannedFor })
+      })
+    },
+    moveVisit(recordId, visitId, date, teamIds) {
+      store.update((db) => {
+        const visit = db.maintenance.find((m) => m.id === recordId)?.visits.find((v) => v.id === visitId)
+        if (!visit) return
+        visit.plannedFor = visit.plannedFor ?? visit.date
+        visit.date = date
+        visit.teamIds = teamIds
       })
     },
     completeVisit(recordId, visitId, notes, issues) {
@@ -465,6 +500,55 @@ export const adapter: Api = {
         visit.done = true
         visit.notes = notes
         visit.issues = issues.filter((i) => i.trim())
+      })
+    },
+    recordVisit(recordId, input) {
+      store.update((db) => {
+        const record = db.maintenance.find((m) => m.id === recordId)
+        record?.visits.push({
+          id: nextId('mv'), date: input.date, plannedFor: input.plannedFor, teamIds: input.teamIds,
+          notes: input.notes, issues: input.issues.filter((i) => i.trim()), photoCount: 0, done: true,
+        })
+      })
+    },
+  },
+
+  projectChat: {
+    post(input): ProjectMessage {
+      const message: ProjectMessage = { ...input, id: nextId('pm'), at: `${today()}T${nowTime()}` }
+      store.update((db) => {
+        db.projectMessages.push(message)
+        // Posting counts as having read the thread.
+        db.chatReads[`${input.authorId}:${input.projectId}`] = message.at
+      })
+      return message
+    },
+    remove(messageId) {
+      store.update((db) => {
+        db.projectMessages = db.projectMessages.filter((m) => m.id !== messageId)
+      })
+    },
+    markRead(personId, projectId) {
+      const key = `${personId}:${projectId}`
+      const latest = store.db.projectMessages.filter((m) => m.projectId === projectId).reduce((max, m) => (m.at > max ? m.at : max), '')
+      if (!latest || (store.db.chatReads[key] ?? '') >= latest) return
+      store.update((db) => {
+        db.chatReads[key] = latest
+      })
+    },
+  },
+
+  pay: {
+    create(input): PayRecord {
+      const record: PayRecord = { ...input, id: nextId('pay') }
+      store.update((db) => {
+        db.payRecords.push(record)
+      })
+      return record
+    },
+    remove(payId) {
+      store.update((db) => {
+        db.payRecords = db.payRecords.filter((p) => p.id !== payId)
       })
     },
   },

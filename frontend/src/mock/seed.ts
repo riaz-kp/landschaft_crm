@@ -3,8 +3,8 @@ import { defaultPermissions } from '../domain/roles'
 import type {
   AttendanceEntry, CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
   DocumentRecord, Employee, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
-  PaymentRequest, Phase, PhotoSession, Project, Quotation, ReportPhoto, Settings, SiteAssignment,
-  SiteVisit, StaffAttendanceStatus, Task, Worker,
+  MaintenanceVisit, PaymentRequest, Phase, PhotoSession, Project, Quotation, ReportPhoto, Settings, SiteAssignment,
+  SiteVisit, StaffAttendanceStatus, Task, Worker, ProjectMessage, PayRecord,
 } from '../domain/types'
 import { placeholderSitePhoto } from './photos'
 import { CHECKLISTS } from '../domain/commercial'
@@ -26,9 +26,9 @@ export const employees: Employee[] = [
   { id: 'e9', name: 'Anaswara', role: 'accounts', department: 'Accounts', reportsTo: 'e8', phone: '+91 98470 11009', email: 'anaswara@landschaft.in' },
   { id: 'e10', name: 'Swalih', role: 'marketing', department: 'Marketing', reportsTo: 'e1', phone: '+91 98470 11010', email: 'swalih@landschaft.in' },
   // Site work heads / foremen — each gets their own login.
-  { id: 'e11', name: 'Ashiq', role: 'foreman', department: 'Execution', reportsTo: 'e7', phone: '+91 98470 11011', email: 'ashiq@landschaft.in' },
-  { id: 'e12', name: 'Niyas', role: 'foreman', department: 'Execution', reportsTo: 'e7', phone: '+91 98470 11012', email: 'niyas@landschaft.in' },
-  { id: 'e13', name: 'Shihab', role: 'foreman', department: 'Execution', reportsTo: 'e7', phone: '+91 98470 11013', email: 'shihab@landschaft.in' },
+  { id: 'e11', name: 'Ashiq', role: 'foreman', department: 'Execution', reportsTo: 'e7', phone: '+91 98470 11011', email: 'ashiq@landschaft.in', monthlySalary: 28000, joinedOn: '2021-06-14' },
+  { id: 'e12', name: 'Niyas', role: 'foreman', department: 'Execution', reportsTo: 'e7', phone: '+91 98470 11012', email: 'niyas@landschaft.in', monthlySalary: 30000, joinedOn: '2020-11-02' },
+  { id: 'e13', name: 'Shihab', role: 'foreman', department: 'Execution', reportsTo: 'e7', phone: '+91 98470 11013', email: 'shihab@landschaft.in', monthlySalary: 27000, joinedOn: '2022-03-21' },
 ]
 
 /** Site labour. Workers are recorded by foremen and do not log in. */
@@ -64,6 +64,7 @@ export const clients: Client[] = [
   { id: 'c3', name: 'DEF Resorts', phone: '+91 94470 30003', whatsapp: '+91 99610 40003', email: 'gm@defresorts.in', address: 'Kovalam, Thiruvananthapuram', leadId: 'l3', createdAt: '2026-05-20' },
   { id: 'c4', name: 'Dr. Ramesh Nair', phone: '+91 94470 30004', whatsapp: '+91 94470 30004', email: 'ramesh.nair@gmail.com', address: 'Edava, Varkala', createdAt: '2026-06-08' },
   { id: 'c5', name: 'Greenfield Apartments', phone: '+91 94470 30005', whatsapp: '+91 94470 30005', email: 'assoc@greenfield.in', address: 'Kozhikode', createdAt: '2026-06-25' },
+  { id: 'c6', name: 'Marine Drive Towers Association', phone: '+91 94470 30011', whatsapp: '+91 94470 30011', email: 'secretary@marinedrivetowers.in', address: 'Marine Drive, Kochi', createdAt: addDays(today(), -60) },
 ]
 
 export const leads: Lead[] = [
@@ -71,8 +72,8 @@ export const leads: Lead[] = [
   { id: 'l2', name: 'XYZ Estates', phone: '+91 94470 30002', location: 'Kochi', source: 'Website', status: 'Won', ownerId: 'e10', requirement: 'Villa landscape execution, design already done in-house', createdAt: '2026-04-18', clientId: 'c2' },
   { id: 'l3', name: 'DEF Resorts', phone: '+91 94470 30003', location: 'Kovalam', source: 'Exhibition', status: 'Won', ownerId: 'e1', requirement: 'Full resort landscape — design and execution', createdAt: '2026-05-05', clientId: 'c3' },
   { id: 'l4', name: 'Suresh Menon', phone: '+91 94470 30006', location: 'Kollam', source: 'Instagram', status: 'Quoted', ownerId: 'e10', requirement: 'Terrace garden, approx 1200 sq ft', createdAt: '2026-08-02' },
-  { id: 'l5', name: 'Lakeview Villas', phone: '+91 94470 30007', email: 'info@lakeview.in', location: 'Alappuzha', source: 'Google', status: 'Site Visit', ownerId: 'e10', requirement: 'Common area landscaping for 18 villas', createdAt: '2026-08-11' },
-  { id: 'l6', name: 'Fathima Beevi', phone: '+91 94470 30008', location: 'Malappuram', source: 'Referral', status: 'Contacted', ownerId: 'e10', requirement: 'Front yard redesign with water feature', createdAt: '2026-08-19' },
+  { id: 'l5', name: 'Lakeview Villas', phone: '+91 94470 30007', whatsapp: '+91 99610 40007', email: 'info@lakeview.in', location: 'Alappuzha', source: 'Google', status: 'Site Visit', ownerId: 'e10', requirement: 'Common area landscaping for 18 villas', createdAt: '2026-08-11' },
+  { id: 'l6', name: 'Fathima Beevi', phone: '+91 94470 30008', whatsapp: '+91 94470 30008', location: 'Malappuram', source: 'Referral', status: 'Contacted', ownerId: 'e10', requirement: 'Front yard redesign with water feature', createdAt: '2026-08-19' },
   { id: 'l7', name: 'Cyber Park Facility', phone: '+91 94470 30009', email: 'facility@cyberpark.in', location: 'Kozhikode', source: 'Website', status: 'New', ownerId: 'e10', requirement: 'Campus softscape AMC enquiry', createdAt: '2026-08-26' },
   { id: 'l8', name: 'Hotel Sea Pearl', phone: '+91 94470 30010', location: 'Varkala', source: 'Walk-in', status: 'Lost', ownerId: 'e10', requirement: 'Poolside landscaping — went with another vendor', createdAt: '2026-07-14' },
 ]
@@ -176,7 +177,7 @@ export const projects: Project[] = [
     id: 'p7', code: 'LS-2025-018', name: 'Sea Breeze Villa', clientId: 'c2',
     siteLocation: 'Fort Kochi', projectManagerId: 'e7',
     startDate: '2025-11-01', expectedCompletion: '2026-06-30', status: 'Completed',
-    services: { design: true, execution: true },
+    services: { design: true, execution: true, amc: true },
     design: { concept: phase(true, 100), threeD: phase(true, 100), civilWork: phase(true, 100), boq: phase(true, 100) },
     execution: {
       hardscape: phase(true, 100), softscape: phase(true, 100), mep: { enabled: true, progress: 100, services: { irrigation: true, electrical: true, drainage: true } },
@@ -198,6 +199,17 @@ export const projects: Project[] = [
     },
     value: 1900000, delayed: false,
     siteCoords: { lat: 11.2470, lng: 75.8330 }, checklist: ticks(['qt.scope', 'qt.survey', 'qt.pricing', 'qt.terms'], 'e8'),
+  },
+  {
+    // Sold as an AMC alone — no design or execution by us.
+    id: 'p9', code: 'LS-2026-008', name: 'Marine Drive Towers — Garden AMC', clientId: 'c6',
+    siteLocation: 'Marine Drive, Kochi', projectManagerId: 'e6',
+    startDate: addDays(today(), -45), expectedCompletion: addDays(today(), 319), status: 'In Progress',
+    services: { design: false, execution: false, amc: true },
+    design: { concept: phase(false), threeD: phase(false), civilWork: phase(false), boq: phase(false) },
+    execution: { hardscape: phase(false), softscape: phase(false), mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } }, maintenance: phase(false) },
+    value: 180000, delayed: false,
+    siteCoords: { lat: 9.9816, lng: 76.2756 }, checklist: ticks(QUOTATION_ALL, 'e8'),
   },
 ]
 
@@ -486,6 +498,7 @@ export const quotations: Quotation[] = [
   // Design + Execution carries both documents.
   { id: 'q5', kind: 'BOQ', number: 'BOQ-2026-009', projectId: 'p3', clientId: 'c3', date: '2026-04-05', status: 'Accepted', items: [{ description: 'Masterplan concept', quantity: 1, unit: 'LS', rate: 600000 }, { description: '3D presentation', quantity: 1, unit: 'LS', rate: 240000 }, { description: 'Civil and structural drawings', quantity: 1, unit: 'LS', rate: 180000 }] },
   { id: 'q6', kind: 'Quotation', number: 'QT-2026-012', projectId: 'p3', clientId: 'c3', date: '2026-05-02', status: 'Accepted', items: [{ description: 'Hardscape — pool deck and plazas', quantity: 2400, unit: 'sq ft', rate: 1250 }, { description: 'Softscape and planting', quantity: 1, unit: 'LS', rate: 2600000 }, { description: 'MEP — irrigation, lighting, drainage', quantity: 1, unit: 'LS', rate: 1980000 }] },
+  { id: 'q7', kind: 'Quotation', number: 'QT-2026-027', projectId: 'p9', clientId: 'c6', date: addDays(today(), -52), status: 'Accepted', items: [{ description: 'Annual maintenance — monthly visits', quantity: 12, unit: 'visit', rate: 12500 }, { description: 'Quarterly seasonal replanting', quantity: 4, unit: 'round', rate: 7500 }] },
 ]
 
 export const paymentRequests: PaymentRequest[] = [
@@ -505,11 +518,39 @@ export const payments: Payment[] = [
   { id: 'pay6', projectId: 'p4', clientId: 'c4', amount: 500000, date: '2026-07-05', method: 'UPI', reference: 'UPI/2026/77123' },
 ]
 
+const AMC_NOTES = [
+  'Lawn mowing and edge trimming.',
+  'Pruning, weeding and a pest-control round.',
+  'Irrigation check — nozzles cleaned, timers reset.',
+  'Fertiliser application and bed top-up.',
+  'Hedge shaping and dead-head removal.',
+]
+
+/**
+ * Visits already made on a repeat schedule: every `everyDays` from `first`,
+ * up to yesterday. Dates are relative to today so the calendar always has a
+ * past, a next visit inside its reminder window, and a future.
+ */
+function pastVisits(prefix: string, first: string, everyDays: number, teamIds: string[]): MaintenanceVisit[] {
+  const out: MaintenanceVisit[] = []
+  for (let date = first, i = 0; date < today(); date = addDays(date, everyDays), i += 1) {
+    out.push({
+      id: `${prefix}${i + 1}`, date, teamIds, notes: AMC_NOTES[i % AMC_NOTES.length],
+      issues: i === 2 ? ['Two drip emitters blocked, replaced.'] : [], photoCount: 3 + (i % 4), done: true,
+    })
+  }
+  return out
+}
+
+const seaBreezeStart = addDays(today(), -69)
+const marineStart = addDays(today(), -45)
+
 export const maintenance: MaintenanceRecord[] = [
   {
     id: 'm1', projectId: 'p7', type: 'Free Maintenance', startDate: '2026-07-01', endDate: '2026-07-31',
     teamIds: ['w6', 'w7'], scopeOfWork: 'Weekly plant care, lawn mowing, irrigation checks and snag rectification.',
     visitSchedule: 'Weekly — every Tuesday',
+    schedule: { every: 1, unit: 'week', firstVisit: '2026-07-07', reminderDaysBefore: 1 },
     visits: [
       { id: 'mv1', date: '2026-07-07', teamIds: ['w6', 'w7'], notes: 'Lawn mowing and first fertiliser round.', issues: [], photoCount: 4, done: true },
       { id: 'mv2', date: '2026-07-14', teamIds: ['w6'], notes: 'Pruning and irrigation nozzle check.', issues: ['Two drip emitters blocked, replaced.'], photoCount: 3, done: true },
@@ -518,13 +559,22 @@ export const maintenance: MaintenanceRecord[] = [
     ],
   },
   {
-    id: 'm2', projectId: 'p7', type: 'AMC', startDate: '2026-08-01', endDate: '2027-07-31',
-    teamIds: ['w6', 'w7'], scopeOfWork: 'Monthly plant health care, lawn maintenance, irrigation servicing, seasonal replanting and pest control.',
-    visitSchedule: 'Fortnightly — 1st and 3rd Tuesday', renewalDate: '2027-07-31', value: 240000,
+    id: 'm2', projectId: 'p7', type: 'AMC', startDate: seaBreezeStart, endDate: addDays(seaBreezeStart, 364),
+    teamIds: ['w6', 'w7'], scopeOfWork: 'Fortnightly plant health care, lawn maintenance, irrigation servicing, seasonal replanting and pest control.',
+    visitSchedule: 'Fortnightly — client prefers mornings',
+    schedule: { every: 2, unit: 'week', firstVisit: addDays(seaBreezeStart, 3), reminderDaysBefore: 7 },
+    renewalDate: addDays(seaBreezeStart, 364), renewalReminderDays: 60, value: 240000,
+    visits: pastVisits('m2v', addDays(seaBreezeStart, 3), 14, ['w6', 'w7']),
+  },
+  {
+    // An AMC sold on its own — monthly visits, reminded three days ahead.
+    id: 'm3', projectId: 'p9', type: 'AMC', startDate: marineStart, endDate: addDays(marineStart, 364),
+    teamIds: ['w14', 'w18'], scopeOfWork: 'Monthly upkeep of the podium garden, terrace planters and common-area lawns, with quarterly replanting.',
+    visitSchedule: 'Monthly — association office opens at 9:30',
+    schedule: { every: 1, unit: 'month', firstVisit: addDays(marineStart, 5), reminderDaysBefore: 3 },
+    renewalDate: addDays(marineStart, 364), renewalReminderDays: 45, value: 180000,
     visits: [
-      { id: 'mv5', date: '2026-08-04', teamIds: ['w6', 'w7'], notes: 'First AMC visit — full site inspection.', issues: [], photoCount: 8, done: true },
-      { id: 'mv6', date: '2026-08-18', teamIds: ['w6'], notes: 'Lawn mowing and pest control application.', issues: ['Fungal spotting on two shrubs — treated.'], photoCount: 4, done: true },
-      { id: 'mv7', date: addDays(today(), 5), teamIds: ['w6', 'w7'], notes: '', issues: [], photoCount: 0, done: false },
+      { id: 'm3v1', date: addDays(marineStart, 5), teamIds: ['w14', 'w18'], notes: 'First visit — full survey of the podium and terraces.', issues: ['Terrace planter drainage blocked on 7th floor.'], photoCount: 9, done: true },
     ],
   },
 ]
@@ -653,6 +703,8 @@ export const settings: Settings = {
   taEnabled: false,
   taRatePerKm: 0,
   photosMandatory: true,
+  photoMaxPx: 1600,
+  photoMaxKb: 300,
   otAdjustRoles: ['super_admin', 'ceo', 'execution_head', 'execution_pm'],
   freeMaintenanceMonths: 1,
   permissions: defaultPermissions(),
@@ -666,3 +718,71 @@ export const executionDashboardSeed = {
   workersToday: 34,
   completedTasks: 27,
 }
+
+/** A remark posted `daysAgo` days back at `time`. */
+const at = (daysAgo: number, time: string) => `${addDays(today(), -daysAgo)}T${time}`
+
+/** Each project's remarks thread — the team's WhatsApp-style conversation. */
+export const projectMessages: ProjectMessage[] = [
+  { id: 'pm1', projectId: 'p3', authorId: 'e7', text: 'Pool deck paving starts tomorrow. Niyas, please confirm the paver count at the yard today.', at: at(3, '17:42') },
+  { id: 'pm2', projectId: 'p3', authorId: 'e12', text: 'Checked — we are 200 short. Supplier says Thursday.', at: at(3, '18:05') },
+  { id: 'pm3', projectId: 'p3', authorId: 'e6', text: 'Start from the shallow end so the gap does not hold up the edge detail.', at: at(3, '18:20') },
+  { id: 'pm4', projectId: 'p3', authorId: 'e3', text: 'Edge detail drawing R2 is in Documents — the coping overhang changed to 40 mm.', at: at(2, '10:14') },
+  { id: 'pm5', projectId: 'p3', authorId: 'e12', text: 'Noted, will follow R2.', at: at(2, '10:31'), replyToId: 'pm4' },
+  { id: 'pm6', projectId: 'p3', authorId: 'e1', text: 'Meeting their GM this week about the flamed vs honed finish. Hold the last 6 m until then.', at: at(1, '09:12') },
+  { id: 'pm7', projectId: 'p3', authorId: 'e7', text: 'Done. Crew moves to the irrigation trunk line meanwhile.', at: at(1, '09:30') },
+  { id: 'pm8', projectId: 'p3', authorId: 'e12', text: 'Pool deck complete except the held strip. Zone 3 trunk line laid 👍', at: at(1, '17:26') },
+
+  { id: 'pm9', projectId: 'p2', authorId: 'e7', text: 'Client chose Foxtail palms for the rear garden.', at: at(9, '11:05') },
+  { id: 'pm10', projectId: 'p2', authorId: 'e13', text: 'Palm pits dug today. Ready to set out tomorrow morning.', at: at(1, '16:58') },
+  { id: 'pm11', projectId: 'p2', authorId: 'e6', text: 'Check the root-ball depth before backfilling — some came in shallow last time.', at: at(1, '17:15'), replyToId: 'pm10' },
+
+  { id: 'pm12', projectId: 'p4', authorId: 'e11', text: 'Water connection was off for two hours again. Lost the afternoon watering.', at: at(1, '15:50') },
+  { id: 'pm13', projectId: 'p4', authorId: 'e7', text: 'Raised it with Dr. Ramesh — he will speak to the plumber.', at: at(1, '17:10') },
+  { id: 'pm14', projectId: 'p4', authorId: 'e1', text: 'We are already past the due date here. Thameem, recovery plan by Monday please.', at: at(0, '08:40') },
+
+  { id: 'pm15', projectId: 'p5', authorId: 'e5', text: 'Revised walkway alignment sent to the association for sign-off.', at: at(2, '12:20') },
+  { id: 'pm16', projectId: 'p5', authorId: 'e12', text: 'Holding kerb casting on the north side until they approve.', at: at(2, '12:45') },
+
+  { id: 'pm17', projectId: 'p9', authorId: 'e6', text: 'Next monthly visit coming up — Bijoy and Riyas, carry the planter drainage kit for the 7th floor.', at: at(1, '10:00') },
+]
+
+/**
+ * Salary and wage payments. Foremen are paid monthly in the first week of the
+ * following month, with the odd advance and TA reimbursement; site workers
+ * are paid wages every Saturday.
+ */
+export const payRecords: PayRecord[] = [
+  ...employees.filter((e) => e.monthlySalary).flatMap((e): PayRecord[] => {
+    const months = [3, 2, 1].map((back) => {
+      const d = new Date(today() + 'T00:00:00')
+      d.setDate(1)
+      d.setMonth(d.getMonth() - back)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    })
+    const paidOn = (period: string) => {
+      const [y, m] = period.split('-').map(Number)
+      const next = new Date(y, m, 3 + (hash(e.id) % 3))
+      return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
+    }
+    return [
+      ...months.map((period, i): PayRecord => ({
+        id: `pay-${e.id}-${period}`, kind: 'employee', personId: e.id, date: paidOn(period),
+        amount: e.monthlySalary! - (i === 1 ? 2000 : 0), type: 'Salary', period, method: 'Bank Transfer',
+        note: i === 1 ? 'Advance of ₹2,000 recovered' : undefined, paidBy: 'e8',
+      })),
+      { id: `adv-${e.id}`, kind: 'employee', personId: e.id, date: addDays(today(), -6), amount: 3000, type: 'Advance', period: today().slice(0, 7), method: 'UPI', note: 'Festival advance', paidBy: 'e9' },
+      { id: `ta-${e.id}`, kind: 'employee', personId: e.id, date: addDays(today(), -12), amount: 1150 + (hash(e.id) % 6) * 50, type: 'TA', period: today().slice(0, 7), method: 'Cash', note: 'Site travel, last fortnight', paidBy: 'e9' },
+    ]
+  }),
+  ...workers.filter((w) => w.active && w.dailyWage).flatMap((w) =>
+    [1, 2, 3, 4].map((weeksBack): PayRecord => {
+      // The Saturday `weeksBack` weeks ago.
+      const sat = addDays(today(), -((new Date(today() + 'T00:00:00').getDay() + 1) % 7) - (weeksBack - 1) * 7)
+      const days = 4 + (hash(w.id + weeksBack) % 3)
+      return {
+        id: `wage-${w.id}-${weeksBack}`, kind: 'worker', personId: w.id, date: sat, amount: days * w.dailyWage!,
+        type: 'Wages', period: sat.slice(0, 7), method: 'Cash', note: `${days} days`, paidBy: 'e9',
+      }
+    })),
+]

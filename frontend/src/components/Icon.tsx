@@ -43,6 +43,14 @@ const PATHS: Record<string, string> = {
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   board: 'M4 4h4v16H4zM10 4h4v10h-4zM16 4h4v13h-4z',
   postpone: 'M12 22a10 10 0 100-20 10 10 0 000 20zM12 6v6l4 2M16 3l3 3-3 3',
+  send: 'M22 2L11 13M22 2l-7 20-4-9-9-4z',
+  reply: 'M9 17l-5-5 5-5M4 12h11a5 5 0 015 5v2',
+  smile: 'M12 22a10 10 0 100-20 10 10 0 000 20zM8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01',
+  checks: 'M2 12l5 5L18 6M8 17l1 1L22 6',
+  wallet: 'M20 7H5a2 2 0 010-4h13v4M3 5v14a2 2 0 002 2h15V7M16 14h.01',
+  home: 'M3 10l9-7 9 7v10a2 2 0 01-2 2h-4v-7H9v7H5a2 2 0 01-2-2z',
+  repeat: 'M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3',
+  bell: 'M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0',
 }
 
 export function Icon({ name, className = 'h-5 w-5' }: { name: string; className?: string }) {

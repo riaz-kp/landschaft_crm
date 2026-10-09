@@ -4,107 +4,124 @@ import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { can } from '../../domain/roles'
-import { addDays, daysBetween, formatDate, today } from '../../domain/format'
-import type { MaintenanceRecord, MaintenanceVisit } from '../../domain/types'
+import { addDays, formatDate, today } from '../../domain/format'
+import { allOccurrences, describeSchedule, type AmcOccurrence } from '../../domain/amc'
 import {
-  PageHeader, Section, Table, EmptyState, Badge, StatTile, StatusBadge, Modal, Field, Checkbox,
+  PageHeader, Section, Table, EmptyState, Badge, StatTile, Modal, Field, Checkbox, Pills,
 } from '../../components/ui'
-import { RepeaterList } from '../../components/RepeaterList'
+import { Icon } from '../../components/Icon'
+import { OccurrenceBadge } from './AmcContractCard'
+import { MoveVisitModal, VisitDoneModal } from './AmcVisitModals'
 
-type Row = { visit: MaintenanceVisit; record: MaintenanceRecord }
+type Horizon = 14 | 30 | 60 | 365
 
-/** Every maintenance visit across all contracts, scheduled and done. */
+/**
+ * Every maintenance visit across all contracts — the ones each contract's
+ * repeat schedule puts on the calendar, extra visits booked by hand, and the
+ * visits already done.
+ */
 export function AmcVisits() {
   const db = useDb()
   const { roleKey } = useSession()
   const editable = can.manageAmc(roleKey)
   const [scheduling, setScheduling] = useState(false)
-  const [completing, setCompleting] = useState<Row | null>(null)
+  const [doing, setDoing] = useState<AmcOccurrence | null>(null)
+  const [moving, setMoving] = useState<AmcOccurrence | null>(null)
+  const [horizon, setHorizon] = useState<Horizon>(30)
 
-  const rows: Row[] = db.maintenance.flatMap((record) => record.visits.map((visit) => ({ visit, record })))
-  const upcoming = rows.filter((r) => !r.visit.done).sort((a, b) => a.visit.date.localeCompare(b.visit.date))
-  const done = rows.filter((r) => r.visit.done).sort((a, b) => b.visit.date.localeCompare(a.visit.date))
-  const overdue = upcoming.filter((r) => r.visit.date < today())
-  const thisWeek = upcoming.filter((r) => r.visit.date >= today() && r.visit.date <= addDays(today(), 7))
+  const all = allOccurrences(db.maintenance, today())
+  const overdue = all.filter((o) => o.status === 'Overdue')
+  const upcoming = all.filter((o) => (o.status === 'Planned' || o.status === 'Scheduled') && o.date <= addDays(today(), horizon))
+  const done = all.filter((o) => o.status === 'Done').reverse()
+  const thisWeek = all.filter((o) => o.status !== 'Done' && o.date >= today() && o.date <= addDays(today(), 7))
 
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? '—'
   const workerNames = (ids: string[]) =>
     ids.map((id) => db.workers.find((w) => w.id === id)?.name).filter(Boolean).join(', ') || '—'
 
+  const row = (o: AmcOccurrence, actions: boolean) => (
+    <tr key={o.visit?.id ?? `${o.record.id}-${o.date}`} className="row-hover">
+      <td className="td whitespace-nowrap font-medium tabular-nums text-stone-900">
+        {o.date === today() ? 'Today' : formatDate(o.date)}
+        {o.plannedFor && o.plannedFor !== o.date && <span className="block text-xs font-normal text-stone-400">moved from {formatDate(o.plannedFor)}</span>}
+      </td>
+      <td className="td">
+        <Link to={`/projects/${o.record.projectId}`} className="hover:text-brand-700">{projectName(o.record.projectId)}</Link>
+        <span className="block text-xs text-stone-400">{o.record.schedule ? describeSchedule(o.record.schedule) : 'No repeat schedule'}</span>
+      </td>
+      <td className="td"><Badge tone={o.record.type === 'AMC' ? 'clay' : 'green'}>{o.record.type}</Badge></td>
+      <td className="td">{workerNames(o.visit?.teamIds ?? o.record.teamIds)}</td>
+      <td className="td">
+        {o.status === 'Done'
+          ? <span className="text-sm text-stone-600">{o.visit?.notes || '—'}{o.visit?.issues.length ? <span className="block text-xs text-clay-800">{o.visit.issues.join('; ')}</span> : null}</span>
+          : <OccurrenceBadge occurrence={o} />}
+      </td>
+      <td className="td text-right">
+        {actions && editable && (
+          <div className="flex justify-end gap-1.5">
+            <button onClick={() => setMoving(o)} className="btn-ghost px-2 py-1 text-xs">Move</button>
+            <button onClick={() => setDoing(o)} className="btn-secondary py-1 text-xs">Mark done</button>
+          </div>
+        )}
+      </td>
+    </tr>
+  )
+
   return (
     <div>
       <PageHeader
         title="AMC Visit Schedule"
-        subtitle="Upcoming and completed maintenance visits across every contract."
-        actions={editable && db.maintenance.length > 0 && (
-          <button onClick={() => setScheduling(true)} className="btn-primary">Schedule visit</button>
-        )}
+        subtitle="Visits from every contract's repeat schedule, extra visits booked by hand, and the visits already done."
+        actions={<>
+          <Link to="/amc/calendar" className="btn-secondary"><Icon name="calendar" className="h-4 w-4" /> Calendar view</Link>
+          {editable && db.maintenance.length > 0 && (
+            <button onClick={() => setScheduling(true)} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> Extra visit</button>
+          )}
+        </>}
       />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile label="Next 7 Days" value={thisWeek.length} tone="amber" />
-        <StatTile label="Overdue" value={overdue.length} tone={overdue.length ? 'red' : 'green'} />
-        <StatTile label="All Upcoming" value={upcoming.length} />
-        <StatTile label="Completed" value={done.length} tone="green" />
+        <StatTile label="Next 7 Days" value={thisWeek.length} tone="amber" icon="calendar" />
+        <StatTile label="Overdue" value={overdue.length} tone={overdue.length ? 'red' : 'green'} icon="alert" />
+        <StatTile label={`Next ${horizon} Days`} value={upcoming.length} tone="blue" icon="repeat" />
+        <StatTile label="Completed" value={done.length} tone="green" icon="check" />
       </div>
 
-      <Section title="Upcoming Visits" className="mb-6">
+      {overdue.length > 0 && (
+        <Section title="Overdue" description="Planned visits whose date has passed without a visit recorded." className="mb-6">
+          <Table head={['Date', 'Site', 'Contract', 'Team', 'Status', '']}>{overdue.map((o) => row(o, true))}</Table>
+        </Section>
+      )}
+
+      <Section
+        title="Upcoming Visits"
+        className="mb-6"
+        actions={
+          <Pills<`${Horizon}`>
+            active={`${horizon}`}
+            onChange={(k) => setHorizon(Number(k) as Horizon)}
+            options={[{ key: '14', label: '2 weeks' }, { key: '30', label: '30 days' }, { key: '60', label: '60 days' }, { key: '365', label: 'Year' }]}
+          />
+        }
+      >
         {upcoming.length === 0 ? (
-          <EmptyState title="No visits scheduled." hint={editable ? 'Use Schedule visit to add one.' : undefined} />
+          <EmptyState title="Nothing planned in this period." hint="Visits come from each contract's repeat schedule." icon="leaf" />
         ) : (
-          <Table head={['Date', 'Site', 'Contract', 'Team', 'Status', '']}>
-            {upcoming.map((row) => {
-              const lateBy = daysBetween(row.visit.date, today())
-              return (
-                <tr key={row.visit.id} className="row-hover">
-                  <td className="td tabular-nums font-medium text-stone-900">{formatDate(row.visit.date)}</td>
-                  <td className="td">
-                    <Link to={`/projects/${row.record.projectId}`} className="hover:text-brand-700">
-                      {projectName(row.record.projectId)}
-                    </Link>
-                  </td>
-                  <td className="td"><Badge tone={row.record.type === 'AMC' ? 'clay' : 'green'}>{row.record.type}</Badge></td>
-                  <td className="td">{workerNames(row.visit.teamIds)}</td>
-                  <td className="td">
-                    {lateBy > 0 ? <Badge tone="red">Overdue {lateBy}d</Badge> : <StatusBadge status="Scheduled" />}
-                  </td>
-                  <td className="td text-right">
-                    {editable && (
-                      <button onClick={() => setCompleting(row)} className="btn-secondary py-1 text-xs">
-                        Mark done
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </Table>
+          <Table head={['Date', 'Site', 'Contract', 'Team', 'Status', '']}>{upcoming.map((o) => row(o, true))}</Table>
         )}
       </Section>
 
       <Section title="Completed Visits">
         {done.length === 0 ? (
-          <EmptyState title="No visits completed yet." />
+          <EmptyState title="No visits completed yet." icon="check" />
         ) : (
-          <Table head={['Date', 'Site', 'Contract', 'Team', 'Notes', 'Issues']}>
-            {done.map((row) => (
-              <tr key={row.visit.id} className="row-hover">
-                <td className="td tabular-nums font-medium text-stone-900">{formatDate(row.visit.date)}</td>
-                <td className="td">{projectName(row.record.projectId)}</td>
-                <td className="td"><Badge tone={row.record.type === 'AMC' ? 'clay' : 'green'}>{row.record.type}</Badge></td>
-                <td className="td">{workerNames(row.visit.teamIds)}</td>
-                <td className="td max-w-sm">{row.visit.notes || '—'}</td>
-                <td className="td">
-                  {row.visit.issues.length ? <span className="text-clay-800">{row.visit.issues.join('; ')}</span> : '—'}
-                </td>
-              </tr>
-            ))}
-          </Table>
+          <Table head={['Date', 'Site', 'Contract', 'Team', 'Work done', '']}>{done.map((o) => row(o, false))}</Table>
         )}
       </Section>
 
       {scheduling && <ScheduleVisitModal onClose={() => setScheduling(false)} />}
-      {completing && <CompleteVisitModal row={completing} onClose={() => setCompleting(null)} />}
+      {doing && <VisitDoneModal occurrence={doing} onClose={() => setDoing(null)} />}
+      {moving && <MoveVisitModal occurrence={moving} onClose={() => setMoving(null)} />}
     </div>
   )
 }
@@ -132,7 +149,7 @@ function ScheduleVisitModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title="Schedule maintenance visit"
+      title="Book an extra visit"
       onClose={onClose}
       footer={<>
         <button onClick={onClose} className="btn-secondary">Cancel</button>
@@ -175,39 +192,3 @@ function ScheduleVisitModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-function CompleteVisitModal({ row, onClose }: { row: Row; onClose: () => void }) {
-  const db = useDb()
-  const [notes, setNotes] = useState(row.visit.notes)
-  const [issues, setIssues] = useState<string[]>(row.visit.issues.length ? row.visit.issues : [''])
-
-  const save = () => {
-    api.amc.completeVisit(row.record.id, row.visit.id, notes.trim(), issues)
-    onClose()
-  }
-
-  return (
-    <Modal
-      title={`Visit on ${formatDate(row.visit.date)}`}
-      onClose={onClose}
-      footer={<>
-        <button onClick={onClose} className="btn-secondary">Cancel</button>
-        <button onClick={save} className="btn-primary">Mark done</button>
-      </>}
-    >
-      <div className="space-y-4">
-        <p className="text-sm text-stone-500">
-          {db.projects.find((p) => p.id === row.record.projectId)?.name} · {row.record.type}
-        </p>
-        <Field label="Work done">
-          <textarea
-            rows={3} className="input" value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="Lawn mowing, pruning, irrigation check…"
-          />
-        </Field>
-        <Field label="Issues found">
-          <RepeaterList values={issues} onChange={setIssues} addLabel="Add issue" placeholder="Leave blank if none" />
-        </Field>
-      </div>
-    </Modal>
-  )
-}

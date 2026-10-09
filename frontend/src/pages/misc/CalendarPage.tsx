@@ -4,6 +4,7 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatDate, formatDateLong, formatTime, today } from '../../domain/format'
 import { partyName } from '../../domain/consultations'
+import { allOccurrences } from '../../domain/amc'
 import { PageHeader, Section, EmptyState } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 
@@ -16,7 +17,7 @@ const STYLE: Record<EventType, { dot: string; chip: string; label: string }> = {
   'Task Due': { dot: 'bg-stone-500', chip: 'bg-stone-100 text-stone-700 border-stone-200', label: 'Task due dates' },
   Deadline: { dot: 'bg-amber-500', chip: 'bg-amber-50 text-amber-800 border-amber-200', label: 'Deadlines' },
   Meeting: { dot: 'bg-clay-500', chip: 'bg-clay-50 text-clay-800 border-clay-200', label: 'Meetings' },
-  'AMC Visit': { dot: 'bg-brand-500', chip: 'bg-brand-50 text-brand-800 border-brand-200', label: 'AMC visits' },
+  'AMC Visit': { dot: 'bg-brand-500', chip: 'bg-brand-50 text-brand-800 border-brand-200', label: 'AMC visits & renewals' },
   Consultation: { dot: 'bg-violet-500', chip: 'bg-violet-50 text-violet-800 border-violet-200', label: 'CEO consultations' },
   'Project Due': { dot: 'bg-red-500', chip: 'bg-red-50 text-red-800 border-red-200', label: 'Project completions' },
 }
@@ -64,9 +65,15 @@ export function CalendarPage() {
       id: e.id, title: e.title, date: e.date, type: e.type as EventType, people: e.assigneeId ? [e.assigneeId] : [],
       to: e.projectId ? `/projects/${e.projectId}` : undefined,
     })),
-    ...db.maintenance.flatMap((m) => m.visits.map((v): CalEvent => ({
-      id: v.id, title: `AMC visit — ${projectName(m.projectId)}`, date: v.date, type: 'AMC Visit', people: [], to: '/amc/visits',
-    }))),
+    // AMC visits come from each contract's repeat schedule, plus any visit booked or done by hand.
+    ...allOccurrences(db.maintenance, today()).map((o): CalEvent => ({
+      id: o.visit?.id ?? `amc-${o.record.id}-${o.date}`,
+      title: `${o.status === 'Done' ? '✓ ' : o.status === 'Overdue' ? '! ' : ''}AMC visit — ${projectName(o.record.projectId)}`,
+      date: o.date, type: 'AMC Visit', people: [], to: '/amc/calendar',
+    })),
+    ...db.maintenance.filter((m) => m.renewalDate).map((m): CalEvent => ({
+      id: `renew-${m.id}`, title: `AMC renewal — ${projectName(m.projectId)}`, date: m.renewalDate!, type: 'AMC Visit', people: [], to: '/amc/renewals',
+    })),
     ...db.consultations.filter((c) => c.status === 'Scheduled').map((c): CalEvent => ({
       id: c.id, title: `CEO · ${c.purpose} — ${partyName(c, db.clients, db.leads)}`, date: c.date, time: c.start,
       type: 'Consultation', people: [c.bookedBy, db.employees.find((e) => e.role === 'ceo')?.id ?? ''], to: '/consultations',

@@ -7,20 +7,15 @@ import { useDb } from '../state/useDb'
 import { usePermissions } from '../state/permissions'
 import { Icon } from '../components/Icon'
 import { Avatar } from '../components/ui'
+import { LogoLockup } from '../components/Logo'
 import { RoleSwitcher } from '../components/RoleSwitcher'
 import { GlobalSearch } from '../components/GlobalSearch'
 import { NoAccess } from '../pages/misc/Fallbacks'
 
 function Logo() {
   return (
-    <Link to="/dashboard" className="flex items-center gap-3 px-5 pb-5 pt-6">
-      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-lg shadow-black/20">
-        <Icon name="leaf" className="h-5 w-5 text-white" />
-      </span>
-      <span>
-        <span className="block font-display text-[15px] font-bold leading-tight tracking-tight text-white">Landschaft</span>
-        <span className="block text-[10px] font-semibold uppercase leading-tight tracking-[0.2em] text-brand-300">CRM</span>
-      </span>
+    <Link to="/dashboard" className="block px-5 pb-5 pt-6">
+      <LogoLockup />
     </Link>
   )
 }

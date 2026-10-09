@@ -4,7 +4,7 @@ import type {
   CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
   DocumentRecord, Employee, ID, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
   PaymentRequest, Project, Quotation, Settings, SiteAssignment, SiteVisit, AttendanceEntry,
-  Task, Worker,
+  Task, Worker, ProjectMessage, PayRecord,
 } from '../domain/types'
 
 export interface DbShape {
@@ -29,12 +29,18 @@ export interface DbShape {
   followUps: PaymentFollowUp[]
   consultations: Consultation[]
   attendance: AttendanceEntry[]
+  projectMessages: ProjectMessage[]
+  payRecords: PayRecord[]
+  /** When each person last opened each project's remarks, keyed "personId:projectId". */
+  chatReads: Record<string, string>
   settings: Settings
 }
 
-// v3 adds the permission matrix, the shared attendance register, morning/evening
+// v4 adds AMC as a project service with repeat visit schedules, project remarks,
+// staff pay records and lead WhatsApp numbers. v3 added the permission matrix,
+// the shared attendance register, morning/evening
 // site photos, BOQ & quotation checklists and project map pins.
-const STORAGE_KEY = 'landschaft-crm-prototype-v3'
+const STORAGE_KEY = 'landschaft-crm-prototype-v4'
 
 function freshDb(): DbShape {
   // Structured clone keeps the seed module pristine across resets.
@@ -60,6 +66,9 @@ function freshDb(): DbShape {
     followUps: seed.followUps,
     consultations: seed.consultations,
     attendance: seed.attendance,
+    projectMessages: seed.projectMessages,
+    payRecords: seed.payRecords,
+    chatReads: {},
     settings: seed.settings,
   })
 }

@@ -173,6 +173,34 @@ export function SettingsPage() {
             label="Require a morning and an evening site photo before a report can be submitted"
             onChange={(photosMandatory) => patch({ photosMandatory })}
           />
+          <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-4">
+            <p className="label">Photo compression</p>
+            <p className="mt-1 text-xs text-stone-500">
+              Photos are shrunk on the foreman's phone before upload, so a 4–8 MB camera picture becomes a few hundred KB.
+            </p>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <Field label="Longest side" hint="Pixels. 1600 keeps detail for site records.">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" min={640} max={4000} step={80} disabled={!editable} value={draft.photoMaxPx}
+                    onChange={(e) => patch({ photoMaxPx: Math.max(640, Math.min(4000, Number(e.target.value))) })}
+                    className="input w-28"
+                  />
+                  <span className="text-sm text-stone-500">px</span>
+                </div>
+              </Field>
+              <Field label="Target size" hint="Quality steps down until each photo is under this.">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" min={80} max={2000} step={20} disabled={!editable} value={draft.photoMaxKb}
+                    onChange={(e) => patch({ photoMaxKb: Math.max(80, Math.min(2000, Number(e.target.value))) })}
+                    className="input w-28"
+                  />
+                  <span className="text-sm text-stone-500">KB per photo</span>
+                </div>
+              </Field>
+            </div>
+          </div>
           <div>
             <p className="label mb-2">Who may adjust overtime</p>
             <div className="flex flex-wrap gap-1.5">

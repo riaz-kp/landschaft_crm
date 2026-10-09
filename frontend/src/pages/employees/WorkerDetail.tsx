@@ -13,8 +13,9 @@ import { Icon } from '../../components/Icon'
 import { resizeImage } from '../../components/imageResize'
 import { PersonAttendance } from './EmployeeAttendance'
 import { WorkerFormModal } from './WorkerForm'
+import { PersonPayments } from './PersonPayments'
 
-type Tab = 'overview' | 'attendance' | 'history' | 'amc'
+type Tab = 'overview' | 'attendance' | 'payments' | 'history' | 'amc'
 
 /** "3 yrs 2 mos" between two ISO dates. */
 function span(from: string, to: string): string {
@@ -154,6 +155,7 @@ export function WorkerDetail() {
         tabs={[
           { key: 'overview', label: 'Overview' },
           { key: 'attendance', label: 'Attendance' },
+          ...(can('Accounts', 'view') || canEdit ? [{ key: 'payments' as Tab, label: 'Wages' }] : []),
           { key: 'history', label: 'Work History', count: reports.length },
           { key: 'amc', label: 'AMC Visits', count: amcVisits.length },
         ]}
@@ -209,6 +211,7 @@ export function WorkerDetail() {
       )}
 
       {tab === 'attendance' && <PersonAttendance kind="worker" personId={worker.id} canEdit={canEdit} />}
+      {tab === 'payments' && <PersonPayments kind="worker" personId={worker.id} dailyWage={worker.dailyWage} canManage={can('Accounts', 'create') || canEdit} />}
 
       {tab === 'history' && (
         <Section title="Work History" description="Every daily report this worker appears on.">

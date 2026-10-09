@@ -7,7 +7,8 @@
  */
 import type {
   AttendanceEntry, ChatMessage, Clarification, Client, Consultation, ConsultationStatus,
-  DailyWorkReport, DocumentRecord, Employee, ID, Issue, LatLng, Lead, PaymentFollowUp, PersonKind,
+  DailyWorkReport, DocumentRecord, Employee, ID, Issue, LatLng, Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, PersonKind,
+  ProjectMessage,
   Project, Quotation, Settings, SiteVisit, Task, Worker,
 } from '../domain/types'
 import * as mock from './mockAdapter'
@@ -21,7 +22,9 @@ export interface NewProjectInput {
   startDate: string
   expectedCompletion: string
   value: number
-  services: { design: boolean; execution: boolean }
+  services: { design: boolean; execution: boolean; amc: boolean }
+  /** The AMC contract created alongside the project when AMC is sold. */
+  amc?: Omit<MaintenanceRecord, 'id' | 'projectId' | 'type' | 'visits'>
   designPhases: { concept: boolean; threeD: boolean; civilWork: boolean; boq: boolean }
   executionPhases: {
     hardscape: boolean
@@ -89,8 +92,27 @@ export interface Api {
     postpone(consultationId: ID, date: string, start: string, reason: string, by: ID): void
   }
   amc: {
-    scheduleVisit(recordId: ID, date: string, teamIds: ID[]): void
+    /** Starts a maintenance contract on a project. */
+    create(input: Omit<MaintenanceRecord, 'id' | 'visits'>): MaintenanceRecord
+    update(recordId: ID, patch: Partial<Omit<MaintenanceRecord, 'id' | 'visits'>>): void
+    remove(recordId: ID): void
+    /** `plannedFor` ties the visit to the repeat-schedule date it fulfils when moved to another day. */
+    scheduleVisit(recordId: ID, date: string, teamIds: ID[], plannedFor?: string): void
+    /** Moves a booked visit to another day, keeping the schedule date it fulfils. */
+    moveVisit(recordId: ID, visitId: ID, date: string, teamIds: ID[]): void
     completeVisit(recordId: ID, visitId: ID, notes: string, issues: string[]): void
+    /** Records a visit that was done straight off the schedule, with no visit booked first. */
+    recordVisit(recordId: ID, input: { date: string; plannedFor?: string; teamIds: ID[]; notes: string; issues: string[] }): void
+  }
+  projectChat: {
+    post(input: Omit<ProjectMessage, 'id' | 'at'>): ProjectMessage
+    remove(messageId: ID): void
+    /** Notes that the person has read the project's remarks up to now. */
+    markRead(personId: ID, projectId: ID): void
+  }
+  pay: {
+    create(input: Omit<PayRecord, 'id'>): PayRecord
+    remove(payId: ID): void
   }
   siteVisits: Crud<SiteVisit>
   tasks: Crud<Task> & {

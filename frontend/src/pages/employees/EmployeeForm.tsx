@@ -30,6 +30,7 @@ export function EmployeeFormModal({
     whatsapp: employee?.whatsapp ?? '',
     email: employee?.email ?? '',
     joinedOn: employee?.joinedOn ?? (employee ? '' : today()),
+    monthlySalary: employee?.monthlySalary ? String(employee.monthlySalary) : '',
   })
   const [error, setError] = useState<string | null>(null)
   const set = (patch: Partial<typeof form>) => { setForm({ ...form, ...patch }); setError(null) }
@@ -50,6 +51,7 @@ export function EmployeeFormModal({
       whatsapp: form.whatsapp.trim() || form.phone.trim(),
       email: form.email.trim(),
       joinedOn: form.joinedOn || undefined,
+      monthlySalary: form.monthlySalary ? Math.max(0, Number(form.monthlySalary)) : undefined,
     }
     if (employee) {
       api.employees.update(employee.id, values)
@@ -104,6 +106,9 @@ export function EmployeeFormModal({
           </Field>
           <Field label="Date of joining">
             <input type="date" className="input" value={form.joinedOn} onChange={(e) => set({ joinedOn: e.target.value })} />
+          </Field>
+          <Field label="Monthly salary" hint="Rupees. Pay is worked out pro rata to days attended.">
+            <input type="number" min={0} className="input" value={form.monthlySalary} placeholder="0" onChange={(e) => set({ monthlySalary: e.target.value })} />
           </Field>
         </div>
         <PhoneWhatsAppFields

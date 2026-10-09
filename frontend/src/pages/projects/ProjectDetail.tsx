@@ -7,6 +7,11 @@ import { usePermissions } from '../../state/permissions'
 import { CHECKLISTS, checklistProgress, commercialDocs } from '../../domain/commercial'
 import { MapPicker, mapsUrl } from '../../components/MapPicker'
 import { PhotoGallery } from '../gallery/Gallery'
+import { AmcContractCard } from '../amc/AmcContractCard'
+import { AmcContractModal } from '../amc/AmcContractForm'
+import { can as roleCan } from '../../domain/roles'
+import { ProjectChat } from '../../components/ProjectChat'
+import { unreadRemarks } from '../../domain/chat'
 import { computeProgress, projectType } from '../../domain/progress'
 import { formatCurrency, formatDate } from '../../domain/format'
 import { MEP_LABELS, MEP_SERVICES, type PhaseKey } from '../../domain/types'
@@ -17,14 +22,15 @@ import { PhaseStrip, ProjectProgressPanel } from '../../components/ProjectProgre
 import { RepeaterView } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
 
-type Tab = 'overview' | 'phases' | 'tasks' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance'
+type Tab = 'overview' | 'remarks' | 'phases' | 'tasks' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance'
 
 export function ProjectDetail() {
   const { projectId = '' } = useParams()
   const db = useDb()
-  const { user } = useSession()
+  const { user, roleKey } = useSession()
   const { can } = usePermissions()
   const [pinning, setPinning] = useState(false)
+  const [startingAmc, setStartingAmc] = useState(false)
   const [tab, setTab] = useState<Tab>('overview')
 
   const project = db.projects.find((p) => p.id === projectId)
@@ -49,12 +55,14 @@ export function ProjectDetail() {
   ]
 
   const docs = commercialDocs(project.services)
+  const unread = unreadRemarks(db.projectMessages, db.chatReads, user.id, project.id)
   const photoCount = reports.reduce((s, r) => s + r.photos.length, 0)
   // BOQ is design's to tick, the quotation accounts' or execution's; project editors can do either.
   const canTick = (doc: string) => editable || (doc === 'BOQ' ? can('Design', 'edit') : can('Accounts', 'edit') || can('Execution', 'edit'))
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
+    { key: 'remarks', label: 'Remarks', count: unread || undefined },
     { key: 'phases', label: 'Phases', count: phaseRows.length },
     { key: 'tasks', label: 'Tasks', count: tasks.length },
     ...(project.services.execution
@@ -65,7 +73,7 @@ export function ProjectDetail() {
       : []),
     { key: 'commercial', label: docs.join(' & '), count: docs.reduce((s, d) => s + checklistProgress(project, d).done, 0) },
     { key: 'accounts', label: 'Accounts' },
-    ...(maintenance.length ? [{ key: 'maintenance' as Tab, label: 'AMC' }] : []),
+    ...(maintenance.length || project.services.amc ? [{ key: 'maintenance' as Tab, label: 'AMC', count: maintenance.length || undefined }] : []),
   ]
 
   return (
@@ -124,6 +132,7 @@ export function ProjectDetail() {
               <div className="flex flex-wrap gap-2">
                 {project.services.design && <Badge tone="green">Design</Badge>}
                 {project.services.execution && <Badge tone="green">Execution</Badge>}
+                {project.services.amc && <Badge tone="clay">AMC</Badge>}
                 {project.execution.mep.enabled &&
                   MEP_SERVICES.filter((s) => project.execution.mep.services[s]).map((s) => (
                     <Badge key={s} tone="blue">MEP · {MEP_LABELS[s]}</Badge>
@@ -176,6 +185,8 @@ export function ProjectDetail() {
       )}
 
       {tab === 'photos' && <PhotoGallery projectId={project.id} />}
+
+      {tab === 'remarks' && <ProjectChat projectId={project.id} />}
 
       {tab === 'commercial' && (
         <div className={`grid gap-6 ${docs.length === 2 ? 'xl:grid-cols-2' : 'max-w-3xl'}`}>
@@ -380,37 +391,20 @@ export function ProjectDetail() {
 
       {tab === 'maintenance' && (
         <div className="space-y-6">
-          {maintenance.map((record) => (
-            <Section
-              key={record.id}
-              title={record.type}
-              description={`${formatDate(record.startDate)} – ${formatDate(record.endDate)} · ${record.visitSchedule}`}
-              actions={record.renewalDate && (
-                <Badge tone="clay">Renews {formatDate(record.renewalDate)}</Badge>
+          {!maintenance.some((m) => m.type === 'AMC') && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-clay-300 bg-clay-50/50 px-5 py-4">
+              <p className="text-sm text-clay-900">
+                {project.services.amc ? 'AMC is sold on this project but no contract has been set up yet.' : 'No Annual Maintenance Contract on this project yet.'}
+              </p>
+              {roleCan.manageAmc(roleKey) && (
+                <button onClick={() => setStartingAmc(true)} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> Start AMC</button>
               )}
-            >
-              <div className="px-5 py-4">
-                <p className="label">Scope of Work</p>
-                <p className="mt-1 text-sm text-stone-700">{record.scopeOfWork}</p>
-              </div>
-              <Table head={['Visit Date', 'Team', 'Notes', 'Issues', 'Photos', 'Status']}>
-                {record.visits.map((visit) => (
-                  <tr key={visit.id} className="row-hover">
-                    <td className="td tabular-nums font-medium text-stone-900">{formatDate(visit.date)}</td>
-                    <td className="td">
-                      {visit.teamIds.map((id) => db.workers.find((w) => w.id === id)?.name).join(', ')}
-                    </td>
-                    <td className="td max-w-sm">{visit.notes || '—'}</td>
-                    <td className="td">{visit.issues.length ? visit.issues.join('; ') : '—'}</td>
-                    <td className="td tabular-nums">{visit.photoCount}</td>
-                    <td className="td">
-                      <StatusBadge status={visit.done ? 'Completed' : 'Scheduled'} />
-                    </td>
-                  </tr>
-                ))}
-              </Table>
-            </Section>
+            </div>
+          )}
+          {maintenance.map((record) => (
+            <AmcContractCard key={record.id} record={record} canManage={roleCan.manageAmc(roleKey)} showProject={false} />
           ))}
+          {startingAmc && <AmcContractModal projectId={project.id} onClose={() => setStartingAmc(false)} />}
         </div>
       )}
 

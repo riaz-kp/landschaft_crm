@@ -130,6 +130,49 @@ Added after the client's first review of the prototype:
 The data version moved to v3, so earlier browser data is replaced by the new
 seed on first load.
 
+## Third review round
+
+- **Logo.** The company mark (`public/logo.svg`) appears in the sidebar, the
+  foreman app header and the browser tab (`public/favicon.svg`).
+- **Photo compression on upload.** Foreman photos are shrunk on the phone
+  before they are saved: longest side 1600 px, and quality stepped down until
+  each photo is under 300 KB. Both limits are set in Settings → Daily Work
+  Report. The report shows the saving, e.g. "4.2 MB → 220 KB".
+- **Project remarks.** A WhatsApp-style chat on every project (*Remarks*
+  tab). It has day dividers, replies that quote the message, photo
+  attachments, emoji and unread counts. Foremen reach the same thread for
+  their sites from the field app.
+- **Client picker** on New Project. Search clients, turn a won lead into a
+  client on the spot, or add a new client without leaving the form.
+- **Leads get a WhatsApp number**, with the "same as phone" tick box clients
+  already had. It carries over when the lead becomes a client.
+- **AMC as a project service.** New Project offers Design, Execution and AMC,
+  and a project can be AMC only. Ticking AMC opens the contract section:
+  term, value, team, scope, and how often the site is visited. The interval
+  can be weekly, fortnightly, monthly, quarterly, or every N days, weeks or
+  months, with reminders N days before each visit and before renewal.
+- **AMC calendar and reminders** (`/amc/calendar`). Each contract's repeat
+  visits appear on a month calendar, colour-coded per contract. A reminders
+  panel lists visits inside their reminder window, overdue visits and
+  renewals due. Visits can be marked done or moved, and moving one keeps the
+  rest of the schedule. Each contract's schedule can be changed from the AMC
+  section. The main Calendar and the CEO dashboard read from the same schedule.
+- **AMC Projects** tab under Projects.
+- **Foreman app** now has a bottom tab bar with five screens:
+  - *Sites*: today's reports and the site remarks.
+  - *Works*: past reports by month and site.
+  - *Attendance*: their own month.
+  - *Pay*: salary earned so far from attendance, payments, advances, TA and
+    the balance due.
+  - *Profile*: edit contact details and photo, and call or WhatsApp their PM.
+- **Staff pay.** Employee and worker pages have a *Payments* / *Wages* tab
+  for recording salary, wages, advances, TA, bonus and deductions. Earnings
+  are worked out from attendance: monthly salary pro rata, or the day rate.
+
+The data version moved to v4, so browser data is replaced by the new seed on
+first load. The sample salaries and wage payments for the foremen and site
+workers are invented for the demo.
+
 ## What the document asked to keep configurable
 
 These live in **Settings** rather than being hard-coded:

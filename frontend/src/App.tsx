@@ -19,6 +19,7 @@ import { DailyWorkReports } from './pages/execution/DailyWorkReports'
 import { ReportReview } from './pages/execution/ReportReview'
 import { AmcContracts } from './pages/amc/AmcContracts'
 import { AmcVisits } from './pages/amc/AmcVisits'
+import { AmcCalendar } from './pages/amc/AmcCalendar'
 import { AmcRenewals } from './pages/amc/AmcRenewals'
 import { Consultations } from './pages/consultations/Consultations'
 import { Quotations } from './pages/accounts/Quotations'
@@ -40,6 +41,8 @@ import { NotFound, NoAccess } from './pages/misc/Fallbacks'
 import { MySites } from './pages/field/MySites'
 import { DailyWorkReportForm } from './pages/field/DailyWorkReportForm'
 import { Submitted } from './pages/field/Submitted'
+import { FieldReportView, FieldWorks } from './pages/field/FieldWorks'
+import { FieldAttendance, FieldChat, FieldPay, FieldProfile } from './pages/field/FieldMe'
 
 /** Foremen are confined to the field app; everyone else is kept out of it. */
 function RoleRouting({ children }: { children: React.ReactNode }) {
@@ -60,6 +63,12 @@ export function App() {
           <Route index element={<MySites />} />
           <Route path="report/:projectId" element={<DailyWorkReportForm />} />
           <Route path="submitted/:reportId" element={<Submitted />} />
+          <Route path="works" element={<FieldWorks />} />
+          <Route path="works/:reportId" element={<FieldReportView />} />
+          <Route path="attendance" element={<FieldAttendance />} />
+          <Route path="pay" element={<FieldPay />} />
+          <Route path="profile" element={<FieldProfile />} />
+          <Route path="chat/:projectId" element={<FieldChat />} />
         </Route>
 
         <Route element={<AdminShell />}>
@@ -76,6 +85,7 @@ export function App() {
           <Route path="/projects/new" element={<NewProject />} />
           <Route path="/projects/design" element={<ProjectList scope="design" />} />
           <Route path="/projects/execution" element={<ProjectList scope="execution" />} />
+          <Route path="/projects/amc" element={<ProjectList scope="amc" />} />
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
 
           <Route path="/tasks/mine" element={<MyTasks />} />
@@ -98,6 +108,7 @@ export function App() {
           <Route path="/execution/maintenance" element={<Navigate to="/amc" replace />} />
 
           <Route path="/amc" element={<AmcContracts />} />
+          <Route path="/amc/calendar" element={<AmcCalendar />} />
           <Route path="/amc/visits" element={<AmcVisits />} />
           <Route path="/amc/renewals" element={<AmcRenewals />} />
 

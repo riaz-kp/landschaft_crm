@@ -30,11 +30,13 @@ export const CHECKLISTS: Record<CommercialDoc, ChecklistItem[]> = {
 /**
  * Which documents a project carries follows its services:
  * Design only → BOQ, Execution only → Quotation, Design + Execution → both.
+ * An AMC-only project carries a Quotation.
  */
 export function commercialDocs(services: Project['services']): CommercialDoc[] {
   const docs: CommercialDoc[] = []
   if (services.design) docs.push('BOQ')
-  if (services.execution) docs.push('Quotation')
+  // An AMC is priced on a quotation too, whether alone or alongside execution.
+  if (services.execution || services.amc) docs.push('Quotation')
   return docs
 }
 

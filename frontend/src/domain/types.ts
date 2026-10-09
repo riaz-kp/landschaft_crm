@@ -64,6 +64,8 @@ export interface Employee {
   siblings?: string
   /** Responsibilities held beyond the login role, e.g. covering AMC as well as Execution. */
   responsibilities?: string[]
+  /** Monthly salary in rupees — drives the pay summary on the foreman app and profile. */
+  monthlySalary?: number
 }
 
 export type StaffAttendanceStatus = 'Present' | 'Half Day' | 'Leave' | 'Absent'
@@ -113,6 +115,8 @@ export interface Lead {
   id: ID
   name: string
   phone: string
+  /** Stored separately; equal to phone when the lead uses the same number. */
+  whatsapp?: string
   email?: string
   location: string
   source: 'Instagram' | 'Referral' | 'Website' | 'Walk-in' | 'Google' | 'Exhibition'
@@ -295,8 +299,11 @@ export interface Project {
   startDate: string
   expectedCompletion: string
   status: ProjectStatus
-  /** At least one of these must be true — enforced at creation. */
-  services: { design: boolean; execution: boolean }
+  /**
+   * At least one must be true — enforced at creation. AMC (Annual Maintenance
+   * Contract) can be sold on its own, without design or execution.
+   */
+  services: { design: boolean; execution: boolean; amc?: boolean }
   design: Record<DesignPhaseKey, Phase>
   execution: {
     hardscape: Phase
@@ -313,8 +320,8 @@ export interface Project {
   checklist?: Record<string, ChecklistTick>
 }
 
-/** Project type is derived, never stored — the services decide it. */
-export type ProjectType = 'Design Only' | 'Execution Only' | 'Design + Execution'
+/** Project type is derived, never stored — the services decide it, e.g. "Design + Execution" or "AMC Only". */
+export type ProjectType = string
 
 /** Which foremen run which sites. Drives the foreman's "My Sites" list. */
 export interface SiteAssignment {
@@ -368,6 +375,9 @@ export interface ReportPhoto {
   session: PhotoSession
   /** HH:mm the photo was added. */
   takenAt?: string
+  /** Size after compression on the phone, and the camera original, in KB. */
+  sizeKb?: number
+  originalKb?: number
 }
 
 export type ReportStatus = 'Draft' | 'Submitted' | 'Approved' | 'Sent Back'
@@ -466,6 +476,23 @@ export interface MaintenanceVisit {
   issues: string[]
   photoCount: number
   done: boolean
+  /** The repeat-schedule date this visit fulfils, when it was moved to another day. */
+  plannedFor?: string
+}
+
+export type RecurrenceUnit = 'day' | 'week' | 'month'
+
+/**
+ * How often an AMC site is visited — every N days, weeks or months from the
+ * first visit — and how far ahead the team is reminded. Set per contract in
+ * the AMC section.
+ */
+export interface VisitSchedule {
+  every: number
+  unit: RecurrenceUnit
+  firstVisit: string
+  /** Remind this many days before each visit. */
+  reminderDaysBefore: number
 }
 
 export interface MaintenanceRecord {
@@ -478,10 +505,49 @@ export interface MaintenanceRecord {
   teamIds: ID[]
   visits: MaintenanceVisit[]
   scopeOfWork: string
+  /** Free-text note on the schedule, e.g. "1st and 3rd Tuesday". */
   visitSchedule: string
+  /** The repeating visit plan that drives the AMC calendar and reminders. */
+  schedule?: VisitSchedule
   /** AMC only. */
   renewalDate?: string
+  /** Remind this many days before the renewal date. */
+  renewalReminderDays?: number
   value?: number
+}
+
+// ---------------------------------------------------------------- project remarks
+
+/** One message in a project's remarks thread — the team's WhatsApp-style chat. */
+export interface ProjectMessage {
+  id: ID
+  projectId: ID
+  authorId: ID
+  text: string
+  /** Local date-time, YYYY-MM-DDTHH:mm. */
+  at: string
+  /** A compressed photo attached to the message. */
+  photo?: string
+  replyToId?: ID
+}
+
+// ---------------------------------------------------------------- staff pay
+
+export type PayType = 'Salary' | 'Wages' | 'Advance' | 'TA' | 'Bonus' | 'Deduction'
+
+/** A payment made to an employee or a site worker. */
+export interface PayRecord {
+  id: ID
+  kind: PersonKind
+  personId: ID
+  date: string
+  amount: number
+  type: PayType
+  /** The month it relates to, YYYY-MM. */
+  period?: string
+  method: 'Bank Transfer' | 'Cash' | 'UPI' | 'Cheque'
+  note?: string
+  paidBy: ID
 }
 
 // ---------------------------------------------------------------- documents
@@ -521,6 +587,9 @@ export interface Settings {
   taEnabled: boolean
   taRatePerKm: number
   photosMandatory: boolean
+  /** Photos are shrunk on the foreman's phone before upload: longest side in px, and a size target in KB. */
+  photoMaxPx: number
+  photoMaxKb: number
   /** Roles permitted to adjust the OT figure on a submitted report. */
   otAdjustRoles: RoleKey[]
   freeMaintenanceMonths: number

@@ -5,7 +5,8 @@ import { useSession } from '../../state/session'
 import { computeProgress } from '../../domain/progress'
 import { receivable } from '../../domain/finance'
 import { partyName } from '../../domain/consultations'
-import { addDays, daysBetween, formatCurrency, formatDate, formatTime, pad2, today } from '../../domain/format'
+import { allOccurrences, renewalReminders } from '../../domain/amc'
+import { addDays, formatCurrency, formatDate, formatTime, pad2, today } from '../../domain/format'
 import { DESIGN_PHASES, type Employee } from '../../domain/types'
 import {
   PageHeader, Section, StatTile, StatusBadge, EmptyState, Badge, ProgressBar, Avatar, SiteName,
@@ -114,12 +115,13 @@ export function OverviewDashboard() {
   // ------------------------------------------------ AMC
   const amcContracts = db.maintenance.filter((m) => m.type === 'AMC')
   const amcValue = amcContracts.reduce((s, m) => s + (m.value ?? 0), 0)
-  const nextVisits = db.maintenance
-    .flatMap((m) => m.visits.filter((v) => !v.done).map((v) => ({ visit: v, record: m })))
-    .sort((a, b) => a.visit.date.localeCompare(b.visit.date))
+  // Visits come from each contract's repeat schedule as well as visits booked by hand.
+  const nextVisits = allOccurrences(db.maintenance, date)
+    .filter((o) => o.status !== 'Done')
+    .map((o) => ({ visit: { id: o.visit?.id ?? `${o.record.id}-${o.date}`, date: o.date }, record: o.record }))
   const visitsThisWeek = nextVisits.filter((v) => v.visit.date <= addDays(date, 7))
   const overdueVisits = nextVisits.filter((v) => v.visit.date < date)
-  const renewalsDue = amcContracts.filter((m) => m.renewalDate && daysBetween(date, m.renewalDate) <= 60)
+  const renewalsDue = renewalReminders(db.maintenance, date)
   // The AMC department's own people lead it once assigned; until then the Execution & Maintenance Head does.
   const amcHead = db.employees.find((e) => e.department === 'AMC') ?? headOf('execution_head')
 
@@ -240,7 +242,7 @@ export function OverviewDashboard() {
             { label: 'Active AMCs', value: pad2(amcContracts.length), to: '/amc' },
             { label: 'Annual Value', value: formatCurrency(amcValue, true), to: '/amc/renewals' },
             { label: 'Visits · 7 Days', value: pad2(visitsThisWeek.length), alert: overdueVisits.length > 0, to: '/amc/visits' },
-            { label: 'Renewals · 60 Days', value: pad2(renewalsDue.length), alert: renewalsDue.length > 0, to: '/amc/renewals' },
+            { label: 'Renewals Due', value: pad2(renewalsDue.length), alert: renewalsDue.length > 0, to: '/amc/renewals' },
           ]}
           listTitle="Next visits"
         >

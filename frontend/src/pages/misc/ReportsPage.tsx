@@ -14,7 +14,7 @@ export function ReportsPage() {
   const contracted = db.projects.reduce((s, p) => s + p.value, 0)
   const received = db.payments.reduce((s, p) => s + p.amount, 0)
 
-  const byType = (['Design Only', 'Execution Only', 'Design + Execution'] as const).map((type) => ({
+  const byType = [...new Set(db.projects.map(projectType))].sort().map((type) => ({
     type,
     projects: db.projects.filter((p) => projectType(p) === type),
   }))

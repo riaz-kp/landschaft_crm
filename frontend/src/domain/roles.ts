@@ -107,6 +107,7 @@ export const NAV: NavSection[] = [
       { label: 'All Projects', path: '/projects' },
       { label: 'Design Projects', path: '/projects/design' },
       { label: 'Execution Projects', path: '/projects/execution' },
+      { label: 'AMC Projects', path: '/projects/amc' },
     ],
   },
   {
@@ -150,6 +151,7 @@ export const NAV: NavSection[] = [
     icon: 'leaf',
     children: [
       { label: 'Contracts', path: '/amc' },
+      { label: 'AMC Calendar', path: '/amc/calendar' },
       { label: 'Visit Schedule', path: '/amc/visits' },
       { label: 'Renewals', path: '/amc/renewals' },
     ],
