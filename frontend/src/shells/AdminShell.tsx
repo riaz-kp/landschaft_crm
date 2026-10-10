@@ -12,7 +12,6 @@ import { RoleSwitcher } from '../components/RoleSwitcher'
 import { GlobalSearch } from '../components/GlobalSearch'
 import { NotificationBell } from '../components/NotificationBell'
 import { NoAccess } from '../pages/misc/Fallbacks'
-import { useClock } from '../state/clock'
 
 function Logo() {
   return (
@@ -64,8 +63,6 @@ export function AdminShell() {
   const { canView } = usePermissions()
   const { pathname } = useLocation()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  // Re-render every time on this device when the 12h / 24h setting changes.
-  useClock()
   const sections = navForRole(roleKey, settings.permissions)
   const current = sectionForPath(pathname)
   const tab = current && activeChild(current, pathname)

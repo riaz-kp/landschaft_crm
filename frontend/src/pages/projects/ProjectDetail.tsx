@@ -21,6 +21,7 @@ import {
 import { PhaseStrip, ProgressCell, ProjectProgressPanel } from '../../components/ProjectProgress'
 import { RepeaterView } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
+import { PeoplePicker } from '../../components/PeoplePicker'
 
 type Tab = 'overview' | 'remarks' | 'phases' | 'tasks' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance'
 
@@ -49,6 +50,8 @@ export function ProjectDetail() {
   const received = payments.reduce((sum, p) => sum + p.amount, 0)
 
   const editable = can('Projects', 'edit')
+  const canAssignForemen = editable || can('Execution', 'edit')
+  const siteForemen = db.siteAssignments.filter((a) => a.projectId === project.id).map((a) => a.foremanId)
   const phaseRows: { key: PhaseKey; label: string; progress: number; group: string }[] = [
     ...(progress.design?.phases.map((p) => ({ ...p, group: 'Design' })) ?? []),
     ...(progress.execution?.phases.map((p) => ({ ...p, group: 'Execution' })) ?? []),
@@ -146,6 +149,33 @@ export function ProjectDetail() {
               <ProjectProgressPanel project={project} />
             </div>
           </Section>
+
+          {project.services.execution && (
+            <Section
+              title="Site Foremen"
+              description="Foremen on this site see it under My Sites on their phone, and file its daily work report."
+              className="lg:col-span-3"
+            >
+              <div className="px-5 py-4">
+                {canAssignForemen ? (
+                  <PeoplePicker
+                    value={siteForemen}
+                    onChange={(ids) => api.projects.setForemen(project.id, ids)}
+                    people={db.employees.filter((e) => e.role === 'foreman')}
+                    placeholder="Add a foreman to this site…"
+                    title="Add a foreman"
+                  />
+                ) : siteForemen.length ? (
+                  <p className="text-sm text-stone-700">{siteForemen.map((id) => db.employees.find((e) => e.id === id)?.name).join(', ')}</p>
+                ) : null}
+                {siteForemen.length === 0 && (
+                  <p className="mt-2 flex items-center gap-1.5 text-sm text-amber-700">
+                    <Icon name="alert" className="h-4 w-4" /> No foreman yet — nobody can file a daily report for this site.
+                  </p>
+                )}
+              </div>
+            </Section>
+          )}
 
           <Section
             title="Site on the Map"

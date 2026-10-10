@@ -5,19 +5,24 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
 import { can } from '../../domain/roles'
-import { visitPeople, visitSubject } from '../../domain/siteVisits'
-import { addDays, formatDate, formatDateLong, formatTime, today } from '../../domain/format'
+import { remindLabel, visitPeople, visitSubject } from '../../domain/siteVisits'
+import { clientSite, consultationPlace, visitPlace } from '../../domain/places'
+import { addDays, formatDate, formatDateLong, formatTime, timeRange, today } from '../../domain/format'
 import {
-  DAY_END, DAY_START, DURATIONS, SLOT_MINUTES, endOf, findClash, firstFreeSlot, partyName, slotTimes,
+  DAY_END, DAY_START, DURATIONS, SLOT_MINUTES, endOf, findClash, firstFreeSlot, layoutLanes, partyName, slotTimes,
   toMinutes,
 } from '../../domain/consultations'
-import type { Consultation } from '../../domain/types'
+import type { Consultation, LatLng, SiteVisit } from '../../domain/types'
 import {
-  PageHeader, Section, EmptyState, Badge, StatusBadge, StatTile, Modal, Field, FormError,
+  PageHeader, Section, EmptyState, Badge, StatusBadge, StatTile, Modal, Field, FormError, Checkbox,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { SearchSelect } from '../../components/SearchSelect'
+import { PinField } from '../../components/PinField'
+import { directionsUrl } from '../../components/mapLinks'
 import { clientOptions, leadOptions } from '../../components/pickerOptions'
+import { DiaryMap, type DiaryItem } from './DiaryMap'
+import { DIARY_COLOUR } from '../../components/mapPins'
 
 const MODES: Consultation['mode'][] = ['Office', 'Site', 'Phone', 'Video']
 /** One pixel per minute keeps the arithmetic obvious: a 60-minute meeting is 60px tall. */
@@ -37,9 +42,17 @@ function currentWeekStart(): string {
 
 type Draft = { date: string; start: string }
 
+/** A site visit takes up an hour on the diary; the visit itself has no set length. */
+const VISIT_MINS = 60
+
+/** A visit with a time inside diary hours sits on the grid; the rest go in the "any time" row. */
+const onGrid = (v: SiteVisit) => Boolean(v.time) && toMinutes(v.time!) >= DAY_START && toMinutes(v.time!) < DAY_END
+
 /**
- * The CEO's consultation diary. Every role can see it and book a slot; the
- * CEO's office marks consultations done or cancels them.
+ * The CEO's consultation diary, with the team's site visits alongside. Every
+ * role can see it and book a slot; the CEO's office marks consultations done
+ * or cancels them. Tick boxes choose what shows, and the map shows where
+ * everything is.
  */
 export function Consultations() {
   const db = useDb()
@@ -48,6 +61,11 @@ export function Consultations() {
   const [weekStart, setWeekStart] = useState(currentWeekStart)
   const [booking, setBooking] = useState<Draft | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [visitId, setVisitId] = useState<string | null>(null)
+  const [view, setView] = useState<'calendar' | 'map'>('calendar')
+  const canSeeVisits = canView('Site Visits')
+  const [show, setShow] = useState({ consultations: true, visits: true })
+  const showVisits = show.visits && canSeeVisits
 
   const ceo = db.employees.find((e) => e.role === 'ceo')
   // Monday to Saturday — Sunday is the weekly off.
@@ -70,9 +88,35 @@ export function Consultations() {
   const name = (c: Consultation) => partyName(c, db.clients, db.leads)
   const staffName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
   const opened = db.consultations.find((c) => c.id === openId)
+  const openedVisit = db.siteVisits.find((v) => v.id === visitId)
   const siteVisits = db.siteVisits
     .filter((v) => v.status === 'Scheduled' && v.date >= today())
     .sort((a, b) => (a.date + (a.time ?? '')).localeCompare(b.date + (b.time ?? '')))
+  const weekVisits = showVisits ? db.siteVisits.filter((v) => v.status !== 'Cancelled' && v.date >= days[0] && v.date <= days[5]) : []
+  const shownConsultations = show.consultations ? scheduled : []
+  const anyTime = days.some((d) => weekVisits.some((v) => v.date === d && !onGrid(v)))
+  const hasItems = (date: string) => shownConsultations.some((c) => c.date === date) || weekVisits.some((v) => v.date === date)
+
+  // Everything the map can show, before its own date range is applied.
+  const mapItems: DiaryItem[] = [
+    ...(show.consultations ? db.consultations.filter((c) => c.status !== 'Cancelled') : []).map((c): DiaryItem => {
+      const place = consultationPlace(c, db.projects)
+      return {
+        id: c.id, kind: 'consultation', date: c.date, time: c.start, title: c.purpose, done: c.status === 'Completed',
+        sub: `${name(c)} · ${c.mode}`, place,
+        missing: place ? undefined : c.mode === 'Site' ? 'site not pinned — open it to pin the place' : `${c.mode.toLowerCase()} meeting, no site to map`,
+      }
+    }),
+    ...(showVisits ? db.siteVisits.filter((v) => v.status !== 'Cancelled') : []).map((v): DiaryItem => {
+      const place = visitPlace(v, db.projects)
+      const people = visitPeople(v)
+      return {
+        id: v.id, kind: 'visit', date: v.date, time: v.time, title: `Site visit — ${visitSubject(v, db.leads, db.clients)}`,
+        done: v.status === 'Completed', sub: `${staffName(v.assignedTo)}${people.length > 1 ? ` + ${people.length - 1}` : ''} · ${v.location}`,
+        place, missing: place ? undefined : 'not pinned — edit the visit to pin it',
+      }
+    }),
+  ]
 
   return (
     <div>
@@ -95,7 +139,51 @@ export function Consultations() {
         <StatTile label="Upcoming" value={upcoming.length} tone="blue" sub={`${upcoming.filter((c) => c.postponements?.length).length} postponed`} />
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-xl bg-stone-200/60 p-1" role="group" aria-label="View">
+          {([['calendar', 'Calendar', 'calendar'], ['map', 'Map', 'map']] as const).map(([key, label, icon]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              aria-pressed={view === key}
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-semibold transition ${view === key ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+            >
+              <Icon name={icon} className="h-4 w-4" /> {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-stone-200 bg-white px-4 py-2 shadow-sm">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">Show</span>
+          <Checkbox
+            checked={show.consultations}
+            onChange={(consultations) => setShow({ ...show, consultations })}
+            label={<span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: DIARY_COLOUR.consultation }} /> Consultations</span>}
+          />
+          {canSeeVisits && (
+            <Checkbox
+              checked={show.visits}
+              onChange={(visits) => setShow({ ...show, visits })}
+              label={<span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: DIARY_COLOUR.visit }} /> Site visits</span>}
+            />
+          )}
+        </div>
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-4">
+        {view === 'map' ? (
+          <Section
+            className="xl:col-span-3"
+            title="Where everything is"
+            description="Site consultations and site visits on the map. Office, phone and video meetings have no site, so they are listed without a pin."
+          >
+            <DiaryMap
+              items={mapItems}
+              week={[days[0], days[5]]}
+              onOpen={(i) => (i.kind === 'visit' ? setVisitId(i.id) : setOpenId(i.id))}
+            />
+          </Section>
+        ) : (
         <Section
           className="xl:col-span-3"
           title={`${formatDateLong(days[0])} – ${formatDateLong(days[5])}`}
@@ -120,14 +208,16 @@ export function Consultations() {
               >
                 <span>{new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })}</span>
                 <span className="tabular-nums">{formatDate(date).slice(0, 2)}</span>
-                {scheduled.some((c) => c.date === date) && <span className={`mt-0.5 h-1 w-1 rounded-full ${date === focusDay ? 'bg-white' : 'bg-brand-500'}`} />}
+                {hasItems(date) && <span className={`mt-0.5 h-1 w-1 rounded-full ${date === focusDay ? 'bg-white' : 'bg-brand-500'}`} />}
               </button>
             ))}
           </div>
           <div className="scroll-x">
             <div className="flex md:min-w-[720px]">
               {/* Hour labels */}
-              <div className="w-14 shrink-0 border-r border-stone-100 pt-10">
+              <div className="w-14 shrink-0 border-r border-stone-100">
+                <div className="h-10" />
+                {anyTime && <div className="flex h-8 items-center justify-end border-b border-stone-100 pr-2 text-[10px] font-semibold uppercase text-stone-400">Any time</div>}
                 {Array.from({ length: (DAY_END - DAY_START) / 60 }, (_, i) => DAY_START + i * 60).map((m) => (
                   <div key={m} style={{ height: 60 * PX_PER_MIN }} className="pr-2 text-right text-[11px] tabular-nums text-stone-400">
                     {formatTime(`${String(m / 60).padStart(2, '0')}:00`).replace(':00 ', ' ')}
@@ -135,7 +225,18 @@ export function Consultations() {
                 ))}
               </div>
               {days.map((date) => {
-                const events = scheduled.filter((c) => c.date === date)
+                const events = shownConsultations.filter((c) => c.date === date)
+                const visits = weekVisits.filter((v) => v.date === date)
+                const timed = visits.filter(onGrid)
+                const loose = visits.filter((v) => !onGrid(v))
+                const lanes = layoutLanes([
+                  ...events.map((c) => ({ key: c.id, start: toMinutes(c.start), end: toMinutes(c.start) + c.durationMins })),
+                  ...timed.map((v) => ({ key: v.id, start: toMinutes(v.time!), end: Math.min(DAY_END, toMinutes(v.time!) + VISIT_MINS) })),
+                ])
+                const across = (key: string) => {
+                  const { lane, lanes: of } = lanes.get(key) ?? { lane: 0, lanes: 1 }
+                  return { left: `calc(${(lane * 100) / of}% + 3px)`, width: `calc(${100 / of}% - 6px)` }
+                }
                 const isToday = date === today()
                 return (
                   <div key={date} className={`${date === focusDay ? '' : 'hidden md:block'} min-w-0 flex-1 border-r border-stone-100 last:border-r-0`}>
@@ -143,6 +244,23 @@ export function Consultations() {
                       <span>{new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })}</span>
                       <span className="tabular-nums">{formatDate(date).slice(0, 5)}</span>
                     </div>
+                    {anyTime && (
+                      <div className="flex h-8 items-center gap-1 overflow-hidden border-b border-stone-100 px-1">
+                        {loose.slice(0, 1).map((v) => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => setVisitId(v.id)}
+                            title={`Site visit — ${visitSubject(v, db.leads, db.clients)}`}
+                            className="flex min-w-0 flex-1 items-center gap-1 rounded-md bg-sky-50 px-1.5 py-1 text-left text-[10px] font-medium text-sky-900 ring-1 ring-inset ring-sky-200 hover:brightness-95"
+                          >
+                            <Icon name="pin" className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{visitSubject(v, db.leads, db.clients)}</span>
+                          </button>
+                        ))}
+                        {loose.length > 1 && <span className="shrink-0 text-[10px] font-semibold text-sky-700">+{loose.length - 1}</span>}
+                      </div>
+                    )}
                     <div className="relative" style={{ height: (DAY_END - DAY_START) * PX_PER_MIN }}>
                       {slotTimes().map((start) => {
                         const pastSlot = date < today()
@@ -166,16 +284,41 @@ export function Consultations() {
                           style={{
                             top: (toMinutes(c.start) - DAY_START) * PX_PER_MIN,
                             height: Math.max(24, c.durationMins * PX_PER_MIN - 2),
+                            ...across(c.id),
                           }}
-                          className={`absolute inset-x-1 overflow-hidden rounded-md border-l-4 px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm ${
+                          className={`absolute overflow-hidden rounded-md border-l-4 px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm ${
                             c.bookedBy === user.id ? 'border-clay-500 bg-clay-50 text-clay-900' : 'border-brand-600 bg-brand-50 text-brand-900'
                           } hover:brightness-95`}
                         >
-                          <span className="block font-semibold tabular-nums">{c.start}–{endOf(c)}</span>
+                          <span className="block font-semibold tabular-nums">{timeRange(c.start, endOf(c))}</span>
                           <span className="block truncate">{c.purpose}</span>
                           <span className="block truncate opacity-70">{c.postponements?.length ? "↻ " : ""}{name(c)}</span>
                         </button>
                       ))}
+                      {timed.map((v) => {
+                        const start = toMinutes(v.time!)
+                        return (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => setVisitId(v.id)}
+                            style={{
+                              top: (start - DAY_START) * PX_PER_MIN,
+                              height: Math.max(24, (Math.min(DAY_END, start + VISIT_MINS) - start) * PX_PER_MIN - 2),
+                              ...across(v.id),
+                            }}
+                            className={`absolute overflow-hidden rounded-md border-l-4 border-sky-500 bg-sky-50 px-1.5 py-1 text-left text-[11px] leading-tight text-sky-900 shadow-sm hover:brightness-95 ${
+                              v.status === 'Completed' ? 'opacity-60' : ''
+                            }`}
+                          >
+                            <span className="flex items-center gap-1 font-semibold tabular-nums">
+                              <Icon name="pin" className="h-3 w-3 shrink-0" />{v.status === 'Completed' && '✓ '}{formatTime(v.time!)}
+                            </span>
+                            <span className="block truncate">Site visit — {visitSubject(v, db.leads, db.clients)}</span>
+                            <span className="block truncate opacity-70">{v.location}</span>
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 )
@@ -185,10 +328,13 @@ export function Consultations() {
           <p className="border-t border-stone-100 px-5 py-2.5 text-xs text-stone-400">
             <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-clay-400 align-middle" /> booked by you
             <span className="ml-4 mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-brand-500 align-middle" /> booked by others
+            {showVisits && <><span className="ml-4 mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-sky-500 align-middle" /> site visit</>}
           </p>
         </Section>
+        )}
 
         <div className="space-y-6">
+          {show.consultations && (
           <Section title="Upcoming">
             {upcoming.length === 0 ? (
               <EmptyState title="Nothing booked." />
@@ -209,8 +355,9 @@ export function Consultations() {
               </ul>
             )}
           </Section>
+          )}
 
-          {canView('Site Visits') && (
+          {showVisits && (
             <Section
               title="Site Visits"
               description={siteVisits.length ? `${siteVisits.length} coming up` : undefined}
@@ -224,16 +371,16 @@ export function Consultations() {
                     const people = visitPeople(v)
                     return (
                       <li key={v.id}>
-                        <Link to="/consultations/site-visits" className="block px-5 py-3 hover:bg-stone-50">
-                          <p className="text-xs font-semibold tabular-nums text-clay-700">
+                        <button onClick={() => setVisitId(v.id)} className="block w-full px-5 py-3 text-left hover:bg-stone-50">
+                          <p className="text-xs font-semibold tabular-nums text-sky-700">
                             {v.date === today() ? 'Today' : formatDateLong(v.date)}{v.time && ` · ${formatTime(v.time)}`}
                           </p>
                           <p className="mt-0.5 text-sm font-medium text-stone-800">{visitSubject(v, db.leads, db.clients)}</p>
                           <p className="text-xs text-stone-400">
                             {v.location} · {staffName(v.assignedTo)}{people.length > 1 && ` + ${people.length - 1}`}
-                            {people.includes(user.id) && <span className="ml-1.5 font-semibold text-clay-700">· you're on it</span>}
+                            {people.includes(user.id) && <span className="ml-1.5 font-semibold text-sky-700">· you're on it</span>}
                           </p>
-                        </Link>
+                        </button>
                       </li>
                     )
                   })}
@@ -242,6 +389,7 @@ export function Consultations() {
             </Section>
           )}
 
+          {show.consultations && (
           <Section title="Recent">
             {past.length === 0 ? (
               <EmptyState title="No past consultations." />
@@ -261,6 +409,7 @@ export function Consultations() {
               </ul>
             )}
           </Section>
+          )}
         </div>
       </div>
 
@@ -273,7 +422,55 @@ export function Consultations() {
           onClose={() => setOpenId(null)}
         />
       )}
+      {openedVisit && <VisitDetailsModal visit={openedVisit} onClose={() => setVisitId(null)} />}
     </div>
+  )
+}
+
+/** A site visit opened from the diary or the map — who, when, where, and the way there. */
+function VisitDetailsModal({ visit: v, onClose }: { visit: SiteVisit; onClose: () => void }) {
+  const db = useDb()
+  const place = visitPlace(v, db.projects)
+  const people = visitPeople(v).map((id) => db.employees.find((e) => e.id === id)?.name).filter(Boolean)
+
+  return (
+    <Modal
+      title={`Site visit — ${visitSubject(v, db.leads, db.clients)}`}
+      onClose={onClose}
+      footer={<>
+        <Link to="/consultations/site-visits" className="btn-secondary mr-auto">Open in Site Visits</Link>
+        {place && (
+          <a href={directionsUrl(place.coords)} target="_blank" rel="noreferrer" className="btn-primary">
+            <Icon name="map" className="h-4 w-4" /> Directions
+          </a>
+        )}
+      </>}
+    >
+      <dl className="grid gap-4 sm:grid-cols-2">
+        {[
+          ['When', `${formatDateLong(v.date)}${v.time ? ` · ${formatTime(v.time)}` : ''}`],
+          ['Where', `${v.location}${place?.fromProject ? ` (pinned at ${place.label})` : ''}`],
+          ['Led by', people[0] ?? '—'],
+          ['Going along', people.slice(1).join(', ') || 'No one else'],
+          ['Reminder', remindLabel(v.remindDaysBefore)],
+        ].map(([label, value]) => (
+          <div key={label}>
+            <dt className="label">{label}</dt>
+            <dd className="mt-1 text-sm text-stone-800">{value}</dd>
+          </div>
+        ))}
+        <div>
+          <dt className="label">Status</dt>
+          <dd className="mt-1"><StatusBadge status={v.status} /></dd>
+        </div>
+      </dl>
+      {v.notes && (
+        <div className="mt-4">
+          <p className="label">Notes</p>
+          <p className="mt-1 text-sm text-stone-700">{v.notes}</p>
+        </div>
+      )}
+    </Modal>
   )
 }
 
@@ -290,10 +487,15 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
     attendee: '',
     purpose: '',
     mode: 'Office' as Consultation['mode'],
+    location: '',
+    coords: undefined as LatLng | undefined,
     notes: '',
   })
   const [error, setError] = useState<string | null>(null)
   const set = (patch: Partial<typeof form>) => { setForm({ ...form, ...patch }); setError(null) }
+  // A site meeting with a client defaults to their project site; with a lead, to where the lead is.
+  const projectSite = form.party === 'Client' ? clientSite(form.clientId, db.projects) : undefined
+  const suggestedPlace = projectSite?.label ?? (form.party === 'Lead' ? db.leads.find((l) => l.id === form.leadId)?.location : undefined) ?? ''
 
   const clash = findClash(db.consultations, form.date, form.start, form.durationMins)
   const overruns = toMinutes(form.start) + form.durationMins > DAY_END
@@ -303,7 +505,7 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
     if (form.date < today()) return setError('Pick today or a later date.')
     if (isSunday(form.date)) return setError('Sunday is the weekly off — pick another day.')
     if (overruns) return setError('That runs past 6:00 PM. Pick an earlier time or a shorter slot.')
-    if (clash) return setError(`Clashes with "${clash.purpose}" (${clash.start}–${endOf(clash)}).`)
+    if (clash) return setError(`Clashes with "${clash.purpose}" (${timeRange(clash.start, endOf(clash))}).`)
     if (form.party === 'Other' && !form.attendee.trim()) return setError('Enter who the meeting is with.')
     api.consultations.create({
       date: form.date,
@@ -314,6 +516,8 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
       leadId: form.party === 'Lead' ? form.leadId : undefined,
       attendee: form.party === 'Other' ? form.attendee.trim() : undefined,
       mode: form.mode,
+      location: form.mode === 'Site' ? (form.location.trim() || suggestedPlace || undefined) : undefined,
+      coords: form.mode === 'Site' ? form.coords : undefined,
       bookedBy: user.id,
       notes: form.notes.trim() || undefined,
     })
@@ -348,7 +552,7 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
         {(clash || overruns) && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
             {clash
-              ? <>Taken: <strong>{clash.purpose}</strong> runs {formatTime(clash.start)}–{formatTime(endOf(clash))}.</>
+              ? <>Taken: <strong>{clash.purpose}</strong> runs {timeRange(clash.start, endOf(clash))}.</>
               : 'This slot runs past 6:00 PM.'}
           </p>
         )}
@@ -400,6 +604,19 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
             {MODES.map((m) => <option key={m}>{m}</option>)}
           </select>
         </Field>
+        {form.mode === 'Site' && (
+          <div className="space-y-2 rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
+            <Field label="Site address">
+              <input className="input" value={form.location} placeholder={suggestedPlace || 'e.g. Kowdiar, Thiruvananthapuram'} onChange={(e) => set({ location: e.target.value })} />
+            </Field>
+            <PinField
+              value={form.coords}
+              onChange={(coords) => set({ coords })}
+              query={form.location || suggestedPlace}
+              fallback={projectSite ? `Not pinned — shown at the client's project site, ${projectSite.label}` : undefined}
+            />
+          </div>
+        )}
         <Field label="Notes for the CEO">
           <textarea rows={2} className="input" value={form.notes} onChange={(e) => set({ notes: e.target.value })} />
         </Field>
@@ -429,6 +646,7 @@ function DetailsModal({
   }
 
   const staffName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
+  const place = consultationPlace(c, db.projects)
 
   return (
     <Modal
@@ -446,9 +664,9 @@ function DetailsModal({
     >
       <dl className="grid gap-4 sm:grid-cols-2">
         {[
-          ['When', `${formatDateLong(c.date)} · ${formatTime(c.start)}–${formatTime(endOf(c))}`],
+          ['When', `${formatDateLong(c.date)} · ${timeRange(c.start, endOf(c))}`],
           ['With', partyName(c, db.clients, db.leads)],
-          ['Where', c.mode],
+          ['Where', c.mode === 'Site' && (c.location || place) ? `Site · ${c.location || place!.label}` : c.mode],
           ['Booked by', staffName(c.bookedBy)],
         ].map(([label, value]) => (
           <div key={label}>
@@ -482,6 +700,24 @@ function DetailsModal({
           </ol>
         </div>
       ) : null}
+
+      {c.mode === 'Site' && (
+        <div className="mt-4 space-y-2">
+          {canChange && (
+            <PinField
+              value={c.coords}
+              onChange={(coords) => api.consultations.setPlace(c.id, c.location, coords)}
+              query={c.location || place?.label}
+              fallback={place?.fromProject ? `Not pinned — shown at the client's project site, ${place.label}` : undefined}
+            />
+          )}
+          {place && (
+            <a href={directionsUrl(place.coords)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700">
+              <Icon name="map" className="h-4 w-4" /> Directions to the site
+            </a>
+          )}
+        </div>
+      )}
 
       <div className="mt-4">
         {scheduled && canManage ? (
@@ -526,7 +762,7 @@ function PostponeModal({
     if (isSunday(date)) return setError('Sunday is the weekly off — pick another day.')
     if (date === c.date && start === c.start) return setError('Pick a different date or time.')
     if (overruns) return setError('That runs past 6:00 PM. Pick an earlier time.')
-    if (clash) return setError(`Clashes with "${clash.purpose}" (${clash.start}–${endOf(clash)}).`)
+    if (clash) return setError(`Clashes with "${clash.purpose}" (${timeRange(clash.start, endOf(clash))}).`)
     if (!reason.trim()) return setError('Say why it is being postponed — the other side will ask.')
     api.consultations.postpone(c.id, date, start, reason.trim(), byId)
     onDone()

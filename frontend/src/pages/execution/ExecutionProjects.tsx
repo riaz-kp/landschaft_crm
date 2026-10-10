@@ -83,7 +83,7 @@ export function ExecutionProjects() {
                 <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-stone-100 pt-4 text-sm">
                   <div>
                     <dt className="label">Foreman</dt>
-                    <dd className="mt-0.5 text-stone-700">{foremen.join(', ') || '—'}</dd>
+                    <dd className="mt-0.5 text-stone-700">{foremen.join(', ') || <Link to={`/projects/${project.id}`} className="font-semibold text-amber-700 hover:text-amber-800">None yet — assign</Link>}</dd>
                   </div>
                   <div>
                     <dt className="label">Due</dt>

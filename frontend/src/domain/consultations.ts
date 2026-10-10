@@ -52,3 +52,37 @@ export function partyName(c: Consultation, clients: Client[], leads: Lead[]): st
   if (c.leadId) return `${leads.find((x) => x.id === c.leadId)?.name ?? 'Lead'} (lead)`
   return c.attendee || 'Internal'
 }
+
+/**
+ * Side-by-side lanes for blocks on one day of the diary, so a site visit and
+ * a consultation at the same hour both stay readable. Blocks that overlap
+ * share their width; the rest keep the full column.
+ */
+export function layoutLanes(blocks: { key: string; start: number; end: number }[]): Map<string, { lane: number; lanes: number }> {
+  const out = new Map<string, { lane: number; lanes: number }>()
+  let cluster: { key: string; lane: number }[] = []
+  let laneEnds: number[] = []
+  let clusterEnd = -1
+  const flush = () => {
+    for (const c of cluster) out.set(c.key, { lane: c.lane, lanes: laneEnds.length })
+    cluster = []
+    laneEnds = []
+  }
+  for (const b of [...blocks].sort((x, y) => x.start - y.start || y.end - x.end)) {
+    if (b.start >= clusterEnd) {
+      flush()
+      clusterEnd = b.end
+    }
+    let lane = laneEnds.findIndex((end) => end <= b.start)
+    if (lane === -1) {
+      lane = laneEnds.length
+      laneEnds.push(b.end)
+    } else {
+      laneEnds[lane] = b.end
+    }
+    cluster.push({ key: b.key, lane })
+    clusterEnd = Math.max(clusterEnd, b.end)
+  }
+  flush()
+  return out
+}

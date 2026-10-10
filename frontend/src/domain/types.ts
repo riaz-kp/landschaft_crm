@@ -209,6 +209,9 @@ export interface Consultation {
   /** Free-text attendee when the meeting is with neither a client nor a lead. */
   attendee?: string
   mode: 'Office' | 'Site' | 'Phone' | 'Video'
+  /** Where a site consultation is held, and its pin on the map. */
+  location?: string
+  coords?: LatLng
   bookedBy: ID
   status: ConsultationStatus
   notes?: string
@@ -226,6 +229,8 @@ export interface SiteVisit {
   leadId?: ID
   clientId?: ID
   location: string
+  /** The site's pin on the map. Without one, a client's pinned project site stands in. */
+  coords?: LatLng
   date: string
   /** HH:mm the team meets on site. Optional — older visits have none. */
   time?: string
@@ -613,6 +618,18 @@ export interface Settings {
    * skill from the worker form, and is tidied up from Settings.
    */
   workerSkills: string[]
+  /**
+   * The normal working day, as HH:mm. Marking someone present in the
+   * attendance register fills these in as their time in and out — a half day
+   * ends at `halfDayEnd` — and any day can still be changed by hand.
+   */
+  workHours: WorkHours
+}
+
+export interface WorkHours {
+  start: string
+  end: string
+  halfDayEnd: string
 }
 
 // ---------------------------------------------------------------- permissions

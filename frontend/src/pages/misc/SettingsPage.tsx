@@ -8,7 +8,9 @@ import {
   PageHeader, Section, Field, Checkbox, Badge, ProgressBar,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { TimeInput } from '../../components/TimeInput'
 import { workerSkills } from '../../domain/workers'
+import { formatDuration, minutesBetween } from '../../domain/format'
 
 /** Presets the client mentioned by name in the structure document. */
 const SPLIT_PRESETS: { label: string; split: Settings['designPaymentSplit'] }[] = [
@@ -29,7 +31,15 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false)
 
   const splitTotal = DESIGN_PHASES.reduce((sum, key) => sum + draft.designPaymentSplit[key], 0)
-  const valid = splitTotal === 100
+  const splitOk = splitTotal === 100
+  const hours = draft.workHours
+  const hoursError = hours.end <= hours.start
+    ? 'The working day must end after it starts'
+    : hours.halfDayEnd <= hours.start || hours.halfDayEnd >= hours.end
+      ? 'A half day must end between the start and end of the working day'
+      : null
+  const problem = !splitOk ? 'the payment split must total 100%' : hoursError ? hoursError.toLowerCase() : null
+  const valid = !problem
 
   const patch = (changes: Partial<Settings>) => {
     setDraft({ ...draft, ...changes })
@@ -67,6 +77,44 @@ export function SettingsPage() {
             onChange={(permissions) => patch({ permissions })}
             disabled={!editable}
           />
+        </div>
+      </Section>
+
+      <Section
+        title="Working Hours"
+        description="The normal working day. Marking someone present in Attendance fills these in as their time in and out — any day can still be changed there."
+        className="mb-6"
+      >
+        <div className="px-5 py-5">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {([
+              ['start', 'Day starts', 'Time in for a present or half day.'],
+              ['end', 'Day ends', 'Time out for a full day.'],
+              ['halfDayEnd', 'Half day ends', 'Time out for a half day.'],
+            ] as const).map(([key, label, hint]) => (
+              <div key={key}>
+                <span className="label">{label}</span>
+                <div className="mt-1.5">
+                  <TimeInput
+                    value={hours[key]}
+                    onChange={(v) => patch({ workHours: { ...hours, [key]: v } })}
+                    disabled={!editable}
+                    ariaLabel={label}
+                    step={15}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-stone-400">{hint}</p>
+              </div>
+            ))}
+          </div>
+          {hoursError ? (
+            <p className="mt-4 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">{hoursError}.</p>
+          ) : (
+            <p className="mt-4 flex flex-wrap gap-x-6 gap-y-1 rounded-lg bg-brand-50 px-3 py-2.5 text-sm text-brand-900">
+              <span>Full day <strong className="tabular-nums">{formatDuration(minutesBetween(hours.start, hours.end))}</strong></span>
+              <span>Half day <strong className="tabular-nums">{formatDuration(minutesBetween(hours.start, hours.halfDayEnd))}</strong></span>
+            </p>
+          )}
         </div>
       </Section>
 
@@ -117,16 +165,16 @@ export function SettingsPage() {
           </div>
 
           <div className={`mt-4 flex items-center justify-between rounded-lg px-3 py-2.5 ${
-            valid ? 'bg-brand-50' : 'bg-red-50'
+            splitOk ? 'bg-brand-50' : 'bg-red-50'
           }`}>
-            <span className={`text-sm font-medium ${valid ? 'text-brand-900' : 'text-red-900'}`}>
+            <span className={`text-sm font-medium ${splitOk ? 'text-brand-900' : 'text-red-900'}`}>
               Total
             </span>
-            <span className={`text-sm font-bold tabular-nums ${valid ? 'text-brand-700' : 'text-red-700'}`}>
+            <span className={`text-sm font-bold tabular-nums ${splitOk ? 'text-brand-700' : 'text-red-700'}`}>
               {splitTotal}%
             </span>
           </div>
-          {!valid && (
+          {!splitOk && (
             <p className="mt-2 text-sm text-red-700">
               The split must total exactly 100% before it can be saved.
             </p>
@@ -243,7 +291,7 @@ export function SettingsPage() {
               </span>
             ) : (
               <span className="text-sm text-stone-600">
-                You have unsaved changes{!valid && <span className="font-medium text-red-700"> — the payment split must total 100%</span>}.
+                You have unsaved changes{problem && <span className="font-medium text-red-700"> — {problem}</span>}.
               </span>
             )}
             <div className="flex gap-2">

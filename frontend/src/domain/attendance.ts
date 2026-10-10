@@ -112,3 +112,14 @@ export const STATUS_CELL: Record<StaffAttendanceStatus, string> = {
   Leave: 'bg-violet-100 text-violet-800 ring-violet-600/25',
   Absent: 'bg-red-100 text-red-700 ring-red-600/25',
 }
+
+/**
+ * A day taken from a daily report has no register entry yet. When it is
+ * corrected, its times are carried across so they are not replaced by the
+ * working-hours defaults.
+ */
+export function fromReport(day?: ResolvedDay): Partial<Pick<ResolvedDay, 'status' | 'checkIn' | 'checkOut' | 'otHours'>> {
+  return day?.source === 'report'
+    ? { status: day.status, checkIn: day.checkIn, checkOut: day.checkOut, otHours: day.otHours }
+    : {}
+}

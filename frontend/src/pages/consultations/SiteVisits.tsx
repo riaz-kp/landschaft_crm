@@ -16,7 +16,10 @@ import {
 import { Icon } from '../../components/Icon'
 import { SearchSelect } from '../../components/SearchSelect'
 import { PeoplePicker } from '../../components/PeoplePicker'
-import { ClockToggle, TimeInput } from '../../components/TimeInput'
+import { TimeInput } from '../../components/TimeInput'
+import { PinField } from '../../components/PinField'
+import { directionsUrl } from '../../components/mapLinks'
+import { clientSite, mapLinkLine, visitPlace } from '../../domain/places'
 import { clientOptions, employeeOptions, leadOptions } from '../../components/pickerOptions'
 
 const STATUSES: SiteVisitStatus[] = ['Scheduled', 'Completed', 'Cancelled']
@@ -97,6 +100,7 @@ export function SiteVisits() {
           <Table head={['Visit', 'When', 'Location', 'Team', 'Reminder', 'Status', '']}>
             {visits.map((visit) => {
               const people = visitPeople(visit)
+              const place = visitPlace(visit, db.projects)
               return (
                 <tr key={visit.id} className="row-hover">
                   <td className="td md:min-w-[15rem]">
@@ -111,7 +115,14 @@ export function SiteVisits() {
                     <span className="block font-medium text-stone-900">{visit.date === today() ? 'Today' : formatDate(visit.date)}</span>
                     {visit.time && <span className="block text-xs text-stone-500">{formatTime(visit.time)}</span>}
                   </td>
-                  <td className="td">{visit.location}</td>
+                  <td className="td">
+                    {visit.location}
+                    {place && (
+                      <a href={directionsUrl(place.coords)} target="_blank" rel="noreferrer" className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-brand-700">
+                        <Icon name="map" className="h-3 w-3" /> Directions
+                      </a>
+                    )}
+                  </td>
                   <td className="td"><TeamCell people={people.map((id) => db.employees.find((e) => e.id === id)).filter((e): e is Employee => Boolean(e))} /></td>
                   <td className="td whitespace-nowrap">
                     {visit.remindDaysBefore === undefined
@@ -184,7 +195,7 @@ function RemindTeamModal({ visit, onClose }: { visit: SiteVisit; onClose: () => 
   const people = visitPeople(visit).map((id) => db.employees.find((e) => e.id === id)).filter((e): e is Employee => Boolean(e))
   const subject = visitSubject(visit, db.leads, db.clients)
   const leader = db.employees.find((e) => e.id === visit.assignedTo)?.name ?? '—'
-  const text = visitReminderText(visit, subject, leader)
+  const text = [visitReminderText(visit, subject, leader), mapLinkLine(visitPlace(visit, db.projects))].filter(Boolean).join('\n')
 
   return (
     <Modal title="Remind the team" onClose={onClose} footer={<button onClick={onClose} className="btn-secondary">Done</button>}>
@@ -234,6 +245,7 @@ function SiteVisitFormModal({ visit, onClose }: { visit?: SiteVisit; onClose: ()
     leadId: visit?.leadId ?? openLeads[0]?.id ?? '',
     clientId: visit?.clientId ?? db.clients[0]?.id ?? '',
     location: visit?.location ?? openLeads[0]?.location ?? '',
+    coords: visit?.coords,
     date: visit?.date ?? addDays(today(), 1),
     time: visit?.time ?? '10:00',
     assignedTo: visit?.assignedTo ?? (user.role === 'super_admin' ? 'e2' : user.id),
@@ -244,6 +256,7 @@ function SiteVisitFormModal({ visit, onClose }: { visit?: SiteVisit; onClose: ()
   })
   const [error, setError] = useState<string | null>(null)
   const set = (patch: Partial<typeof form>) => { setForm({ ...form, ...patch }); setError(null) }
+  const projectSite = form.party === 'Client' ? clientSite(form.clientId, db.projects) : undefined
 
   // Pick up the location from the lead or client unless one has been typed.
   const suggestLocation = (patch: Partial<typeof form>) => {
@@ -264,6 +277,7 @@ function SiteVisitFormModal({ visit, onClose }: { visit?: SiteVisit; onClose: ()
       leadId: form.party === 'Lead' ? form.leadId : undefined,
       clientId: form.party === 'Client' ? form.clientId : undefined,
       location: form.location.trim(),
+      coords: form.coords,
       date: form.date,
       time: form.time || undefined,
       assignedTo: form.assignedTo,
@@ -318,19 +332,24 @@ function SiteVisitFormModal({ visit, onClose }: { visit?: SiteVisit; onClose: ()
           </div>
         </div>
 
-        <Field label="Location" required>
-          <input className="input" value={form.location} onChange={(e) => set({ location: e.target.value })} />
-        </Field>
+        <div className="space-y-2">
+          <Field label="Location" required>
+            <input className="input" value={form.location} onChange={(e) => set({ location: e.target.value })} />
+          </Field>
+          <PinField
+            value={form.coords}
+            onChange={(coords) => set({ coords })}
+            query={form.location}
+            fallback={projectSite ? `Not pinned — shown at the client's project site, ${projectSite.label}` : undefined}
+          />
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Date" required>
             <input type="date" className="input" value={form.date} onChange={(e) => set({ date: e.target.value })} />
           </Field>
           <div>
-            <div className="flex items-center justify-between gap-2">
-              <span className="label">Meet at</span>
-              <ClockToggle />
-            </div>
+            <span className="label">Meet at</span>
             <div className="mt-1.5">
               <TimeInput value={form.time} onChange={(time) => set({ time })} ariaLabel="Visit time" step={15} />
             </div>

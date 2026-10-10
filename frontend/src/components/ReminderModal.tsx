@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { api } from '../api/client'
 import { useDb } from '../state/useDb'
 import { useSession } from '../state/session'
-import { formatDateLong, today } from '../domain/format'
+import { formatDateLong, formatTime, today } from '../domain/format'
 import { REPEAT_LABELS } from '../domain/reminders'
 import type { Reminder, ReminderRepeat } from '../domain/types'
 import { Checkbox, Field, FormError, Modal } from './ui'
 import { Icon } from './Icon'
 import { SearchSelect } from './SearchSelect'
+import { TimeInput } from './TimeInput'
 import { projectOptions } from './pickerOptions'
 
 type Audience = 'me' | 'people' | 'everyone'
@@ -75,7 +76,7 @@ export function ReminderModal({
     >
       {!canEdit && reminder ? (
         <div className="space-y-2 text-sm text-stone-700">
-          <p>{formatDateLong(occurrence ?? reminder.date)}{reminder.time && ` · ${reminder.time}`} · {REPEAT_LABELS[reminder.repeat]}</p>
+          <p>{formatDateLong(occurrence ?? reminder.date)}{reminder.time && ` · ${formatTime(reminder.time)}`} · {REPEAT_LABELS[reminder.repeat]}</p>
           {reminder.notes && <p className="text-stone-500">{reminder.notes}</p>}
           <p className="text-xs text-stone-400">Added by {db.employees.find((e) => e.id === reminder.createdBy)?.name}</p>
         </div>
@@ -93,9 +94,16 @@ export function ReminderModal({
             <Field label="Date" required>
               <input type="date" className="input" value={form.date} onChange={(e) => set({ date: e.target.value })} />
             </Field>
-            <Field label="Time" hint="Leave empty for all day.">
-              <input type="time" className="input" value={form.time} onChange={(e) => set({ time: e.target.value })} />
-            </Field>
+            <div>
+              <span className="flex items-center justify-between gap-2">
+                <span className="label">Time</span>
+                {form.time && <button type="button" onClick={() => set({ time: '' })} className="text-xs font-semibold text-stone-400 hover:text-red-600">Clear</button>}
+              </span>
+              <div className="mt-1.5">
+                <TimeInput value={form.time} onChange={(time) => set({ time })} ariaLabel="Reminder time" step={15} />
+              </div>
+              <p className="mt-1 text-xs text-stone-400">Leave empty for all day.</p>
+            </div>
             <Field label="Repeats">
               <select className="input" value={form.repeat} onChange={(e) => set({ repeat: e.target.value as ReminderRepeat })}>
                 {(Object.keys(REPEAT_LABELS) as ReminderRepeat[]).map((r) => <option key={r} value={r}>{REPEAT_LABELS[r]}</option>)}

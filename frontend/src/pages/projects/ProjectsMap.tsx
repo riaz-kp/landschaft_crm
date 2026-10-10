@@ -9,6 +9,7 @@ import type { Project, ProjectStatus } from '../../domain/types'
 import { PageHeader, Section, StatusBadge, Badge, ProgressBar, SearchInput, EmptyState, SiteName } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { mapsUrl } from '../../components/MapPicker'
+import { escapeHtml, pinIcon } from '../../components/mapPins'
 import { SearchSelect } from '../../components/SearchSelect'
 import { clientOptions, employeeOptions } from '../../components/pickerOptions'
 
@@ -31,19 +32,6 @@ function colourOf(p: Project, by: ColourBy): string {
   return services.length === 1 ? SERVICE_COLOUR[services[0]] : SERVICE_COLOUR.mixed
 }
 
-function pin(colour: string, selected: boolean): L.DivIcon {
-  const size = selected ? 40 : 30
-  return L.divIcon({
-    className: '',
-    html: `<svg width="${size}" height="${size * 1.3}" viewBox="0 0 34 44" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.3))">
-      <path d="M17 43s15-14.2 15-26A15 15 0 0 0 2 17c0 11.8 15 26 15 26z" fill="${colour}" stroke="#fff" stroke-width="2.5"/>
-      <circle cx="17" cy="17" r="6" fill="#fff"/></svg>`,
-    iconSize: [size, size * 1.3],
-    iconAnchor: [size / 2, size * 1.3 - 1],
-  })
-}
-
-const escapeHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))
 
 /**
  * Every project's site on one map. Filter by service, status, project
@@ -102,7 +90,7 @@ export function ProjectsMap() {
     group.clearLayers()
     for (const p of pinned) {
       const marker = L.marker([p.siteCoords!.lat, p.siteCoords!.lng], {
-        icon: pin(colourOf(p, colourBy), p.id === selectedId),
+        icon: pinIcon(colourOf(p, colourBy), p.id === selectedId),
         zIndexOffset: p.id === selectedId ? 1000 : 0,
         title: p.name,
       })

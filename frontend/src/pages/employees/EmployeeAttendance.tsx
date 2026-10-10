@@ -1,17 +1,20 @@
 import { useMemo, useState } from 'react'
 import { useDb } from '../../state/useDb'
-import { formatDuration, formatTime, today } from '../../domain/format'
+import { formatDateLong, formatDuration, formatTime, today } from '../../domain/format'
 import {
   STATUS_CELL, daysOfMonth, indexRegister, indexWorkerReports, isOffDay, resolveDay, totalsFor,
 } from '../../domain/attendance'
 import { ATTENDANCE_STATUSES, type Employee, type ID, type PersonKind } from '../../domain/types'
-import { Section, StatTile } from '../../components/ui'
+import { Badge, Section, StatTile } from '../../components/ui'
 import { Icon } from '../../components/Icon'
-import { AttendanceDayModal } from './AttendanceDayModal'
+import { DayHours, DayStatusButtons } from './AttendanceDayEditor'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-/** One person's month — employee or site worker — with their totals. */
+/**
+ * One person's month — employee or site worker — with their totals. Tapping
+ * a day opens it just under the calendar, where it can be changed in place.
+ */
 export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind; personId: ID; canEdit: boolean }) {
   const db = useDb()
   const [month, setMonth] = useState(() => today().slice(0, 7))
@@ -32,10 +35,11 @@ export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind
     setMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
   }
 
-  const [opened, setOpened] = useState<string | null>(null)
+  const [selected, setSelected] = useState(today)
   const person = kind === 'employee'
     ? db.employees.find((e) => e.id === personId)
     : db.workers.find((w) => w.id === personId)
+  const picked = selected.startsWith(month) ? days.find((d) => d.date === selected) : undefined
 
   const site = (id: ID) => db.projects.find((p) => p.id === id)?.siteLocation ?? ''
 
@@ -52,7 +56,7 @@ export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind
 
       <Section
         title={firstDay.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
-        description={canEdit ? 'Tap a day to set its status, times and overtime. Sundays and holidays are off days.' : 'Tap a day for its times. Sundays and holidays are off days.'}
+        description={canEdit ? 'Tap a day to change it below the calendar. Sundays and holidays are off days.' : 'Tap a day for its times. Sundays and holidays are off days.'}
         actions={
           <div className="flex items-center gap-1">
             <button onClick={() => shiftMonth(-1)} className="btn-icon" aria-label="Previous month"><Icon name="chevron" className="h-4 w-4 rotate-180" /></button>
@@ -70,7 +74,7 @@ export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind
             {days.map(({ date, day }) => {
               const off = isOffDay(date, holidays)
               const future = date > today()
-              const clickable = !future && (canEdit || Boolean(day))
+              const clickable = !future
               const tone = day ? STATUS_CELL[day.status] : off ? 'bg-stone-50 text-stone-300 ring-stone-200' : 'bg-white text-stone-500 ring-stone-200'
               const title = day
                 ? `${day.status}${day.checkIn ? ` · in ${formatTime(day.checkIn)}` : ''}${day.checkOut ? ` · out ${formatTime(day.checkOut)}` : ''}${day.otHours ? ` · OT ${day.otHours}h` : ''}`
@@ -80,11 +84,12 @@ export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind
                   key={date}
                   type="button"
                   disabled={!clickable}
-                  onClick={() => setOpened(date)}
+                  onClick={() => setSelected(date)}
                   title={title}
+                  aria-pressed={date === picked?.date}
                   className={`relative flex min-h-16 flex-col items-start rounded-xl p-1.5 text-left ring-1 ring-inset transition ${tone} ${
                     clickable ? 'hover:brightness-95' : 'cursor-default'
-                  } ${date === today() ? 'outline outline-2 outline-offset-1 outline-brand-500' : ''} ${future ? 'opacity-40' : ''}`}
+                  } ${date === picked?.date ? 'outline outline-2 outline-offset-1 outline-brand-600' : date === today() ? 'outline outline-1 outline-offset-1 outline-brand-300' : ''} ${future ? 'opacity-40' : ''}`}
                 >
                   <span className="text-xs font-semibold tabular-nums">{Number(date.slice(8))}</span>
                   {day?.otHours ? <span className="absolute right-1.5 top-1.5 rounded bg-sky-500 px-1 text-[9px] font-bold text-white">+{day.otHours}h</span> : null}
@@ -103,21 +108,28 @@ export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind
             ))}
           </div>
         </div>
-      </Section>
 
-      {opened && (
-        <AttendanceDayModal
-          key={opened}
-          kind={kind}
-          personId={personId}
-          name={person?.name ?? ''}
-          photo={person?.photo}
-          date={opened}
-          day={resolveDay(kind, personId, opened, register, workerReports)}
-          canEdit={canEdit}
-          onClose={() => setOpened(null)}
-        />
-      )}
+        {picked && (
+          <div className="border-t border-stone-100 bg-stone-50/60 p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-stone-900">{formatDateLong(picked.date)}{picked.date === today() && ' · Today'}</p>
+              {isOffDay(picked.date, holidays) && <Badge tone="stone">Off day</Badge>}
+              {picked.day?.source === 'report' && <Badge tone="stone">from daily report</Badge>}
+              {picked.day && picked.day.projectIds.length > 0 && (
+                <span className="flex items-center gap-1 text-xs text-stone-500">
+                  <Icon name="pin" className="h-3 w-3" /> {picked.day.projectIds.map(site).join(', ')}
+                </span>
+              )}
+            </div>
+            <div className="max-w-xl space-y-3">
+              {canEdit && (
+                <DayStatusButtons labels kind={kind} personId={personId} date={picked.date} day={picked.day} name={person?.name ?? ''} canEdit />
+              )}
+              <DayHours kind={kind} personId={personId} date={picked.date} day={picked.day} name={person?.name ?? ''} canEdit={canEdit} />
+            </div>
+          </div>
+        )}
+      </Section>
     </div>
   )
 }

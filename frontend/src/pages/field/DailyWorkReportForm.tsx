@@ -12,7 +12,7 @@ import { useSession } from '../../state/session'
 import { RepeaterList } from '../../components/RepeaterList'
 import { WorkerPicker } from '../../components/WorkerPicker'
 import { PhotoGrid } from '../../components/PhotoGrid'
-import { ClockToggle, TimeInput } from '../../components/TimeInput'
+import { TimeInput } from '../../components/TimeInput'
 import { Icon } from '../../components/Icon'
 import { directionsUrl } from '../../components/mapLinks'
 import { ProgressBar, SiteName, StatusBadge } from '../../components/ui'
@@ -264,7 +264,7 @@ export function DailyWorkReportForm() {
         />
       </FormSection>
 
-      <FormSection n={2} id="timing" title="Work Timing" done={regularMinutes > 0} aside={<ClockToggle className="shrink-0" />}>
+      <FormSection n={2} id="timing" title="Work Timing" done={regularMinutes > 0}>
         <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
           {([['startTime', 'Work started at'], ['endTime', 'Work ended at']] as const).map(([key, label]) => (
             <div key={key}>

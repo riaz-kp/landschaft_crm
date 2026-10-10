@@ -79,12 +79,12 @@ export const leads: Lead[] = [
 ]
 
 export const siteVisits: SiteVisit[] = [
-  { id: 'sv1', leadId: 'l5', location: 'Alappuzha', date: addDays(today(), 2), time: '10:30', assignedTo: 'e2', teamIds: ['e3', 'e10'], remindDaysBefore: 2, status: 'Scheduled', notes: 'Measure common areas and check soil drainage.' },
-  { id: 'sv2', leadId: 'l6', location: 'Malappuram', date: addDays(today(), 4), time: '14:00', assignedTo: 'e3', teamIds: ['e4'], remindDaysBefore: 1, status: 'Scheduled', notes: 'Client wants a water feature — check water supply.' },
-  { id: 'sv6', clientId: 'c6', location: 'Marine Drive, Kochi', date: addDays(today(), 1), time: '11:00', assignedTo: 'e1', teamIds: ['e2', 'e6'], remindDaysBefore: 1, status: 'Scheduled', notes: 'Walk the podium garden with the association before the AMC proposal.' },
-  { id: 'sv3', leadId: 'l4', location: 'Kollam', date: addDays(today(), -6), time: '11:00', assignedTo: 'e2', teamIds: ['e5'], status: 'Completed', notes: 'Terrace load-bearing confirmed adequate. Quote sent.' },
+  { id: 'sv1', leadId: 'l5', location: 'Alappuzha', coords: { lat: 9.4981, lng: 76.3388 }, date: addDays(today(), 2), time: '10:30', assignedTo: 'e2', teamIds: ['e3', 'e10'], remindDaysBefore: 2, status: 'Scheduled', notes: 'Measure common areas and check soil drainage.' },
+  { id: 'sv2', leadId: 'l6', location: 'Malappuram', coords: { lat: 11.0510, lng: 76.0711 }, date: addDays(today(), 4), time: '14:00', assignedTo: 'e3', teamIds: ['e4'], remindDaysBefore: 1, status: 'Scheduled', notes: 'Client wants a water feature — check water supply.' },
+  { id: 'sv6', clientId: 'c6', location: 'Marine Drive, Kochi', coords: { lat: 9.9816, lng: 76.2756 }, date: addDays(today(), 1), time: '11:00', assignedTo: 'e1', teamIds: ['e2', 'e6'], remindDaysBefore: 1, status: 'Scheduled', notes: 'Walk the podium garden with the association before the AMC proposal.' },
+  { id: 'sv3', leadId: 'l4', location: 'Kollam', coords: { lat: 8.8932, lng: 76.6141 }, date: addDays(today(), -6), time: '11:00', assignedTo: 'e2', teamIds: ['e5'], status: 'Completed', notes: 'Terrace load-bearing confirmed adequate. Quote sent.' },
   { id: 'sv4', clientId: 'c5', location: 'Kozhikode', date: addDays(today(), -2), assignedTo: 'e6', teamIds: ['e7'], status: 'Completed', notes: 'Hardscape area marked out with the association secretary.' },
-  { id: 'sv5', leadId: 'l8', location: 'Varkala', date: addDays(today(), -20), assignedTo: 'e2', status: 'Cancelled', notes: 'Client postponed, later lost.' },
+  { id: 'sv5', leadId: 'l8', location: 'Varkala', coords: { lat: 8.7379, lng: 76.7163 }, date: addDays(today(), -20), assignedTo: 'e2', status: 'Cancelled', notes: 'Client postponed, later lost.' },
 ]
 
 const BOQ_ALL = CHECKLISTS.BOQ.map((i) => i.id)
@@ -636,9 +636,9 @@ function workday(offset: number): string {
 export const consultations: Consultation[] = [
   { id: 'cs1', date: workday(1), start: '10:00', durationMins: 60, purpose: 'Resort pool deck finish and milestone payment', clientId: 'c3', mode: 'Office', bookedBy: 'e7', status: 'Scheduled' },
   { id: 'cs2', date: workday(1), start: '15:00', durationMins: 30, purpose: 'Lakeview Villas — common area proposal walkthrough', leadId: 'l5', mode: 'Video', bookedBy: 'e10', status: 'Scheduled' },
-  { id: 'cs3', date: workday(2), start: '11:30', durationMins: 45, purpose: 'Greenfield delay — recovery plan with the association', clientId: 'c5', mode: 'Site', bookedBy: 'e6', status: 'Scheduled',
+  { id: 'cs3', date: workday(2), start: '11:30', durationMins: 45, purpose: 'Greenfield delay — recovery plan with the association', clientId: 'c5', mode: 'Site', location: 'Greenfield Apartments, Kozhikode', bookedBy: 'e6', status: 'Scheduled',
     postponements: [{ fromDate: workday(1), fromStart: '16:00', toDate: workday(2), toStart: '11:30', reason: 'Association secretary travelling — asked to move it a day', by: 'e6', at: `${addDays(today(), -1)}T10:20` }] },
-  { id: 'cs4', date: workday(3), start: '09:30', durationMins: 30, purpose: 'Pergola material decision', clientId: 'c1', mode: 'Phone', bookedBy: 'e3', status: 'Scheduled' },
+  { id: 'cs4', date: workday(3), start: '09:30', durationMins: 30, purpose: 'Pergola material decision', clientId: 'c1', mode: 'Site', location: 'Kowdiar, Thiruvananthapuram', bookedBy: 'e3', status: 'Scheduled' },
   { id: 'cs5', date: workday(4), start: '16:00', durationMins: 60, purpose: 'Quarterly accounts review', attendee: 'Arshad, Anaswara', mode: 'Office', bookedBy: 'e8', status: 'Scheduled' },
   { id: 'cs6', date: workday(-2), start: '10:30', durationMins: 60, purpose: 'Terrace garden quotation discussion', leadId: 'l4', mode: 'Office', bookedBy: 'e10', status: 'Completed', notes: 'Client wants a revised quote with fewer planters.' },
   { id: 'cs7', date: workday(-5), start: '14:00', durationMins: 30, purpose: 'AMC renewal terms — Sea Breeze Villa', clientId: 'c2', mode: 'Phone', bookedBy: 'e6', status: 'Completed' },
@@ -710,6 +710,7 @@ export const settings: Settings = {
   freeMaintenanceMonths: 1,
   permissions: defaultPermissions(),
   holidays: HOLIDAYS,
+  workHours: { start: '09:00', end: '18:00', halfDayEnd: '13:30' },
   workerSkills: [
     'Carpenter', 'Driver / Helper', 'Electrician', 'Foreman / Hardscape', 'Foreman / Lawn', 'Foreman / Planting',
     'Gardener', 'Helper', 'Lawn Specialist', 'Mason', 'Painter', 'Plumber / Irrigation', 'Tile & Paver Layer',

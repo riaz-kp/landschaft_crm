@@ -53,6 +53,8 @@ export interface Api {
     setPhaseProgress(projectId: ID, phase: string, progress: number): void
     /** Ticks or clears one BOQ / quotation checklist item. */
     setChecklist(projectId: ID, itemId: string, done: boolean, by: ID): void
+    /** Puts these foremen on the site — it appears under My Sites on their phones — and takes the rest off. */
+    setForemen(projectId: ID, foremanIds: ID[]): void
   }
   reports: {
     /** Returns the foreman's existing draft for the site, or creates one. */
@@ -96,6 +98,8 @@ export interface Api {
     setStatus(consultationId: ID, status: ConsultationStatus, notes?: string): void
     /** Moves a consultation to a new slot, keeping a record of where it was. */
     postpone(consultationId: ID, date: string, start: string, reason: string, by: ID): void
+    /** Sets where a site consultation is held, and its pin on the map. */
+    setPlace(consultationId: ID, location?: string, coords?: LatLng): void
   }
   amc: {
     /** Starts a maintenance contract on a project. */

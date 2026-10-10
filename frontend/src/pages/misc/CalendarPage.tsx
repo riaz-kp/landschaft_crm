@@ -212,7 +212,7 @@ export function CalendarPage() {
                   <div className="mt-1 hidden space-y-0.5 sm:block">
                     {events.slice(0, 3).map((e) => (
                       <p key={e.id} className={`truncate rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium ${STYLE[e.type].chip}`} title={e.title}>
-                        {e.time && <span className="tabular-nums">{e.time} </span>}{e.title}
+                        {e.time && <span className="tabular-nums">{formatTime(e.time)} </span>}{e.title}
                       </p>
                     ))}
                     {events.length > 3 && <p className="px-1 text-[10.5px] font-semibold text-stone-500">+{events.length - 3} more</p>}

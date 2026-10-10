@@ -1,6 +1,4 @@
-/** Kerala-based client: DD/MM/YYYY dates and Indian-format rupee amounts. */
-
-import { getClock, type ClockFormat } from '../state/clock'
+/** Kerala-based client: DD/MM/YYYY dates, 12-hour times and Indian-format rupee amounts. */
 
 export function formatDate(iso: string): string {
   if (!iso) return '—'
@@ -51,11 +49,10 @@ export function formatCurrency(amount: number, compact = false): string {
   return '₹' + amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })
 }
 
-/** "14:00" → "02:00 PM", or "14:00" on a device set to the 24-hour clock. */
-export function formatTime(hhmm: string, clock: ClockFormat = getClock()): string {
+/** "14:00" → "02:00 PM". Times are stored as 24-hour HH:mm and always shown on the 12-hour clock. */
+export function formatTime(hhmm: string): string {
   if (!hhmm) return '—'
   const [h, m] = hhmm.split(':').map(Number)
-  if (clock === '24h') return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
   const suffix = h >= 12 ? 'PM' : 'AM'
   const hour = h % 12 === 0 ? 12 : h % 12
   return `${String(hour).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`
@@ -97,4 +94,10 @@ export function whatsappUrl(number: string, text?: string): string {
 export function currentTime(): string {
   const d = new Date()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/** "10:00–11:30 AM", or "11:30 AM–12:30 PM" across noon — compact enough for a diary block. */
+export function timeRange(start: string, end: string): string {
+  const [s, e] = [formatTime(start), formatTime(end)]
+  return s.slice(-2) === e.slice(-2) ? `${s.slice(0, -3)}–${e}` : `${s}–${e}`
 }

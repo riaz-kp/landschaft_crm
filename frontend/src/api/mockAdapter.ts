@@ -97,6 +97,15 @@ export const adapter: Api = {
       })
     },
 
+    setForemen(projectId, foremanIds) {
+      store.update((db) => {
+        db.siteAssignments = [
+          ...db.siteAssignments.filter((a) => a.projectId !== projectId),
+          ...[...new Set(foremanIds)].map((foremanId) => ({ foremanId, projectId })),
+        ]
+      })
+    },
+
     setPhaseProgress(projectId, phaseKey, progress) {
       store.update((db) => {
         const project = db.projects.find((p) => p.id === projectId)
@@ -431,16 +440,25 @@ export const adapter: Api = {
         }
         const existing = index >= 0 ? db.attendance[index] : undefined
         const status = patch.status ?? existing?.status ?? 'Present'
-        const working = status === 'Present' || status === 'Half Day'
+        const working = (s?: string) => s === 'Present' || s === 'Half Day'
         // A field named in the patch wins even when it is empty, so a time or overtime can be cleared.
         const pick = <K extends 'checkIn' | 'checkOut' | 'otHours'>(key: K) =>
           key in patch ? patch[key] || undefined : existing?.[key]
+
+        // Someone newly marked in gets the working hours from Settings. Switching between a
+        // full and a half day moves a time out that was still the default along with it.
+        const hours = db.settings.workHours
+        const defaultOut = status === 'Half Day' ? hours.halfDayEnd : hours.end
+        const otherOut = status === 'Half Day' ? hours.end : hours.halfDayEnd
+        const wasWorking = working(existing?.status)
+        const keptOut = existing?.checkOut === otherOut ? defaultOut : existing?.checkOut
+
         const entry = {
           kind, personId, date, status,
-          // Marking someone in notes the time as their time in; leave and absence clear the times.
-          checkIn: working ? ('checkIn' in patch ? pick('checkIn') : existing?.checkIn ?? (date === today() ? nowTime() : '09:00')) : undefined,
-          checkOut: working ? pick('checkOut') : undefined,
-          otHours: working ? pick('otHours') : undefined,
+          // Leave and absence clear the times.
+          checkIn: working(status) ? ('checkIn' in patch ? pick('checkIn') : wasWorking ? existing?.checkIn : hours.start) : undefined,
+          checkOut: working(status) ? ('checkOut' in patch ? pick('checkOut') : wasWorking ? keptOut : defaultOut) : undefined,
+          otHours: working(status) ? pick('otHours') : undefined,
         }
         if (index >= 0) db.attendance[index] = entry
         else db.attendance.push(entry)
@@ -469,6 +487,9 @@ export const adapter: Api = {
         record.status = status
         if (notes !== undefined) record.notes = notes
       })
+    },
+    setPlace(consultationId, location, coords) {
+      store.update((db) => patchIn(db.consultations, consultationId, { location, coords }))
     },
     postpone(consultationId, date, start, reason, by) {
       store.update((db) => {

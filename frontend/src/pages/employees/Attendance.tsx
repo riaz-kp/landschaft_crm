@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
 import { titleOf } from '../../domain/roles'
-import { currentTime, formatDate, formatDateLong, formatDuration, formatTime, minutesBetween, today } from '../../domain/format'
+import { formatDate, formatDateLong, formatTime, today } from '../../domain/format'
 import {
   STATUS_CELL, STATUS_CODE, daysOfMonth, indexRegister, indexWorkerReports, isOffDay,
   resolveDay, totalsFor, type ResolvedDay,
@@ -14,8 +14,7 @@ import {
 } from '../../domain/types'
 import { PageHeader, Section, StatTile, Avatar, Pills, SearchInput, Badge, EmptyState } from '../../components/ui'
 import { Icon } from '../../components/Icon'
-import { ClockToggle } from '../../components/TimeInput'
-import { AttendanceDayModal } from './AttendanceDayModal'
+import { DayHours, DayStatusButtons } from './AttendanceDayEditor'
 
 interface Person {
   kind: PersonKind
@@ -38,21 +37,14 @@ function shiftMonth(month: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-/**
- * A day taken from a daily report has no register entry yet. When it is
- * corrected, carry its times across so they are not replaced by defaults.
- */
-function fromReport(day?: ResolvedDay) {
-  return day?.source === 'report'
-    ? { status: day.status, checkIn: day.checkIn, checkOut: day.checkOut, otHours: day.otHours }
-    : {}
-}
+const cardId = (p: Pick<Person, 'kind' | 'id'>) => `att-${p.kind}-${p.id}`
 
 /**
  * The attendance register for the whole company — office staff and site
- * workers on one page. Mark the day at the top; the month grid below shows
- * everyone's month with totals. Workers' days fill in from the foremen's
- * daily reports, and can be corrected here. Any day opens in an editor.
+ * workers on one page. Mark the day at the top, typing times straight into
+ * each card; the month grid below shows everyone's month with totals.
+ * Workers' days fill in from the foremen's daily reports, and can be
+ * corrected here.
  */
 export function Attendance() {
   const db = useDb()
@@ -64,7 +56,8 @@ export function Attendance() {
   const [query, setQuery] = useState('')
   const [date, setDate] = useState(today())
   const [month, setMonth] = useState(() => today().slice(0, 7))
-  const [editing, setEditing] = useState<{ person: Person; date: string } | null>(null)
+  // A card picked from the month grid is scrolled to and outlined for a moment.
+  const [focus, setFocus] = useState<string | null>(null)
 
   const register = useMemo(() => indexRegister(db.attendance), [db.attendance])
   const workerReports = useMemo(() => indexWorkerReports(db.reports), [db.reports])
@@ -92,14 +85,21 @@ export function Attendance() {
   const unmarked = todays.filter((t) => !t.day)
 
   const projectName = (id: ID) => db.projects.find((p) => p.id === id)?.siteLocation ?? ''
-  const open = (person: Person, d: string) => setEditing({ person, date: d })
+  const { start, end } = db.settings.workHours
+  const open = (person: Person, d: string) => { setDate(d); setFocus(cardId(person)) }
+
+  useEffect(() => {
+    if (!focus) return
+    document.getElementById(focus)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const done = setTimeout(() => setFocus(null), 2500)
+    return () => clearTimeout(done)
+  }, [focus, date])
 
   return (
     <div>
       <PageHeader
         title="Attendance"
-        subtitle="Daily register for employees and execution workers — status, time in and out, and overtime. Workers fill in automatically from the foremen's daily reports. Tap anyone's day to edit it."
-        actions={<ClockToggle />}
+        subtitle="Daily register for employees and execution workers — status, time in and out, and overtime. Workers fill in automatically from the foremen's daily reports."
       />
 
       {/* Filters */}
@@ -174,17 +174,17 @@ export function Attendance() {
           <div className="grid gap-3 bg-stone-50/60 p-3 sm:p-4 md:grid-cols-2 2xl:grid-cols-3">
             {todays.map(({ person, day }) => (
               <RegisterCard
-                key={`${person.kind}-${person.id}`}
+                key={cardId(person)}
                 person={person} date={date} day={day} canEdit={canEdit}
                 sites={day?.projectIds.map(projectName) ?? []}
-                onOpen={() => open(person, date)}
+                focused={focus === cardId(person)}
               />
             ))}
           </div>
         )}
         <p className="border-t border-stone-100 px-5 py-3 text-xs text-stone-400">
-          Tap a letter to set the status quickly — tap it again to clear. Tap the hours to edit time in, time out and
-          overtime. Marking someone present notes the current time as their time in.
+          Tap P, H, L or A to set the day — tap it again to clear. Marking someone present fills in the working hours
+          from Settings ({formatTime(start)} – {formatTime(end)}); change the time in, time out or overtime right on the card.
         </p>
       </Section>
 
@@ -192,20 +192,6 @@ export function Attendance() {
         people={shown} month={month} setMonth={setMonth} canEdit={canEdit}
         dayOf={dayOf} holidays={holidays} onOpen={open}
       />
-
-      {editing && (
-        <AttendanceDayModal
-          key={`${editing.person.kind}-${editing.person.id}-${editing.date}`}
-          kind={editing.person.kind}
-          personId={editing.person.id}
-          name={editing.person.name}
-          photo={editing.person.photo}
-          date={editing.date}
-          day={dayOf(editing.person, editing.date)}
-          canEdit={canEdit && editing.date <= today()}
-          onClose={() => setEditing(null)}
-        />
-      )}
     </div>
   )
 }
@@ -213,16 +199,18 @@ export function Attendance() {
 // ---------------------------------------------------------------- one person, one day
 
 function RegisterCard({
-  person, date, day, canEdit, sites, onOpen,
-}: { person: Person; date: string; day?: ResolvedDay; canEdit: boolean; sites: string[]; onOpen: () => void }) {
-  const working = day?.status === 'Present' || day?.status === 'Half Day'
-  const set = (patch: Parameters<typeof api.attendance.set>[3]) => api.attendance.set(person.kind, person.id, date, patch)
-  const hours = working && day?.checkIn && day.checkOut ? formatDuration(minutesBetween(day.checkIn, day.checkOut)) : null
-  const canClockOut = canEdit && working && date === today() && !day?.checkOut
+  person, date, day, canEdit, sites, focused,
+}: { person: Person; date: string; day?: ResolvedDay; canEdit: boolean; sites: string[]; focused: boolean }) {
+  const ref = { kind: person.kind, personId: person.id, date, day, name: person.name, canEdit }
 
   return (
-    <div className={`rounded-2xl border p-3.5 shadow-sm transition ${day ? 'border-stone-200 bg-white' : 'border-dashed border-amber-300 bg-amber-50/40'}`}>
-      <div className="flex items-start justify-between gap-3">
+    <div
+      id={cardId(person)}
+      className={`rounded-2xl border p-3.5 shadow-sm transition ${day ? 'border-stone-200 bg-white' : 'border-dashed border-amber-300 bg-amber-50/40'} ${
+        focused ? 'ring-4 ring-brand-500/30' : ''
+      }`}
+    >
+      <div className="mb-3 flex items-start justify-between gap-3">
         <Link to={person.to} className="flex min-w-0 items-center gap-2.5">
           <Avatar name={person.name} size="sm" src={person.photo} />
           <span className="min-w-0">
@@ -230,79 +218,18 @@ function RegisterCard({
             <span className="block truncate text-xs text-stone-500">{person.sub}</span>
           </span>
         </Link>
-        <div className="flex shrink-0 gap-1">
-          {ATTENDANCE_STATUSES.map((s) => {
-            const on = day?.status === s
-            return (
-              <button
-                key={s}
-                type="button"
-                disabled={!canEdit}
-                onClick={() => set(on ? null : { ...fromReport(day), status: s })}
-                title={s}
-                aria-label={`${s} — ${person.name}`}
-                aria-pressed={on}
-                className={`h-8 w-8 rounded-lg text-xs font-bold ring-1 ring-inset transition ${
-                  on ? STATUS_CELL[s] : 'bg-white text-stone-400 ring-stone-200 hover:text-stone-700 hover:ring-stone-300'
-                } disabled:cursor-default`}
-              >
-                {STATUS_CODE[s]}
-              </button>
-            )
-          })}
-        </div>
+        <DayStatusButtons {...ref} />
       </div>
 
-      <button
-        type="button"
-        onClick={onOpen}
-        className="mt-3 flex w-full items-center gap-3 rounded-xl bg-stone-50 px-3 py-2 text-left ring-1 ring-inset ring-stone-200/70 transition hover:bg-brand-50/60 hover:ring-brand-200"
-        aria-label={`${canEdit ? 'Edit' : 'View'} ${person.name}'s day`}
-      >
-        {working ? (
-          <span className="grid flex-1 grid-cols-3 gap-2 text-xs">
-            <TimeCell label="In" value={day?.checkIn ? formatTime(day.checkIn) : '—'} />
-            <TimeCell label="Out" value={day?.checkOut ? formatTime(day.checkOut) : '—'} muted={!day?.checkOut} />
-            <TimeCell label="OT" value={day?.otHours ? `${day.otHours}h` : '—'} muted={!day?.otHours} />
-          </span>
-        ) : (
-          <span className="flex-1 text-xs text-stone-500">
-            {day ? `${day.status} — no hours to record` : 'Not marked yet'}
-          </span>
-        )}
-        {canEdit && (
-          <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-700">
-            <Icon name="edit" className="h-3.5 w-3.5" /> Edit
-          </span>
-        )}
-      </button>
+      <DayHours {...ref} />
 
-      {(canClockOut || day?.source === 'report' || sites.length > 0 || hours) && (
+      {(day?.source === 'report' || sites.length > 0) && (
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] text-stone-500">
-          {hours && <span className="tabular-nums">{hours} worked</span>}
           {sites.length > 0 && <span className="flex items-center gap-1"><Icon name="pin" className="h-3 w-3" /> {sites.join(', ')}</span>}
           {day?.source === 'report' && <Badge tone="stone">from daily report</Badge>}
-          {canClockOut && (
-            <button
-              type="button"
-              onClick={() => set({ ...fromReport(day), checkOut: currentTime() })}
-              className="ml-auto rounded-lg bg-brand-50 px-2 py-1 font-semibold text-brand-700 hover:bg-brand-100"
-            >
-              Time out now
-            </button>
-          )}
         </div>
       )}
     </div>
-  )
-}
-
-function TimeCell({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <span className="min-w-0">
-      <span className="block text-[10px] font-bold uppercase tracking-wider text-stone-400">{label}</span>
-      <span className={`block truncate font-semibold tabular-nums ${muted ? 'text-stone-400' : 'text-stone-800'}`}>{value}</span>
-    </span>
   )
 }
 
@@ -451,8 +378,8 @@ function MonthRegister({
         </p>
         <p>
           {canEdit
-            ? 'Click any day to set its status, times and overtime. Click a date at the top to make it an off day for everyone, such as a holiday.'
-            : 'Click any day to see its times and overtime.'}
+            ? 'Click any day to open it in the register above, where its status, times and overtime can be changed. Click a date at the top to make it an off day for everyone, such as a holiday.'
+            : 'Click any day to open it in the register above.'}
         </p>
       </div>
     </Section>
