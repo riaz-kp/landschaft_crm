@@ -597,6 +597,11 @@ export interface Settings {
   permissions: PermissionMatrix
   /** Company-wide off days (holidays) on top of Sundays. */
   holidays: string[]
+  /**
+   * Trades offered when adding a site worker. Grows when someone adds a new
+   * skill from the worker form, and is tidied up from Settings.
+   */
+  workerSkills: string[]
 }
 
 // ---------------------------------------------------------------- permissions

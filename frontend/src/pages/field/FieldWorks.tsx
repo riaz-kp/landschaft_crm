@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatDate, formatDateLong, formatDuration, formatTime, minutesBetween, today } from '../../domain/format'
@@ -8,13 +8,42 @@ import { Icon } from '../../components/Icon'
 import { PhotoGrid } from '../../components/PhotoGrid'
 import { RepeaterView } from '../../components/RepeaterList'
 import { FieldCard } from '../../shells/FieldShell'
+import { FieldCrewList } from './FieldWorkers'
 
 function monthName(month: string) {
   return new Date(month + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
 }
 
-/** The foreman's own past daily reports — every site, every day they filed. */
+/** The foreman's past work: their daily reports, and the workers who were on them. */
 export function FieldWorks() {
+  const [params, setParams] = useSearchParams()
+  const view = params.get('view') === 'workers' ? 'workers' : 'reports'
+
+  return (
+    <div>
+      <h1 className="text-xl font-bold text-stone-900">My Past Works</h1>
+      <p className="mt-1 text-sm text-stone-500">
+        {view === 'reports' ? 'Every daily report you have filed, by month.' : 'Everyone who has worked under you, and the days they were on site.'}
+      </p>
+      <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-stone-200/60 p-1">
+        {([['reports', 'Reports', 'doc'], ['workers', 'My workers', 'users']] as const).map(([key, label, icon]) => (
+          <button
+            key={key}
+            onClick={() => setParams(key === 'reports' ? {} : { view: key }, { replace: true })}
+            className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition ${
+              view === key ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500'
+            }`}
+          >
+            <Icon name={icon} className="h-4 w-4" /> {label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-4">{view === 'reports' ? <ReportList /> : <FieldCrewList />}</div>
+    </div>
+  )
+}
+
+function ReportList() {
   const db = useDb()
   const { user } = useSession()
   const navigate = useNavigate()
@@ -35,10 +64,7 @@ export function FieldWorks() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-stone-900">My Past Works</h1>
-      <p className="mt-1 text-sm text-stone-500">Every daily report you have filed, by month.</p>
-
-      <div className="mt-4 flex gap-2">
+      <div className="flex gap-2">
         <select className="input flex-1" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
           {(months.length ? months : [month]).map((m) => <option key={m} value={m}>{monthName(m)}</option>)}
         </select>
@@ -152,7 +178,7 @@ export function FieldReportView() {
         <ul className="divide-y divide-stone-100">
           {present.map((a) => (
             <li key={a.workerId} className="flex items-center justify-between py-1.5 text-sm">
-              <span className="text-stone-800">{workerName(a.workerId)}</span>
+              <Link to={`/field/workers/${a.workerId}`} className="font-medium text-stone-800 hover:text-brand-700">{workerName(a.workerId)}</Link>
               <span className="tabular-nums text-stone-500">{formatTime(a.checkIn || report.startTime)} – {formatTime(a.checkOut || report.endTime)}</span>
             </li>
           ))}

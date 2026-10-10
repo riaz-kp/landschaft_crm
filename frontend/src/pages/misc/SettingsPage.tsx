@@ -8,6 +8,7 @@ import {
   PageHeader, Section, Field, Checkbox, Badge, ProgressBar,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { workerSkills } from '../../domain/workers'
 
 /** Presets the client mentioned by name in the structure document. */
 const SPLIT_PRESETS: { label: string; split: Settings['designPaymentSplit'] }[] = [
@@ -37,13 +38,14 @@ export function SettingsPage() {
 
   const save = () => {
     if (!valid) return
-    // Holidays are marked from the attendance register, so keep whatever is stored now.
-    api.settings.save({ ...draft, holidays: db.settings.holidays })
+    // Holidays are marked from the attendance register and skills are saved as
+    // they are edited, so keep whatever is stored now for both.
+    api.settings.save({ ...draft, holidays: db.settings.holidays, workerSkills: db.settings.workerSkills })
     setSaved(true)
   }
 
-  const { holidays: _a, ...draftRest } = draft
-  const { holidays: _b, ...storedRest } = db.settings
+  const { holidays: _a, workerSkills: _c, ...draftRest } = draft
+  const { holidays: _b, workerSkills: _d, ...storedRest } = db.settings
   const dirty = JSON.stringify(draftRest) !== JSON.stringify(storedRest)
 
   return (
@@ -215,6 +217,8 @@ export function SettingsPage() {
         </div>
       </Section>
 
+      <WorkerSkills editable={editable || can('Employees', 'edit')} />
+
       <Section title="Maintenance" className="mb-6">
         <div className="px-5 py-5">
           <Field label="Free maintenance period" hint="Runs from handover, before any AMC begins.">
@@ -269,5 +273,88 @@ export function SettingsPage() {
         </div>
       </Section>
     </div>
+  )
+}
+
+/**
+ * The skills offered when adding a site worker. New ones also arrive from the
+ * worker form; here they can be renamed (every worker with it follows) or
+ * removed once nobody has them. Changes save straight away.
+ */
+function WorkerSkills({ editable }: { editable: boolean }) {
+  const db = useDb()
+  const [adding, setAdding] = useState('')
+  const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null)
+  const skills = workerSkills(db)
+  const count = (skill: string) => db.workers.filter((w) => w.skill === skill).length
+
+  const add = () => {
+    if (!adding.trim()) return
+    api.workers.addSkill(adding)
+    setAdding('')
+  }
+
+  return (
+    <Section
+      title="Worker Skills"
+      description="Trades offered when adding an execution worker. Skills added from the worker form appear here too."
+      className="mb-6"
+    >
+      <div className="space-y-4 px-5 py-5">
+        <div className="flex flex-wrap gap-2">
+          {skills.map((skill) => {
+            const n = count(skill)
+            if (renaming?.from === skill) {
+              return (
+                <form
+                  key={skill}
+                  onSubmit={(e) => { e.preventDefault(); api.workers.renameSkill(skill, renaming.to); setRenaming(null) }}
+                  className="flex items-center gap-1"
+                >
+                  <input
+                    autoFocus
+                    className="input w-44 py-1 text-sm"
+                    value={renaming.to}
+                    onChange={(e) => setRenaming({ from: skill, to: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null) }}
+                    aria-label={`New name for ${skill}`}
+                  />
+                  <button type="submit" className="btn-icon text-brand-700" aria-label="Save name"><Icon name="check" className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => setRenaming(null)} className="btn-icon" aria-label="Cancel"><Icon name="x" className="h-4 w-4" /></button>
+                </form>
+              )
+            }
+            return (
+              <span key={skill} className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white py-1 pl-3 pr-1 text-sm text-stone-700">
+                {skill}
+                <span className="rounded-full bg-stone-100 px-1.5 text-[11px] tabular-nums text-stone-500" title={`${n} worker${n === 1 ? '' : 's'}`}>{n}</span>
+                {editable && (
+                  <>
+                    <button onClick={() => setRenaming({ from: skill, to: skill })} className="btn-icon h-6 w-6" aria-label={`Rename ${skill}`} title="Rename">
+                      <Icon name="edit" className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => api.workers.removeSkill(skill)}
+                      disabled={n > 0}
+                      className="btn-icon h-6 w-6 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-stone-500"
+                      aria-label={`Remove ${skill}`}
+                      title={n > 0 ? 'In use — rename it, or change those workers first' : 'Remove'}
+                    >
+                      <Icon name="x" className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+              </span>
+            )
+          })}
+        </div>
+        {editable && (
+          <form onSubmit={(e) => { e.preventDefault(); add() }} className="flex max-w-md gap-2">
+            <input className="input" value={adding} onChange={(e) => setAdding(e.target.value)} placeholder="New skill, e.g. Stone Carver" aria-label="New skill" />
+            <button type="submit" disabled={!adding.trim()} className="btn-secondary shrink-0"><Icon name="plus" className="h-4 w-4" /> Add</button>
+          </form>
+        )}
+      </div>
+    </Section>
   )
 }

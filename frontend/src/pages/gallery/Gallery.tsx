@@ -6,6 +6,8 @@ import { PHOTO_SESSIONS, type DailyWorkReport, type ID, type PhotoSession, type 
 import { PageHeader, Section, EmptyState, StatTile, SiteName, Badge } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { Lightbox } from '../../components/Lightbox'
+import { SearchSelect } from '../../components/SearchSelect'
+import { projectOptions } from '../../components/pickerOptions'
 
 type DateMode = 'day' | 'week' | 'month' | 'range' | 'all'
 
@@ -88,12 +90,12 @@ export function PhotoGallery({ projectId: fixedProject }: { projectId?: ID }) {
       {/* Filters */}
       <div className="card mb-5 space-y-3 p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl bg-stone-100 p-1">
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-stone-100 p-1 sm:flex">
             {MODES.map((m) => (
               <button
                 key={m.key}
                 onClick={() => setMode(m.key)}
-                className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${mode === m.key ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+                className={`rounded-lg px-2 py-1.5 text-[13px] font-medium transition sm:shrink-0 sm:px-3 sm:text-sm ${mode === m.key ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
               >
                 {m.label}
               </button>
@@ -113,10 +115,17 @@ export function PhotoGallery({ projectId: fixedProject }: { projectId?: ID }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!fixedProject && (
-            <select className="input w-full py-1.5 sm:w-72" value={projectId} onChange={(e) => setProjectId(e.target.value)} aria-label="Project">
-              <option value="">All projects</option>
-              {executionProjects.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.siteLocation}</option>)}
-            </select>
+            <div className="w-full sm:w-72">
+              <SearchSelect
+                size="sm"
+                value={projectId}
+                onChange={setProjectId}
+                options={projectOptions(db, executionProjects)}
+                emptyOption="All projects"
+                searchPlaceholder="Search projects"
+                ariaLabel="Project"
+              />
+            </div>
           )}
           {mode === 'day' && (
             <div className="flex items-center gap-1">

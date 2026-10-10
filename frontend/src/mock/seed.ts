@@ -709,6 +709,11 @@ export const settings: Settings = {
   freeMaintenanceMonths: 1,
   permissions: defaultPermissions(),
   holidays: HOLIDAYS,
+  workerSkills: [
+    'Carpenter', 'Driver / Helper', 'Electrician', 'Foreman / Hardscape', 'Foreman / Lawn', 'Foreman / Planting',
+    'Gardener', 'Helper', 'Lawn Specialist', 'Mason', 'Painter', 'Plumber / Irrigation', 'Tile & Paver Layer',
+    'Welder / Fabricator',
+  ],
 }
 
 /** Counters shown on the execution dashboard, per the document's example. */

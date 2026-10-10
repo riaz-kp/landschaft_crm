@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
@@ -14,6 +14,7 @@ import { resizeImage } from '../../components/imageResize'
 import { PersonAttendance } from './EmployeeAttendance'
 import { WorkerFormModal } from './WorkerForm'
 import { PersonPayments } from './PersonPayments'
+import { foremenOf } from '../../domain/workers'
 
 type Tab = 'overview' | 'attendance' | 'payments' | 'history' | 'amc'
 
@@ -32,7 +33,10 @@ export function WorkerDetail() {
   const db = useDb()
   const { can } = usePermissions()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>('overview')
+  const [params] = useSearchParams()
+  // ?foreman= opens the work history filtered to one foreman.
+  const [foremanFilter, setForemanFilter] = useState(params.get('foreman') ?? '')
+  const [tab, setTab] = useState<Tab>(params.get('foreman') ? 'history' : 'overview')
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const photoRef = useRef<HTMLInputElement>(null)
@@ -63,6 +67,10 @@ export function WorkerDetail() {
   const siteDays = new Map<string, number>()
   for (const r of reports.filter((r) => r.date >= since)) siteDays.set(r.projectId, (siteDays.get(r.projectId) ?? 0) + 1)
   const sites = [...siteDays.entries()].sort((a, b) => b[1] - a[1])
+
+  const foremen = foremenOf(db.reports, worker.id)
+  const history = foremanFilter ? reports.filter((r) => r.foremanId === foremanFilter) : reports
+  const showHistoryFor = (foremanId: string) => { setForemanFilter(foremanId); setTab('history') }
 
   const totalKm = reports.reduce((s, r) => s + (r.ta.find((t) => t.workerId === worker.id)?.distanceKm ?? 0), 0)
   const project = (id: string) => db.projects.find((p) => p.id === id)
@@ -156,7 +164,7 @@ export function WorkerDetail() {
           { key: 'overview', label: 'Overview' },
           { key: 'attendance', label: 'Attendance' },
           ...(can('Accounts', 'view') || canEdit ? [{ key: 'payments' as Tab, label: 'Wages' }] : []),
-          { key: 'history', label: 'Work History', count: reports.length },
+          { key: 'history', label: 'Work History', count: history.length },
           { key: 'amc', label: 'AMC Visits', count: amcVisits.length },
         ]}
       />
@@ -173,7 +181,29 @@ export function WorkerDetail() {
             />
             <StatTile label="TA Distance" value={`${totalKm} km`} sub="across all reports" icon="map" />
           </div>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-2 2xl:grid-cols-3">
+            <Section title="Worked Under" description="The foremen whose reports this worker is on.">
+              {foremen.length === 0 ? <EmptyState title="Not on any foreman’s report yet." icon="users" /> : (
+                <ul className="divide-y divide-stone-100">
+                  {foremen.map((f) => {
+                    const person = db.employees.find((e) => e.id === f.foremanId)
+                    return (
+                      <li key={f.foremanId} className="flex items-center gap-3 px-5 py-3">
+                        <Avatar name={person?.name ?? '?'} size="sm" src={person?.photo} />
+                        <span className="min-w-0 flex-1">
+                          <Link to={`/employees/${f.foremanId}`} className="block truncate text-sm font-medium text-stone-800 hover:text-brand-700">{person?.name ?? 'Former foreman'}</Link>
+                          <span className="block text-xs text-stone-400">Last {formatDate(f.lastDate)}</span>
+                        </span>
+                        <button onClick={() => showHistoryFor(f.foremanId)} className="shrink-0 text-right" title="Show these reports">
+                          <Badge tone="green">{f.days} day{f.days === 1 ? '' : 's'}</Badge>
+                          <span className="mt-0.5 block text-[11px] font-semibold text-brand-700">Reports</span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </Section>
             <Section title="Sites — last 30 days">
               {sites.length === 0 ? <EmptyState title="Not on any site report in the last 30 days." icon="pin" /> : (
                 <ul className="divide-y divide-stone-100">
@@ -214,10 +244,21 @@ export function WorkerDetail() {
       {tab === 'payments' && <PersonPayments kind="worker" personId={worker.id} dailyWage={worker.dailyWage} canManage={can('Accounts', 'create') || canEdit} />}
 
       {tab === 'history' && (
-        <Section title="Work History" description="Every daily report this worker appears on.">
-          {reports.length === 0 ? <EmptyState title="No reports yet." icon="doc" /> : (
+        <Section
+          title="Work History"
+          description={foremanFilter
+            ? `Reports where this worker was under ${foreman(foremanFilter)}.`
+            : 'Every daily report this worker appears on.'}
+          actions={foremen.length > 1 && (
+            <select className="input w-full py-1.5 sm:w-56" value={foremanFilter} onChange={(e) => setForemanFilter(e.target.value)} aria-label="Foreman">
+              <option value="">All foremen</option>
+              {foremen.map((f) => <option key={f.foremanId} value={f.foremanId}>{foreman(f.foremanId)} · {f.days} day{f.days === 1 ? '' : 's'}</option>)}
+            </select>
+          )}
+        >
+          {history.length === 0 ? <EmptyState title="No reports yet." icon="doc" /> : (
             <Table head={['Date', 'Site', 'Foreman', 'In', 'Out', 'Work Done', 'TA', 'Report']}>
-              {reports.map((r) => {
+              {history.map((r) => {
                 const entry = r.attendance.find((a) => a.workerId === worker.id)
                 const km = r.ta.find((t) => t.workerId === worker.id)?.distanceKm
                 return (

@@ -51,6 +51,9 @@ const PATHS: Record<string, string> = {
   home: 'M3 10l9-7 9 7v10a2 2 0 01-2 2h-4v-7H9v7H5a2 2 0 01-2-2z',
   repeat: 'M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3',
   bell: 'M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0',
+  arrowUp: 'M12 19V5M5 12l7-7 7 7',
+  arrowDown: 'M12 5v14M19 12l-7 7-7-7',
+  sort: 'M3 6h13M3 12h9M3 18h5M17 10V20M21 16l-4 4-4-4',
 }
 
 export function Icon({ name, className = 'h-5 w-5' }: { name: string; className?: string }) {

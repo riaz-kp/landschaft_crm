@@ -43,6 +43,7 @@ import { MySites } from './pages/field/MySites'
 import { DailyWorkReportForm } from './pages/field/DailyWorkReportForm'
 import { Submitted } from './pages/field/Submitted'
 import { FieldReportView, FieldWorks } from './pages/field/FieldWorks'
+import { FieldWorkerView } from './pages/field/FieldWorkers'
 import { FieldAttendance, FieldChat, FieldPay, FieldProfile } from './pages/field/FieldMe'
 
 /** Foremen are confined to the field app; everyone else is kept out of it. */
@@ -66,6 +67,7 @@ export function App() {
           <Route path="submitted/:reportId" element={<Submitted />} />
           <Route path="works" element={<FieldWorks />} />
           <Route path="works/:reportId" element={<FieldReportView />} />
+          <Route path="workers/:workerId" element={<FieldWorkerView />} />
           <Route path="attendance" element={<FieldAttendance />} />
           <Route path="pay" element={<FieldPay />} />
           <Route path="profile" element={<FieldProfile />} />

@@ -11,6 +11,8 @@ import {
   SearchInput, StatTile,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { SearchSelect } from '../../components/SearchSelect'
+import { employeeOptions, projectOptions } from '../../components/pickerOptions'
 import { TASK_PRIORITIES, TASK_STATUSES, TaskFormModal } from './TaskForm'
 
 // ---------------------------------------------------------------- time filter
@@ -23,7 +25,7 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: 'week', label: 'This week' },
   { key: 'month', label: 'This month' },
   { key: 'overdue', label: 'Overdue' },
-  { key: 'custom', label: 'Custom range' },
+  { key: 'custom', label: 'Custom' },
 ]
 
 /** Monday-to-Sunday range containing `iso`. */
@@ -57,6 +59,88 @@ function periodRange(f: Filters): [string, string] | undefined {
   }
 }
 
+// ---------------------------------------------------------------- sorting
+
+export type SortKey = 'due' | 'priority' | 'project' | 'title' | 'status' | 'assignee'
+export interface Sort { key: SortKey; dir: 'asc' | 'desc' }
+
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: 'due', label: 'Due date' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'project', label: 'Project' },
+  { key: 'title', label: 'Title' },
+  { key: 'status', label: 'Status' },
+  { key: 'assignee', label: 'Assignee' },
+]
+
+const DEFAULT_SORT: Sort = { key: 'due', dir: 'asc' }
+const PRIORITY_RANK: Record<string, number> = { High: 0, Medium: 1, Low: 2 }
+const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true })
+
+/**
+ * Sorts a copy of the list. Ties fall back to the due date. Sorting by due
+ * date keeps finished tasks at the bottom, as the list always has.
+ */
+function sortTasks(tasks: Task[], sort: Sort, name: { project: (id: string) => string; person: (id: string) => string }): Task[] {
+  const byDue = (a: Task, b: Task) => a.dueDate.localeCompare(b.dueDate)
+  const compare: Record<SortKey, (a: Task, b: Task) => number> = {
+    due: byDue,
+    priority: (a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority],
+    project: (a, b) => collator.compare(name.project(a.projectId), name.project(b.projectId)),
+    title: (a, b) => collator.compare(a.title, b.title),
+    status: (a, b) => TASK_STATUSES.indexOf(a.status) - TASK_STATUSES.indexOf(b.status),
+    assignee: (a, b) => collator.compare(name.person(a.assigneeId), name.person(b.assigneeId)),
+  }
+  const sign = sort.dir === 'asc' ? 1 : -1
+  return [...tasks].sort((a, b) => {
+    if (sort.key === 'due' && (a.status === 'Done') !== (b.status === 'Done')) return a.status === 'Done' ? 1 : -1
+    return sign * compare[sort.key](a, b) || byDue(a, b)
+  })
+}
+
+/** Sort picker with an ascending / descending toggle. */
+function SortControl({ sort, setSort, keys }: { sort: Sort; setSort: (s: Sort) => void; keys: SortKey[] }) {
+  return (
+    <div className="flex min-w-0 gap-1">
+      <label className="relative min-w-0 flex-1">
+        <Icon name="sort" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+        <select
+          className="input py-1.5 pl-8 sm:w-40"
+          value={sort.key}
+          onChange={(e) => setSort({ key: e.target.value as SortKey, dir: sort.dir })}
+          aria-label="Sort by"
+        >
+          {SORTS.filter((s) => keys.includes(s.key)).map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+        </select>
+      </label>
+      <button
+        type="button"
+        onClick={() => setSort({ ...sort, dir: sort.dir === 'asc' ? 'desc' : 'asc' })}
+        className="btn-secondary shrink-0 px-2.5 py-1.5"
+        title={sort.dir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
+        aria-label={sort.dir === 'asc' ? 'Sorted ascending' : 'Sorted descending'}
+      >
+        <Icon name={sort.dir === 'asc' ? 'arrowUp' : 'arrowDown'} className="h-4 w-4" />
+      </button>
+    </div>
+  )
+}
+
+/** A table heading that sorts the list by its column. */
+function SortHeader({ label, k, sort, setSort }: { label: string; k: SortKey; sort: Sort; setSort: (s: Sort) => void }) {
+  const on = sort.key === k
+  return (
+    <button
+      type="button"
+      onClick={() => setSort({ key: k, dir: on && sort.dir === 'asc' ? 'desc' : 'asc' })}
+      className={`-mx-1 inline-flex items-center gap-1 rounded px-1 uppercase tracking-wider hover:text-stone-800 ${on ? 'text-brand-700' : ''}`}
+    >
+      {label}
+      {on && <Icon name={sort.dir === 'asc' ? 'arrowUp' : 'arrowDown'} className="h-3 w-3" />}
+    </button>
+  )
+}
+
 function applyFilters(tasks: Task[], f: Filters, projectName: (id: string) => string): Task[] {
   const range = periodRange(f)
   const q = f.query.trim().toLowerCase()
@@ -72,22 +156,27 @@ function applyFilters(tasks: Task[], f: Filters, projectName: (id: string) => st
 }
 
 function FilterBar({
-  filters, setFilters, showAssignee, total, shown,
-}: { filters: Filters; setFilters: (f: Filters) => void; showAssignee?: boolean; total: number; shown: number }) {
+  filters, setFilters, sort, setSort, sortKeys, showAssignee, total, shown,
+}: {
+  filters: Filters; setFilters: (f: Filters) => void
+  sort: Sort; setSort: (s: Sort) => void; sortKeys: SortKey[]
+  showAssignee?: boolean; total: number; shown: number
+}) {
   const db = useDb()
   const set = (patch: Partial<Filters>) => setFilters({ ...filters, ...patch })
   const range = periodRange(filters)
   const active = filters.period !== 'all' || filters.projectId || filters.assigneeId || filters.priority || filters.query
 
   return (
-    <div className="card mb-5 space-y-3 p-4">
+    <div className="card mb-5 space-y-3 p-3 sm:p-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl bg-stone-100 p-1">
+        {/* Three to a row on a phone rather than a strip that scrolls sideways. */}
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-stone-100 p-1 sm:flex">
           {PERIODS.map((p) => (
             <button
               key={p.key}
               onClick={() => set({ period: p.key })}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+              className={`rounded-lg px-2 py-1.5 text-[13px] font-medium transition sm:shrink-0 sm:px-3 sm:text-sm ${
                 filters.period === p.key ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'
               }`}
             >
@@ -98,29 +187,48 @@ function FilterBar({
         <SearchInput value={filters.query} onChange={(query) => set({ query })} placeholder="Search tasks or projects…" className="xl:w-72" />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
         {filters.period === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input type="date" className="input w-auto py-1.5" value={filters.from} onChange={(e) => set({ from: e.target.value })} aria-label="From" />
+          <div className="col-span-2 flex items-center gap-2">
+            <input type="date" className="input min-w-0 flex-1 py-1.5 sm:w-auto sm:flex-none" value={filters.from} onChange={(e) => set({ from: e.target.value })} aria-label="From" />
             <span className="text-sm text-stone-400">to</span>
-            <input type="date" className="input w-auto py-1.5" value={filters.to} onChange={(e) => set({ to: e.target.value })} aria-label="To" />
+            <input type="date" className="input min-w-0 flex-1 py-1.5 sm:w-auto sm:flex-none" value={filters.to} onChange={(e) => set({ to: e.target.value })} aria-label="To" />
           </div>
         )}
-        <select className="input w-auto py-1.5" value={filters.projectId} onChange={(e) => set({ projectId: e.target.value })} aria-label="Project">
-          <option value="">All projects</option>
-          {db.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        <div className="col-span-2 sm:w-60">
+          <SearchSelect
+            size="sm"
+            value={filters.projectId}
+            onChange={(projectId) => set({ projectId })}
+            options={projectOptions(db)}
+            emptyOption="All projects"
+            searchPlaceholder="Search projects"
+            ariaLabel="Project"
+            title="Filter by project"
+          />
+        </div>
         {showAssignee && (
-          <select className="input w-auto py-1.5" value={filters.assigneeId} onChange={(e) => set({ assigneeId: e.target.value })} aria-label="Assignee">
-            <option value="">Everyone</option>
-            {db.employees.filter((e) => e.role !== 'super_admin').map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
+          <div className="sm:w-48">
+            <SearchSelect
+              size="sm"
+              value={filters.assigneeId}
+              onChange={(assigneeId) => set({ assigneeId })}
+              options={employeeOptions(db.employees.filter((e) => e.role !== 'super_admin'))}
+              emptyOption="Everyone"
+              searchPlaceholder="Search people"
+              ariaLabel="Assignee"
+              title="Filter by assignee"
+            />
+          </div>
         )}
-        <select className="input w-auto py-1.5" value={filters.priority} onChange={(e) => set({ priority: e.target.value })} aria-label="Priority">
+        <select className={`input py-1.5 sm:w-auto ${showAssignee ? '' : 'col-span-2'}`} value={filters.priority} onChange={(e) => set({ priority: e.target.value })} aria-label="Priority">
           <option value="">Any priority</option>
           {TASK_PRIORITIES.map((p) => <option key={p}>{p}</option>)}
         </select>
-        <span className="ml-auto text-xs text-stone-500">
+        <div className="col-span-2 sm:col-span-1">
+          <SortControl sort={sort} setSort={setSort} keys={sortKeys} />
+        </div>
+        <span className="col-span-2 text-xs text-stone-500 sm:ml-auto">
           {range && filters.period !== 'today' && <>Due {formatDateLong(range[0])} – {formatDateLong(range[1])} · </>}
           {filters.period === 'today' && <>Due today · </>}
           Showing <strong className="text-stone-800">{shown}</strong> of {total}
@@ -157,14 +265,17 @@ function TaskList({
   const { user } = useSession()
   const { can } = usePermissions()
   const [filters, setFilters] = useState<Filters>(EMPTY)
+  const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const [editing, setEditing] = useState<Task | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Task | null>(null)
   useOpenFromUrl(setEditing)
 
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? ''
+  const personName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? ''
   const scoped = db.tasks.filter(scope)
-  const tasks = applyFilters(scoped, filters, projectName)
-    .sort((a, b) => (a.status === 'Done') === (b.status === 'Done') ? a.dueDate.localeCompare(b.dueDate) : a.status === 'Done' ? 1 : -1)
+  const tasks = sortTasks(applyFilters(scoped, filters, projectName), sort, { project: projectName, person: personName })
+  const sortKeys: SortKey[] = ['due', 'priority', 'project', 'title', 'status', ...(showAssignee ? ['assignee' as const] : [])]
+  const th = (label: string, k: SortKey) => <SortHeader label={label} k={k} sort={sort} setSort={setSort} />
 
   const open = scoped.filter((t) => t.status !== 'Done')
   const overdue = open.filter((t) => t.dueDate < today())
@@ -191,13 +302,21 @@ function TaskList({
         <StatTile label="Overdue" value={overdue.length} tone={overdue.length ? 'red' : 'green'} icon="alert" />
       </div>
 
-      <FilterBar filters={filters} setFilters={setFilters} showAssignee={showAssignee} total={scoped.length} shown={tasks.length} />
+      <FilterBar
+        filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} sortKeys={sortKeys}
+        showAssignee={showAssignee} total={scoped.length} shown={tasks.length}
+      />
 
       <Section>
         {tasks.length === 0 ? (
           <EmptyState title="No tasks match these filters." icon="check" />
         ) : (
-          <Table head={['Task', 'Project', ...(showAssignee ? ['Assignee'] : []), 'Due', 'Priority', 'Status', '']}>
+          <Table
+            head={[
+              th('Task', 'title'), th('Project', 'project'), ...(showAssignee ? [th('Assignee', 'assignee')] : []),
+              th('Due', 'due'), th('Priority', 'priority'), th('Status', 'status'), '',
+            ]}
+          >
             {tasks.map((task) => {
               const overdueTask = task.status !== 'Done' && task.dueDate < today()
               const assignee = db.employees.find((e) => e.id === task.assigneeId)
@@ -330,13 +449,17 @@ export function TaskBoard() {
   const { user } = useSession()
   const { can } = usePermissions()
   const [filters, setFilters] = useState<Filters>(EMPTY)
+  const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const [editing, setEditing] = useState<Task | { status: TaskStatus } | null>(null)
   const [deleting, setDeleting] = useState<Task | null>(null)
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<TaskStatus | null>(null)
+  // On a phone the board shows one column at a time instead of scrolling sideways.
+  const [column, setColumn] = useState<TaskStatus>('To Do')
 
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? ''
-  const tasks = applyFilters(db.tasks, filters, projectName)
+  const personName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? ''
+  const tasks = sortTasks(applyFilters(db.tasks, filters, projectName), sort, { project: projectName, person: personName })
   const canEdit = (t: Task) => can('Tasks', 'edit') || t.assigneeId === user.id
 
   return (
@@ -349,13 +472,31 @@ export function TaskBoard() {
         )}
       />
 
-      <FilterBar filters={filters} setFilters={setFilters} showAssignee total={db.tasks.length} shown={tasks.length} />
+      <FilterBar
+        filters={filters} setFilters={setFilters} sort={sort} setSort={setSort}
+        sortKeys={['due', 'priority', 'project', 'title', 'assignee']}
+        showAssignee total={db.tasks.length} shown={tasks.length}
+      />
 
-      <div className="no-scrollbar -mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
+      {/* Phone: pick a column. Tablet: two by two. Desktop: all four side by side. */}
+      <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-stone-200/60 p-1 md:hidden">
+        {TASK_STATUSES.map((status) => (
+          <button
+            key={status}
+            onClick={() => setColumn(status)}
+            className={`flex flex-col items-center rounded-lg px-1 py-1.5 text-[11px] font-semibold leading-tight transition ${
+              column === status ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'
+            }`}
+          >
+            <span className="flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${COLUMN_TONE[status]}`} />{status}</span>
+            <span className="tabular-nums text-stone-400">{tasks.filter((t) => t.status === status).length}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {TASK_STATUSES.map((status) => {
-          const column = tasks
-            .filter((t) => t.status === status)
-            .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+          const cards = tasks.filter((t) => t.status === status)
           return (
             <div
               key={status}
@@ -367,7 +508,7 @@ export function TaskBoard() {
                 setDragging(null)
                 setOver(null)
               }}
-              className={`w-[78vw] max-w-[320px] shrink-0 snap-start rounded-2xl p-3 transition sm:w-72 lg:w-auto lg:max-w-none ${
+              className={`${column === status ? '' : 'hidden md:block'} min-w-0 rounded-2xl p-3 transition ${
                 over === status ? 'bg-brand-100/70 ring-2 ring-brand-400' : 'bg-stone-200/50'
               }`}
             >
@@ -376,7 +517,7 @@ export function TaskBoard() {
                   <span className={`h-2.5 w-2.5 rounded-full ${COLUMN_TONE[status]}`} /> {status}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="rounded-full bg-white px-2 py-0.5 text-xs tabular-nums text-stone-500">{column.length}</span>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-xs tabular-nums text-stone-500">{cards.length}</span>
                   {can('Tasks', 'create') && (
                     <button onClick={() => setEditing({ status })} className="btn-icon h-6 w-6" aria-label={`Add task to ${status}`}>
                       <Icon name="plus" className="h-3.5 w-3.5" />
@@ -385,7 +526,7 @@ export function TaskBoard() {
                 </span>
               </h2>
               <div className="min-h-24 space-y-2">
-                {column.map((task) => {
+                {cards.map((task) => {
                   const assignee = db.employees.find((e) => e.id === task.assigneeId)
                   const overdue = task.status !== 'Done' && task.dueDate < today()
                   return (
@@ -423,7 +564,7 @@ export function TaskBoard() {
                     </article>
                   )
                 })}
-                {column.length === 0 && (
+                {cards.length === 0 && (
                   <p className="rounded-xl border-2 border-dashed border-stone-300/70 px-1 py-6 text-center text-xs text-stone-400">
                     {dragging ? 'Drop here' : 'Nothing here'}
                   </p>

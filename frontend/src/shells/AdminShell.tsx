@@ -12,6 +12,7 @@ import { RoleSwitcher } from '../components/RoleSwitcher'
 import { GlobalSearch } from '../components/GlobalSearch'
 import { NotificationBell } from '../components/NotificationBell'
 import { NoAccess } from '../pages/misc/Fallbacks'
+import { useClock } from '../state/clock'
 
 function Logo() {
   return (
@@ -31,16 +32,19 @@ function activeChild(section: NavSection, pathname: string) {
 /** A section's sub-pages, shown as tabs across the top of the page. */
 function SectionTabs({ section, pathname }: { section: NavSection; pathname: string }) {
   const active = activeChild(section, pathname)
+  const count = section.children!.length
+  // On a phone the tabs sit in an even grid rather than a strip that scrolls sideways.
+  const cols = count <= 3 ? 'grid-cols-3' : count === 4 ? 'grid-cols-2' : 'grid-cols-3'
   return (
-    <div className="no-scrollbar -mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <nav className="inline-flex min-w-max gap-1 rounded-2xl border border-stone-200/80 bg-white p-1 shadow-card">
+    <div className="mb-6">
+      <nav className={`grid ${count < 3 ? 'grid-cols-2' : cols} gap-1 rounded-2xl border border-stone-200/80 bg-white p-1 shadow-card sm:inline-flex`}>
         {section.children!.map((child) => {
           const on = child.path === active?.path
           return (
             <Link
               key={child.path}
               to={child.path}
-              className={`rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
+              className={`rounded-xl px-2 py-2 text-center text-[13px] font-semibold leading-tight transition sm:px-3.5 sm:text-sm ${
                 on ? 'bg-brand-600 text-white shadow-sm' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-800'
               }`}
             >
@@ -60,6 +64,8 @@ export function AdminShell() {
   const { canView } = usePermissions()
   const { pathname } = useLocation()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  // Re-render every time on this device when the 12h / 24h setting changes.
+  useClock()
   const sections = navForRole(roleKey, settings.permissions)
   const current = sectionForPath(pathname)
   const tab = current && activeChild(current, pathname)

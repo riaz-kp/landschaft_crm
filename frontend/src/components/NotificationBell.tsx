@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useDb } from '../state/useDb'
@@ -7,6 +7,7 @@ import { addDays, formatDate, formatTime, today } from '../domain/format'
 import { occurrencesBetween, visibleTo } from '../domain/reminders'
 import { Icon } from './Icon'
 import { ReminderModal } from './ReminderModal'
+import { useClickOutside } from './useClickOutside'
 
 /**
  * The header bell: today's reminders, plus any from the past fortnight that
@@ -17,6 +18,8 @@ export function NotificationBell() {
   const { user } = useSession()
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  useClickOutside(root, () => setOpen(false), open)
 
   const due = occurrencesBetween(visibleTo(db.reminders, user.id), addDays(today(), -14), today())
     .filter((o) => !o.done)
@@ -24,7 +27,7 @@ export function NotificationBell() {
   const coming = occurrencesBetween(visibleTo(db.reminders, user.id), addDays(today(), 1), addDays(today(), 7)).slice(0, 4)
 
   return (
-    <div className="relative">
+    <div ref={root} className="relative">
       <button
         onClick={() => setOpen(!open)}
         className="btn-icon relative h-10 w-10 rounded-xl"
@@ -40,13 +43,13 @@ export function NotificationBell() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] animate-fade-in overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
+          {/* The bell is not at the screen edge on a phone, so the panel is pinned under the header instead of to the bell. */}
+          <div className="fixed inset-x-3 top-[4.25rem] z-40 animate-fade-in overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[22rem]">
             <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
               <p className="text-sm font-semibold text-stone-900">Reminders</p>
               <button onClick={() => { setAdding(true); setOpen(false) }} className="text-xs font-semibold text-brand-700">+ Add reminder</button>
             </div>
-            <div className="max-h-80 overflow-y-auto">
+            <div className="max-h-[60vh] overflow-y-auto sm:max-h-80">
               {due.length === 0 && <p className="px-4 py-6 text-center text-sm text-stone-400">Nothing due today.</p>}
               {due.map((o) => (
                 <div key={`${o.reminder.id}-${o.date}`} className="flex items-start gap-3 border-b border-stone-50 px-4 py-2.5">

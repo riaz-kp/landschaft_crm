@@ -8,6 +8,8 @@ import {
   Section, Table, EmptyState, Badge, StatusBadge, Modal, Field, Avatar, DepartmentBadge,
 } from '../../../components/ui'
 import { Icon } from '../../../components/Icon'
+import { SearchSelect } from '../../../components/SearchSelect'
+import { projectOptions } from '../../../components/pickerOptions'
 
 /**
  * One department's desk on a client: the clarifications it is handling, the
@@ -173,10 +175,14 @@ function ClarificationModal({
           </div>
         </div>
         <Field label="Project">
-          <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-            <option value="">Not project-specific</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <SearchSelect
+            value={projectId}
+            onChange={setProjectId}
+            options={projectOptions(db, projects)}
+            emptyOption="Not project-specific"
+            searchPlaceholder="Search projects"
+            title="Project"
+          />
         </Field>
         <Field label="Clarification" required>
           <textarea rows={3} className="input" value={question} autoFocus onChange={(e) => setQuestion(e.target.value)} />

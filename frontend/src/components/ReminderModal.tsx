@@ -7,6 +7,8 @@ import { REPEAT_LABELS } from '../domain/reminders'
 import type { Reminder, ReminderRepeat } from '../domain/types'
 import { Checkbox, Field, FormError, Modal } from './ui'
 import { Icon } from './Icon'
+import { SearchSelect } from './SearchSelect'
+import { projectOptions } from './pickerOptions'
 
 type Audience = 'me' | 'people' | 'everyone'
 
@@ -126,10 +128,14 @@ export function ReminderModal({
             )}
           </div>
           <Field label="Project">
-            <select className="input" value={form.projectId} onChange={(e) => set({ projectId: e.target.value })}>
-              <option value="">Not tied to a project</option>
-              {db.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <SearchSelect
+              value={form.projectId}
+              onChange={(projectId) => set({ projectId })}
+              options={projectOptions(db)}
+              emptyOption="Not tied to a project"
+              searchPlaceholder="Search projects"
+              title="Project"
+            />
           </Field>
           <Field label="Notes">
             <textarea rows={2} className="input" value={form.notes} onChange={(e) => set({ notes: e.target.value })} />

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { titleOf } from '../domain/roles'
 import { useSession } from '../state/session'
 import { Avatar } from './ui'
 import { Icon } from './Icon'
+import { useClickOutside } from './useClickOutside'
 
 /**
  * Stands in for authentication in the prototype. It lets the client see every
@@ -12,9 +13,11 @@ import { Icon } from './Icon'
 export function RoleSwitcher() {
   const { user, people, signInAs } = useSession()
   const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  useClickOutside(root, () => setOpen(false), open)
 
   return (
-    <div className="relative">
+    <div ref={root} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-stone-100"
@@ -29,8 +32,7 @@ export function RoleSwitcher() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl">
+          <div className="absolute right-0 z-40 mt-2 w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl">
             {user.role !== 'foreman' && (
               <Link
                 to={`/employees/${user.id}`}

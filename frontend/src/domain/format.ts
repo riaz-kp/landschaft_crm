@@ -1,5 +1,7 @@
 /** Kerala-based client: DD/MM/YYYY dates and Indian-format rupee amounts. */
 
+import { getClock, type ClockFormat } from '../state/clock'
+
 export function formatDate(iso: string): string {
   if (!iso) return '—'
   const [y, m, d] = iso.split('-')
@@ -49,10 +51,11 @@ export function formatCurrency(amount: number, compact = false): string {
   return '₹' + amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })
 }
 
-/** "10:00" → "10:00 AM" */
-export function formatTime(hhmm: string): string {
+/** "14:00" → "02:00 PM", or "14:00" on a device set to the 24-hour clock. */
+export function formatTime(hhmm: string, clock: ClockFormat = getClock()): string {
   if (!hhmm) return '—'
   const [h, m] = hhmm.split(':').map(Number)
+  if (clock === '24h') return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
   const suffix = h >= 12 ? 'PM' : 'AM'
   const hour = h % 12 === 0 ? 12 : h % 12
   return `${String(hour).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`

@@ -62,8 +62,15 @@ export function PermissionMatrixEditor({
 
   return (
     <div>
-      {/* Role picker */}
-      <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto border-b border-stone-100 px-5 pb-4">
+      {/* Role picker — a dropdown on a phone, a strip of cards on wider screens */}
+      <div className="border-b border-stone-100 pb-4 sm:hidden">
+        <select className="input" value={role} onChange={(e) => setRole(e.target.value as RoleKey)} aria-label="Role">
+          {EDITABLE_ROLES.map((r) => (
+            <option key={r} value={r}>{ROLES[r].title} · {visibleCount(r)} modules</option>
+          ))}
+        </select>
+      </div>
+      <div className="no-scrollbar -mx-5 hidden gap-2 overflow-x-auto border-b border-stone-100 px-5 pb-4 sm:flex">
         {EDITABLE_ROLES.map((r) => (
           <button
             key={r}
@@ -99,14 +106,14 @@ export function PermissionMatrixEditor({
       </div>
 
       <div className="scroll-x -mx-5">
-        <table className="w-full min-w-[560px]">
+        <table className="w-full sm:min-w-[560px]">
           <thead className="bg-stone-50/80">
             <tr>
               <th className="th pl-5">Module</th>
               {PERMISSION_ACTIONS.map((a) => {
                 const all = MODULES.filter((m) => !VIEW_ONLY.includes(m) || a === 'view').every((m) => rows[m][a])
                 return (
-                  <th key={a} className="th text-center">
+                  <th key={a} className={`th px-1 text-center sm:px-4 ${a === 'delete' ? 'pr-5' : ''}`}>
                     <label className="inline-flex cursor-pointer flex-col items-center gap-1">
                       {ACTION_LABEL[a]}
                       <input
@@ -119,7 +126,7 @@ export function PermissionMatrixEditor({
                   </th>
                 )
               })}
-              <th className="th pr-5 text-center">All</th>
+              <th className="th hidden pr-5 text-center sm:table-cell">All</th>
             </tr>
           </thead>
           <tbody>
@@ -129,9 +136,9 @@ export function PermissionMatrixEditor({
               const isLocked = locked(m)
               return (
                 <tr key={m} className={`row-hover ${p.view ? '' : 'opacity-60'}`}>
-                  <td className="td pl-5">
-                    <span className="flex items-center gap-2.5 font-medium text-stone-800">
-                      <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${p.view ? 'bg-brand-50 text-brand-700' : 'bg-stone-100 text-stone-400'}`}>
+                  <td className="td pl-5 pr-1 sm:pr-4">
+                    <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-medium text-stone-800">
+                      <span className={`hidden h-7 w-7 items-center justify-center rounded-lg sm:flex ${p.view ? 'bg-brand-50 text-brand-700' : 'bg-stone-100 text-stone-400'}`}>
                         <Icon name={icon(m)} className="h-4 w-4" />
                       </span>
                       {m}
@@ -141,7 +148,7 @@ export function PermissionMatrixEditor({
                   {PERMISSION_ACTIONS.map((a) => {
                     const na = VIEW_ONLY.includes(m) && a !== 'view'
                     return (
-                      <td key={a} className="td text-center">
+                      <td key={a} className={`td px-1 text-center sm:px-4 ${a === 'delete' ? 'pr-5' : ''}`}>
                         {na ? <span className="text-xs text-stone-300">—</span> : (
                           <input
                             type="checkbox"
@@ -155,7 +162,7 @@ export function PermissionMatrixEditor({
                       </td>
                     )
                   })}
-                  <td className="td pr-5 text-center">
+                  <td className="td hidden pr-5 text-center sm:table-cell">
                     <button
                       type="button"
                       disabled={disabled || isLocked}

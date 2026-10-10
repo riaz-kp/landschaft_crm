@@ -5,13 +5,16 @@ import { today } from '../../domain/format'
 import type { Worker } from '../../domain/types'
 import { Checkbox, Field, FormError, Modal } from '../../components/ui'
 import { PhoneWhatsAppFields } from '../../components/ContactFields'
+import { SearchSelect } from '../../components/SearchSelect'
+import { workerSkills } from '../../domain/workers'
 
 /** Add a site worker, or edit one when `worker` is passed. */
 export function WorkerFormModal({
   worker, onClose, onSaved,
 }: { worker?: Worker; onClose: () => void; onSaved?: (worker: Worker) => void }) {
   const db = useDb()
-  const skills = [...new Set(db.workers.map((w) => w.skill))].sort()
+  const skills = workerSkills(db)
+  const skillCount = (skill: string) => db.workers.filter((w) => w.skill === skill).length
   const [form, setForm] = useState({
     name: worker?.name ?? '',
     skill: worker?.skill ?? '',
@@ -67,9 +70,20 @@ export function WorkerFormModal({
           <Field label="Name" required>
             <input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} autoFocus />
           </Field>
-          <Field label="Skill / trade" required>
-            <input className="input" list="worker-skills" value={form.skill} placeholder="e.g. Mason" onChange={(e) => set({ skill: e.target.value })} />
-            <datalist id="worker-skills">{skills.map((s) => <option key={s} value={s} />)}</datalist>
+          <Field label="Skill / trade" required hint="Not listed? Type it and add it — it is kept for the next worker too.">
+            <SearchSelect
+              value={form.skill}
+              onChange={(skill) => set({ skill })}
+              options={skills.map((s) => {
+                const n = skillCount(s)
+                return { value: s, label: s, sub: n ? `${n} worker${n === 1 ? '' : 's'}` : 'No workers yet' }
+              })}
+              placeholder="Choose a skill…"
+              searchPlaceholder="Search, or type a new skill"
+              title="Skill / trade"
+              onCreate={(text) => set({ skill: api.workers.addSkill(text) })}
+              createLabel={(text) => `Add “${text}” as a new skill`}
+            />
           </Field>
           <Field label="Daily wage" hint="In rupees, per full day.">
             <input type="number" min={0} className="input" value={form.dailyWage} placeholder="0" onChange={(e) => set({ dailyWage: e.target.value })} />

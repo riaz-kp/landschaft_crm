@@ -3,11 +3,12 @@ import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { addDays, today } from '../../domain/format'
-import { titleOf } from '../../domain/roles'
 import {
   DESIGN_PHASES, EXECUTION_PHASES, PHASE_LABELS, type PhaseKey, type Task, type TaskPriority, type TaskStatus,
 } from '../../domain/types'
 import { Field, FormError, Modal } from '../../components/ui'
+import { SearchSelect } from '../../components/SearchSelect'
+import { employeeOptions, projectOptions } from '../../components/pickerOptions'
 
 export const TASK_STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Review', 'Done']
 export const TASK_PRIORITIES: TaskPriority[] = ['High', 'Medium', 'Low']
@@ -83,9 +84,14 @@ export function TaskFormModal({
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Project" required>
-            <select className="input" value={form.projectId} onChange={(e) => set({ projectId: e.target.value, phase: '' })}>
-              {db.projects.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.code}</option>)}
-            </select>
+            <SearchSelect
+              value={form.projectId}
+              onChange={(projectId) => set({ projectId, phase: '' })}
+              options={projectOptions(db)}
+              placeholder="Choose a project…"
+              searchPlaceholder="Search by name, code, site or client"
+              title="Project"
+            />
           </Field>
           <Field label="Phase">
             <select className="input" value={form.phase} onChange={(e) => set({ phase: e.target.value as PhaseKey | '' })}>
@@ -94,11 +100,13 @@ export function TaskFormModal({
             </select>
           </Field>
           <Field label="Assigned to">
-            <select className="input" value={form.assigneeId} onChange={(e) => set({ assigneeId: e.target.value })}>
-              {db.employees.filter((e) => e.role !== 'super_admin').map((e) => (
-                <option key={e.id} value={e.id}>{e.name} — {titleOf(e)}</option>
-              ))}
-            </select>
+            <SearchSelect
+              value={form.assigneeId}
+              onChange={(assigneeId) => set({ assigneeId })}
+              options={employeeOptions(db.employees.filter((e) => e.role !== 'super_admin'))}
+              searchPlaceholder="Search people"
+              title="Assign to"
+            />
           </Field>
           <Field label="Due date" required>
             <input type="date" className="input" value={form.dueDate} onChange={(e) => set({ dueDate: e.target.value })} />

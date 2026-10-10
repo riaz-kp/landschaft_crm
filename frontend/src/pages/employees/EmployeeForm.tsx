@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
-import { ROLES, titleOf } from '../../domain/roles'
+import { ROLES } from '../../domain/roles'
 import { DEPARTMENTS, type Department, type Employee, type RoleKey } from '../../domain/types'
 import { Field, FormError, Modal } from '../../components/ui'
 import { PhoneWhatsAppFields } from '../../components/ContactFields'
 import { today } from '../../domain/format'
+import { SearchSelect } from '../../components/SearchSelect'
+import { employeeOptions } from '../../components/pickerOptions'
 
 /** The department a role normally sits in, used to pre-fill the form. */
 const ROLE_DEPARTMENT: Record<RoleKey, Department> = {
@@ -97,12 +99,14 @@ export function EmployeeFormModal({
             </select>
           </Field>
           <Field label="Reports to">
-            <select className="input" value={form.reportsTo} onChange={(e) => set({ reportsTo: e.target.value })}>
-              <option value="">No one</option>
-              {db.employees.filter((e) => e.id !== employee?.id && e.role !== 'foreman').map((e) => (
-                <option key={e.id} value={e.id}>{e.name} — {titleOf(e)}</option>
-              ))}
-            </select>
+            <SearchSelect
+              value={form.reportsTo}
+              onChange={(reportsTo) => set({ reportsTo })}
+              options={employeeOptions(db.employees.filter((e) => e.id !== employee?.id && e.role !== 'foreman'))}
+              emptyOption="No one"
+              searchPlaceholder="Search people"
+              title="Reports to"
+            />
           </Field>
           <Field label="Date of joining">
             <input type="date" className="input" value={form.joinedOn} onChange={(e) => set({ joinedOn: e.target.value })} />

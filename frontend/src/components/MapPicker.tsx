@@ -102,8 +102,9 @@ export function MapPicker({
     if (value) place(value, 15, false)
     if (editable) m.on('click', (e: L.LeafletMouseEvent) => place({ lat: e.latlng.lat, lng: e.latlng.lng }))
     // The map is often drawn inside a card that is still settling its size.
-    setTimeout(() => m.invalidateSize(), 150)
+    const resize = setTimeout(() => m.invalidateSize(), 150)
     return () => {
+      clearTimeout(resize)
       m.remove()
       map.current = null
       marker.current = null

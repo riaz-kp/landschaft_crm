@@ -12,6 +12,8 @@ import type { LatLng } from '../../domain/types'
 import { usePermissions } from '../../state/permissions'
 import { NoAccess } from '../misc/Fallbacks'
 import { Icon } from '../../components/Icon'
+import { SearchSelect } from '../../components/SearchSelect'
+import { employeeOptions } from '../../components/pickerOptions'
 
 /**
  * Project creation from §18. Services come first and everything below reacts
@@ -125,13 +127,13 @@ export function NewProject() {
             />
           </Field>
           <Field label="Project Manager">
-            <select
+            <SearchSelect
               value={form.projectManagerId}
-              onChange={(e) => setForm({ ...form, projectManagerId: e.target.value })}
-              className="input"
-            >
-              {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
+              onChange={(projectManagerId) => setForm({ ...form, projectManagerId })}
+              options={employeeOptions(managers)}
+              searchPlaceholder="Search managers"
+              title="Project manager"
+            />
           </Field>
           <Field label="Contract Value" hint="In rupees. Can be set later.">
             <input

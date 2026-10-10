@@ -6,6 +6,7 @@ import type {
   Task, Worker, Reminder,
 } from '../domain/types'
 import type { Api, NewProjectInput } from './client'
+import { workerSkills } from '../domain/workers'
 
 type WithId = { id: ID }
 
@@ -393,6 +394,30 @@ export const adapter: Api = {
         removeFrom(db.workers, workerId)
         db.attendance = db.attendance.filter((a) => !(a.kind === 'worker' && a.personId === workerId))
       })
+    },
+    addSkill(name) {
+      const clean = name.trim().replace(/\s+/g, ' ')
+      const existing = workerSkills(store.db).find((s) => s.toLowerCase() === clean.toLowerCase())
+      if (existing) {
+        if (!store.db.settings.workerSkills.includes(existing)) {
+          store.update((db) => { db.settings.workerSkills = [...db.settings.workerSkills, existing] })
+        }
+        return existing
+      }
+      store.update((db) => { db.settings.workerSkills = [...db.settings.workerSkills, clean] })
+      return clean
+    },
+    renameSkill(from, to) {
+      const clean = to.trim().replace(/\s+/g, ' ')
+      if (!clean || clean === from) return
+      store.update((db) => {
+        const rest = db.settings.workerSkills.filter((s) => s !== from && s.toLowerCase() !== clean.toLowerCase())
+        db.settings.workerSkills = [...rest, clean]
+        for (const w of db.workers) if (w.skill === from) w.skill = clean
+      })
+    },
+    removeSkill(name) {
+      store.update((db) => { db.settings.workerSkills = db.settings.workerSkills.filter((s) => s !== name) })
     },
   },
 

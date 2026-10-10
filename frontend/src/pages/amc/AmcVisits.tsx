@@ -12,6 +12,7 @@ import {
 import { Icon } from '../../components/Icon'
 import { OccurrenceBadge } from './AmcContractCard'
 import { MoveVisitModal, VisitDoneModal } from './AmcVisitModals'
+import { SearchSelect } from '../../components/SearchSelect'
 
 type Horizon = 14 | 30 | 60 | 365
 
@@ -158,17 +159,20 @@ function ScheduleVisitModal({ onClose }: { onClose: () => void }) {
     >
       <div className="space-y-4">
         <Field label="Contract" required>
-          <select
-            className="input" value={recordId}
-            onChange={(e) => {
-              setRecordId(e.target.value)
-              setTeamIds(db.maintenance.find((m) => m.id === e.target.value)?.teamIds ?? [])
+          <SearchSelect
+            value={recordId}
+            onChange={(id) => {
+              setRecordId(id)
+              setTeamIds(db.maintenance.find((m) => m.id === id)?.teamIds ?? [])
             }}
-          >
-            {contracts.map((m) => (
-              <option key={m.id} value={m.id}>{projectName(m.projectId)} — {m.type}</option>
-            ))}
-          </select>
+            options={contracts.map((m) => ({
+              value: m.id,
+              label: projectName(m.projectId),
+              sub: [m.type, db.projects.find((p) => p.id === m.projectId)?.siteLocation].filter(Boolean).join(' · '),
+            }))}
+            searchPlaceholder="Search contracts"
+            title="Contract"
+          />
         </Field>
         <Field label="Visit date" required>
           <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />

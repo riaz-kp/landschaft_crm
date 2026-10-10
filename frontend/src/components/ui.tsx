@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import type { Department } from '../domain/types'
 import { Icon } from './Icon'
@@ -153,10 +154,39 @@ export function ProgressBar({
 
 // ---------------------------------------------------------------- tables
 
-export function Table({ head, children }: { head: ReactNode[]; children: ReactNode }) {
+/**
+ * On a phone each row turns into a card — the first cell as its title, the
+ * rest labelled with their column heading — so a wide table never has to be
+ * scrolled sideways. The headings are copied onto the cells as data-label,
+ * which the .table-cards styles show. Pass cards={false} for a true grid.
+ */
+export function Table({ head, children, cards = true }: { head: ReactNode[]; children: ReactNode; cards?: boolean }) {
+  const ref = useRef<HTMLTableElement>(null)
+
+  useEffect(() => {
+    const table = ref.current
+    if (!table || !cards) return
+    const label = () => {
+      const heads = [...(table.tHead?.rows[0]?.cells ?? [])].map((th) => th.textContent?.trim() ?? '')
+      for (const row of table.tBodies[0]?.rows ?? []) {
+        let col = 0
+        for (const cell of row.cells) {
+          const text = heads[col] ?? ''
+          if (cell.getAttribute('data-label') !== text) cell.setAttribute('data-label', text)
+          col += cell.colSpan
+        }
+      }
+    }
+    label()
+    // Rows come and go as lists are filtered; label the new ones too.
+    const observer = new MutationObserver(label)
+    observer.observe(table, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [cards])
+
   return (
-    <div className="scroll-x">
-      <table className="w-full min-w-[640px] border-collapse">
+    <div className={`scroll-x ${cards ? 'table-cards' : ''}`}>
+      <table ref={ref} className="w-full min-w-[640px] border-collapse">
         <thead className="bg-stone-50/80">
           <tr>{head.map((h, i) => <th key={i} className="th">{h}</th>)}</tr>
         </thead>
@@ -229,20 +259,21 @@ export function Tabs<K extends string>({
   tabs, active, onChange,
 }: { tabs: { key: K; label: string; count?: number }[]; active: K; onChange: (key: K) => void }) {
   return (
-    <nav className="no-scrollbar mb-5 flex gap-1 overflow-x-auto border-b border-stone-200">
+    // A phone wraps the tabs into pills instead of a strip that scrolls sideways.
+    <nav className="no-scrollbar mb-5 flex flex-wrap gap-1.5 sm:flex-nowrap sm:gap-1 sm:overflow-x-auto sm:border-b sm:border-stone-200">
       {tabs.map((t) => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
-          className={`-mb-px shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors sm:-mb-px sm:rounded-none sm:border-b-2 sm:px-4 sm:py-2.5 ${
             active === t.key
-              ? 'border-brand-600 text-brand-800'
-              : 'border-transparent text-stone-500 hover:text-stone-800'
+              ? 'bg-brand-600 text-white shadow-sm sm:border-brand-600 sm:bg-transparent sm:text-brand-800 sm:shadow-none'
+              : 'bg-white text-stone-600 ring-1 ring-inset ring-stone-200 hover:text-stone-800 sm:border-transparent sm:bg-transparent sm:text-stone-500 sm:ring-0'
           }`}
         >
           {t.label}
           {t.count !== undefined && (
-            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${active === t.key ? 'bg-brand-100 text-brand-700' : 'bg-stone-100 text-stone-500'}`}>
+            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${active === t.key ? 'bg-white/20 text-white sm:bg-brand-100 sm:text-brand-700' : 'bg-stone-100 text-stone-500'}`}>
               {t.count}
             </span>
           )}
@@ -257,12 +288,13 @@ export function Pills<K extends string>({
   options, active, onChange,
 }: { options: { key: K; label: string; count?: number }[]; active: K; onChange: (key: K) => void }) {
   return (
-    <div className="no-scrollbar flex gap-2 overflow-x-auto pb-0.5">
+    // Wraps on a phone; one scrolling row on wider screens.
+    <div className="no-scrollbar flex flex-wrap gap-1.5 pb-0.5 sm:flex-nowrap sm:gap-2 sm:overflow-x-auto">
       {options.map((o) => (
         <button
           key={o.key}
           onClick={() => onChange(o.key)}
-          className={`chip shrink-0 px-3.5 py-1.5 text-sm ${active === o.key ? 'chip-on' : ''}`}
+          className={`chip shrink-0 px-3 py-1 text-[13px] sm:px-3.5 sm:py-1.5 sm:text-sm ${active === o.key ? 'chip-on' : ''}`}
         >
           {o.label}
           {o.count !== undefined && <span className="tabular-nums opacity-70">{o.count}</span>}
@@ -303,7 +335,10 @@ export function Modal({
 
   const width = { md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-5xl' }[size]
 
-  return (
+  // Rendered at the page root: a modal opened from the header (whose blur makes
+  // it the containing block for fixed children) or from inside a form would
+  // otherwise be clipped to it, or submit it.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-stone-950/50 backdrop-blur-[2px]" onClick={onClose} />
       <div
@@ -319,7 +354,8 @@ export function Modal({
         <div className="overflow-y-auto px-5 py-5">{children}</div>
         {footer && <footer className="flex flex-wrap justify-end gap-2 border-t border-stone-100 bg-stone-50/60 px-5 py-3 sm:rounded-b-2xl">{footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

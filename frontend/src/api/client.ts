@@ -77,7 +77,13 @@ export interface Api {
   followUps: { create(input: Omit<PaymentFollowUp, 'id'>): PaymentFollowUp }
   documents: { create(input: Omit<DocumentRecord, 'id'>): DocumentRecord }
   employees: Crud<Employee>
-  workers: Crud<Worker>
+  workers: Crud<Worker> & {
+    /** Adds a skill to the list offered on the worker form; returns the stored spelling. */
+    addSkill(name: string): string
+    /** Renames a skill on the list and on every worker who has it. */
+    renameSkill(from: string, to: string): void
+    removeSkill(name: string): void
+  }
   attendance: {
     /** Sets or corrects one person's day; null clears it back to unmarked. */
     set(kind: PersonKind, personId: ID, date: string, patch: AttendancePatch | null): void

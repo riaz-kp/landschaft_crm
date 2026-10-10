@@ -6,6 +6,7 @@ import { Icon } from '../components/Icon'
 import { LogoMark } from '../components/Logo'
 import { formatDateLong, today } from '../domain/format'
 import { unreadRemarks } from '../domain/chat'
+import { useClock } from '../state/clock'
 
 const TABS = [
   { to: '/field', label: 'Sites', icon: 'home', end: true },
@@ -25,6 +26,8 @@ export function FieldShell() {
   const db = useDb()
   const navigate = useNavigate()
   const { pathname } = useLocation()
+  // Re-render every time on this device when the 12h / 24h setting changes.
+  useClock()
 
   const mySites = db.siteAssignments.filter((a) => a.foremanId === user.id).map((a) => a.projectId)
   const unread = mySites.reduce((s, id) => s + unreadRemarks(db.projectMessages, db.chatReads, user.id, id), 0)
@@ -80,7 +83,8 @@ export function FieldShell() {
                 end={t.end}
                 className={({ isActive }) =>
                   `relative flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition ${
-                    isActive || (t.end && pathname.startsWith('/field/report')) ? 'text-brand-700' : 'text-stone-400 hover:text-stone-600'
+                    isActive || (t.end && pathname.startsWith('/field/report')) || (t.to === '/field/works' && pathname.startsWith('/field/workers'))
+                      ? 'text-brand-700' : 'text-stone-400 hover:text-stone-600'
                   }`
                 }
               >

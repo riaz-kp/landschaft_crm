@@ -9,6 +9,8 @@ import {
   ConfirmDialog, Modal, Field, FormError, StatTile, Badge,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { SearchSelect } from '../../components/SearchSelect'
+import { clientOptions, employeeOptions, leadOptions } from '../../components/pickerOptions'
 
 const STATUSES: SiteVisitStatus[] = ['Scheduled', 'Completed', 'Cancelled']
 type Filter = 'upcoming' | 'past' | 'all'
@@ -182,13 +184,23 @@ function SiteVisitFormModal({ visit, onClose }: { visit?: SiteVisit; onClose: ()
           </div>
           <div className="mt-2">
             {form.party === 'Lead' ? (
-              <select className="input" value={form.leadId} onChange={(e) => suggestLocation({ leadId: e.target.value })} aria-label="Lead">
-                {openLeads.map((l) => <option key={l.id} value={l.id}>{l.name} — {l.status}</option>)}
-              </select>
+              <SearchSelect
+                value={form.leadId}
+                onChange={(leadId) => suggestLocation({ leadId })}
+                options={leadOptions(openLeads)}
+                searchPlaceholder="Search leads"
+                ariaLabel="Lead"
+                title="Lead"
+              />
             ) : (
-              <select className="input" value={form.clientId} onChange={(e) => suggestLocation({ clientId: e.target.value })} aria-label="Client">
-                {db.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchSelect
+                value={form.clientId}
+                onChange={(clientId) => suggestLocation({ clientId })}
+                options={clientOptions(db.clients)}
+                searchPlaceholder="Search clients by name, phone or place"
+                ariaLabel="Client"
+                title="Client"
+              />
             )}
           </div>
         </div>
@@ -200,9 +212,13 @@ function SiteVisitFormModal({ visit, onClose }: { visit?: SiteVisit; onClose: ()
             <input type="date" className="input" value={form.date} onChange={(e) => set({ date: e.target.value })} />
           </Field>
           <Field label="Assigned to">
-            <select className="input" value={form.assignedTo} onChange={(e) => set({ assignedTo: e.target.value })}>
-              {db.employees.filter((e) => e.role !== 'super_admin').map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
+            <SearchSelect
+              value={form.assignedTo}
+              onChange={(assignedTo) => set({ assignedTo })}
+              options={employeeOptions(db.employees.filter((e) => e.role !== 'super_admin'))}
+              searchPlaceholder="Search people"
+              title="Assign to"
+            />
           </Field>
           <Field label="Status">
             <select className="input" value={form.status} onChange={(e) => set({ status: e.target.value as SiteVisitStatus })}>

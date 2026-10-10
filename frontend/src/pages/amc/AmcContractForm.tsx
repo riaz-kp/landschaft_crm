@@ -6,6 +6,8 @@ import { SCHEDULE_PRESETS, addMonths, describeSchedule, plannedDates } from '../
 import type { ID, MaintenanceRecord, RecurrenceUnit } from '../../domain/types'
 import { Checkbox, Field, FormError, Modal } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { SearchSelect } from '../../components/SearchSelect'
+import { projectOptions } from '../../components/pickerOptions'
 
 /** Everything the AMC form edits, as plain form values. */
 export interface AmcDraft {
@@ -222,9 +224,13 @@ export function AmcContractModal({
       <div className="space-y-5">
         {!record && !fixedProject && (
           <Field label="Project" required hint="Any project — an AMC can follow our own execution or be taken on by itself.">
-            <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-              {db.projects.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.siteLocation}</option>)}
-            </select>
+            <SearchSelect
+              value={projectId}
+              onChange={setProjectId}
+              options={projectOptions(db)}
+              searchPlaceholder="Search projects"
+              title="Project"
+            />
           </Field>
         )}
         <AmcFields draft={draft} onChange={(d) => { setDraft(d); setError(null) }} />

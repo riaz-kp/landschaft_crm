@@ -13,6 +13,8 @@ import {
   PageHeader, Section, EmptyState, Badge, StatusBadge, StatTile, Modal, Field, FormError,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { SearchSelect } from '../../components/SearchSelect'
+import { clientOptions, leadOptions } from '../../components/pickerOptions'
 
 const MODES: Consultation['mode'][] = ['Office', 'Site', 'Phone', 'Video']
 /** One pixel per minute keeps the arithmetic obvious: a 60-minute meeting is 60px tall. */
@@ -46,6 +48,9 @@ export function Consultations() {
   const ceo = db.employees.find((e) => e.role === 'ceo')
   // Monday to Saturday — Sunday is the weekly off.
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
+  // A phone shows one day of the week at a time rather than a grid to scroll sideways.
+  const [phoneDay, setPhoneDay] = useState(today)
+  const focusDay = days.includes(phoneDay) ? phoneDay : days[0]
   const scheduled = db.consultations.filter((c) => c.status === 'Scheduled')
   const upcoming = scheduled
     .filter((c) => c.date >= today())
@@ -96,8 +101,24 @@ export function Consultations() {
             </div>
           }
         >
+          <div className="grid grid-cols-6 gap-1 border-b border-stone-100 p-2 md:hidden">
+            {days.map((date) => (
+              <button
+                key={date}
+                type="button"
+                onClick={() => setPhoneDay(date)}
+                className={`flex flex-col items-center rounded-lg py-1.5 text-[11px] font-semibold leading-tight ${
+                  date === focusDay ? 'bg-brand-600 text-white' : date === today() ? 'bg-brand-50 text-brand-800' : 'text-stone-500'
+                }`}
+              >
+                <span>{new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })}</span>
+                <span className="tabular-nums">{formatDate(date).slice(0, 2)}</span>
+                {scheduled.some((c) => c.date === date) && <span className={`mt-0.5 h-1 w-1 rounded-full ${date === focusDay ? 'bg-white' : 'bg-brand-500'}`} />}
+              </button>
+            ))}
+          </div>
           <div className="scroll-x">
-            <div className="flex min-w-[720px]">
+            <div className="flex md:min-w-[720px]">
               {/* Hour labels */}
               <div className="w-14 shrink-0 border-r border-stone-100 pt-10">
                 {Array.from({ length: (DAY_END - DAY_START) / 60 }, (_, i) => DAY_START + i * 60).map((m) => (
@@ -110,7 +131,7 @@ export function Consultations() {
                 const events = scheduled.filter((c) => c.date === date)
                 const isToday = date === today()
                 return (
-                  <div key={date} className="min-w-0 flex-1 border-r border-stone-100 last:border-r-0">
+                  <div key={date} className={`${date === focusDay ? '' : 'hidden md:block'} min-w-0 flex-1 border-r border-stone-100 last:border-r-0`}>
                     <div className={`flex h-10 flex-col items-center justify-center border-b border-stone-200 text-xs ${isToday ? 'bg-brand-50 font-bold text-brand-800' : 'font-semibold text-stone-500'}`}>
                       <span>{new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })}</span>
                       <span className="tabular-nums">{formatDate(date).slice(0, 5)}</span>
@@ -307,14 +328,24 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
           </div>
           <div className="mt-2">
             {form.party === 'Client' && (
-              <select className="input" value={form.clientId} onChange={(e) => set({ clientId: e.target.value })} aria-label="Client">
-                {db.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchSelect
+                value={form.clientId}
+                onChange={(clientId) => set({ clientId })}
+                options={clientOptions(db.clients)}
+                searchPlaceholder="Search clients by name, phone or place"
+                ariaLabel="Client"
+                title="Client"
+              />
             )}
             {form.party === 'Lead' && (
-              <select className="input" value={form.leadId} onChange={(e) => set({ leadId: e.target.value })} aria-label="Lead">
-                {db.leads.filter((l) => l.status !== 'Lost').map((l) => <option key={l.id} value={l.id}>{l.name} — {l.status}</option>)}
-              </select>
+              <SearchSelect
+                value={form.leadId}
+                onChange={(leadId) => set({ leadId })}
+                options={leadOptions(db.leads.filter((l) => l.status !== 'Lost'))}
+                searchPlaceholder="Search leads"
+                ariaLabel="Lead"
+                title="Lead"
+              />
             )}
             {form.party === 'Other' && (
               <input className="input" placeholder="e.g. Arshad, Anaswara" value={form.attendee} onChange={(e) => set({ attendee: e.target.value })} aria-label="Attendee" />

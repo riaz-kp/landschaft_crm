@@ -105,7 +105,8 @@ export function GlobalSearch() {
       </kbd>
 
       {open && query.trim().length >= 2 && (
-        <div className="absolute right-0 z-40 mt-2 max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] animate-fade-in overflow-y-auto rounded-2xl border border-stone-200 bg-white py-2 shadow-2xl">
+        // Full width under the header on a phone, where the box is too narrow to hang a list from.
+        <div className="fixed inset-x-3 top-[4.25rem] z-40 max-h-[70vh] animate-fade-in overflow-y-auto rounded-2xl border border-stone-200 bg-white py-2 shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[26rem]">
           {hits.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-stone-400">Nothing matches “{query.trim()}”.</p>
           ) : hits.map((hit, i) => {

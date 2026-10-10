@@ -19,8 +19,11 @@ import { EmployeeWorks } from './EmployeeWorks'
 import { EmployeeAttendance } from './EmployeeAttendance'
 import { EmployeeFormModal } from './EmployeeForm'
 import { PersonPayments } from './PersonPayments'
+import { SearchSelect } from '../../components/SearchSelect'
+import { employeeOptions } from '../../components/pickerOptions'
+import { ForemanCrew } from './ForemanCrew'
 
-type Tab = 'profile' | 'works' | 'attendance' | 'payments' | 'role'
+type Tab = 'profile' | 'works' | 'workers' | 'attendance' | 'payments' | 'role'
 
 type FieldKey =
   | 'name' | 'dob' | 'address' | 'phone' | 'email' | 'bloodGroup' | 'qualification' | 'joinedOn'
@@ -125,6 +128,8 @@ export function EmployeeDetail() {
         tabs={[
           { key: 'profile', label: 'Profile' },
           { key: 'works', label: 'Works' },
+          // Foremen lead site crews; this lists everyone who has worked under them.
+          ...(employee.role === 'foreman' ? [{ key: 'workers' as Tab, label: 'Workers' }] : []),
           { key: 'attendance', label: 'Attendance' },
           ...(canSeePay ? [{ key: 'payments' as Tab, label: 'Payments' }] : []),
           { key: 'role', label: 'Role in Company' },
@@ -133,6 +138,7 @@ export function EmployeeDetail() {
 
       {tab === 'profile' && <ProfileDetails key={employee.id} employee={employee} canEdit={canEditPersonal} />}
       {tab === 'works' && <EmployeeWorks key={employee.id} employee={employee} />}
+      {tab === 'workers' && employee.role === 'foreman' && <ForemanCrew key={employee.id} foreman={employee} />}
       {tab === 'attendance' && <EmployeeAttendance key={employee.id} employee={employee} canEdit={can('Employees', 'edit')} />}
       {tab === 'payments' && canSeePay && (
         <PersonPayments key={employee.id} kind="employee" personId={employee.id} monthlySalary={employee.monthlySalary} canManage={can('Accounts', 'create') || can('Employees', 'edit')} />
@@ -389,15 +395,14 @@ function RoleInCompany({ employee, canEdit }: { employee: Employee; canEdit: boo
               <dt className="label">Reports To</dt>
               <dd className="mt-1 text-sm text-stone-800">
                 {canEdit ? (
-                  <select
-                    className="input" value={employee.reportsTo ?? ''}
-                    onChange={(e) => api.employees.update(employee.id, { reportsTo: e.target.value || undefined })}
-                  >
-                    <option value="">No one</option>
-                    {db.employees.filter((e) => e.id !== employee.id).map((e) => (
-                      <option key={e.id} value={e.id}>{e.name} — {titleOf(e)}</option>
-                    ))}
-                  </select>
+                  <SearchSelect
+                    value={employee.reportsTo ?? ''}
+                    onChange={(id) => api.employees.update(employee.id, { reportsTo: id || undefined })}
+                    options={employeeOptions(db.employees.filter((e) => e.id !== employee.id))}
+                    emptyOption="No one"
+                    searchPlaceholder="Search people"
+                    title="Reports to"
+                  />
                 ) : db.employees.find((e) => e.id === employee.reportsTo)?.name ?? '—'}
               </dd>
             </div>

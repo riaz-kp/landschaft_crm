@@ -87,6 +87,71 @@
   @apply rounded-full bg-stone-300;
 }
 
+/* Tables become a stack of cards on a phone (see Table in components/ui.tsx).
+   The first cell is the card's title; the rest sit two to a row, each under
+   its column heading. A heading-less last cell holds the row's buttons and
+   is pinned to the card's top-right corner. */
+@media (max-width: 767.98px) {
+  .table-cards > table {
+    display: block;
+    min-width: 0;
+  }
+  .table-cards > table > thead {
+    display: none;
+  }
+  .table-cards > table > tbody {
+    display: block;
+  }
+  .table-cards > table > tbody > tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem 1rem;
+    padding: 0.875rem 1rem;
+  }
+  .table-cards > table > tbody > tr:first-child {
+    border-top: 0;
+  }
+  .table-cards > table > tbody > tr > td {
+    display: block;
+    min-width: 0;
+    max-width: none;
+    padding: 0;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .table-cards > table > tbody > tr > td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.125rem;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: theme('colors.stone.400');
+  }
+  .table-cards > table > tbody > tr > td:first-child {
+    grid-column: 1 / -1;
+  }
+  .table-cards > table > tbody > tr > td:first-child::before,
+  .table-cards > table > tbody > tr > td[data-label='']::before,
+  .table-cards > table > tbody > tr > td[colspan]::before {
+    display: none;
+  }
+  .table-cards > table > tbody > tr > td[colspan] {
+    grid-column: 1 / -1;
+  }
+  .table-cards > table > tbody > tr > td[data-label='']:last-child:not(:first-child) {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+  }
+  .table-cards > table > tbody > tr:has(> td[data-label='']:last-child:not(:first-child)) > td:first-child {
+    padding-right: 5.5rem;
+  }
+}
+
 /* Tab rows scroll sideways on a phone rather than wrapping into a wall. */
 .no-scrollbar {
   scrollbar-width: none;

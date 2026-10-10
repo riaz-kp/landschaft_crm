@@ -9,6 +9,8 @@ import type { Project, ProjectStatus } from '../../domain/types'
 import { PageHeader, Section, StatusBadge, Badge, ProgressBar, SearchInput, EmptyState, SiteName } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { mapsUrl } from '../../components/MapPicker'
+import { SearchSelect } from '../../components/SearchSelect'
+import { clientOptions, employeeOptions } from '../../components/pickerOptions'
 
 type Service = 'design' | 'execution' | 'amc'
 type ColourBy = 'status' | 'service'
@@ -88,8 +90,8 @@ export function ProjectsMap() {
     }).addTo(m)
     map.current = m
     layer.current = L.layerGroup().addTo(m)
-    setTimeout(() => m.invalidateSize(), 150)
-    return () => { m.remove(); map.current = null; layer.current = null }
+    const resize = setTimeout(() => m.invalidateSize(), 150)
+    return () => { clearTimeout(resize); m.remove(); map.current = null; layer.current = null }
   }, [])
 
   // Redraw the pins whenever the filters, colouring or selection change.
@@ -166,14 +168,28 @@ export function ProjectsMap() {
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          <select className="input py-1.5 sm:w-48" value={managerId} onChange={(e) => setManagerId(e.target.value)} aria-label="Project manager">
-            <option value="">All managers</option>
-            {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-          <select className="input py-1.5 sm:w-56" value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Client">
-            <option value="">All clients</option>
-            {db.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <div className="sm:w-48">
+            <SearchSelect
+              size="sm"
+              value={managerId}
+              onChange={setManagerId}
+              options={employeeOptions(managers)}
+              emptyOption="All managers"
+              searchPlaceholder="Search managers"
+              ariaLabel="Project manager"
+            />
+          </div>
+          <div className="sm:w-56">
+            <SearchSelect
+              size="sm"
+              value={clientId}
+              onChange={setClientId}
+              options={clientOptions(db.clients)}
+              emptyOption="All clients"
+              searchPlaceholder="Search clients"
+              ariaLabel="Client"
+            />
+          </div>
           <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-stone-300 px-3 py-1.5 text-sm text-stone-700">
             <input type="checkbox" checked={delayedOnly} onChange={(e) => setDelayedOnly(e.target.checked)} className="h-4 w-4 accent-red-600" /> Delayed only
           </label>

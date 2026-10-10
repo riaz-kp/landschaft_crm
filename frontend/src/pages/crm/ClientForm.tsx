@@ -6,10 +6,10 @@ import { PhoneWhatsAppFields } from '../../components/ContactFields'
 
 /** Create a client, or edit one when `client` is passed. */
 export function ClientFormModal({
-  client, onClose, onSaved,
-}: { client?: Client; onClose: () => void; onSaved?: (client: Client) => void }) {
+  client, defaults, onClose, onSaved,
+}: { client?: Client; defaults?: Partial<Client>; onClose: () => void; onSaved?: (client: Client) => void }) {
   const [form, setForm] = useState({
-    name: client?.name ?? '',
+    name: client?.name ?? defaults?.name ?? '',
     phone: client?.phone ?? '',
     whatsapp: client?.whatsapp ?? '',
     email: client?.email ?? '',

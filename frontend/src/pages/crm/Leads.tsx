@@ -12,6 +12,8 @@ import {
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { ContactNumbers, PhoneWhatsAppFields } from '../../components/ContactFields'
+import { SearchSelect } from '../../components/SearchSelect'
+import { employeeOptions } from '../../components/pickerOptions'
 
 const STATUSES: LeadStatus[] = ['New', 'Contacted', 'Site Visit', 'Quoted', 'Won', 'Lost']
 const SOURCES: Lead['source'][] = ['Instagram', 'Referral', 'Website', 'Walk-in', 'Google', 'Exhibition']
@@ -214,9 +216,13 @@ function LeadFormModal({ lead, onClose }: { lead?: Lead; onClose: () => void }) 
             </select>
           </Field>
           <Field label="Owner">
-            <select className="input" value={form.ownerId} onChange={(e) => set({ ownerId: e.target.value })}>
-              {db.employees.filter((e) => e.role !== 'foreman' && e.role !== 'super_admin').map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
+            <SearchSelect
+              value={form.ownerId}
+              onChange={(ownerId) => set({ ownerId })}
+              options={employeeOptions(db.employees.filter((e) => e.role !== 'foreman' && e.role !== 'super_admin'))}
+              searchPlaceholder="Search people"
+              title="Owner"
+            />
           </Field>
         </div>
         <Field label="Requirement" required>

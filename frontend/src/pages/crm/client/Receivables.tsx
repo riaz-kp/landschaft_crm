@@ -10,6 +10,8 @@ import {
   Section, Table, EmptyState, Badge, StatusBadge, StatTile, ProgressBar, Modal, Field,
 } from '../../../components/ui'
 import { Icon } from '../../../components/Icon'
+import { SearchSelect } from '../../../components/SearchSelect'
+import { projectOptions } from '../../../components/pickerOptions'
 
 const MODES: PaymentFollowUp['mode'][] = ['Call', 'WhatsApp', 'Email', 'Visit']
 
@@ -228,10 +230,14 @@ function FollowUpModal({ client, onClose }: { client: Client; onClose: () => voi
           </Field>
         </div>
         <Field label="Project">
-          <select className="input" value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
-            <option value="">All projects</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <SearchSelect
+            value={form.projectId}
+            onChange={(projectId) => setForm({ ...form, projectId })}
+            options={projectOptions(db, projects)}
+            emptyOption="All projects"
+            searchPlaceholder="Search projects"
+            title="Project"
+          />
         </Field>
         <Field label="What was discussed" required>
           <textarea rows={3} className="input" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />

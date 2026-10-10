@@ -11,6 +11,8 @@ import { DESIGN_PHASES, PHASE_LABELS, type Lead, type Project, type ProjectStatu
 import { PageHeader, Section, Table, StatTile, ProgressBar, Badge, EmptyState } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { RUPEES, excelDate, exportWorkbook, sheet } from '../../components/excel'
+import { SearchSelect } from '../../components/SearchSelect'
+import { clientOptions, employeeOptions } from '../../components/pickerOptions'
 
 const PERIODS: PeriodKey[] = ['today', 'week', 'month', 'lastMonth', 'quarter', 'year', 'all', 'custom']
 const STATUSES: ProjectStatus[] = ['Planning', 'In Progress', 'On Hold', 'Completed']
@@ -265,12 +267,12 @@ export function ReportsPage() {
 
       {/* Filters */}
       <div className="card mb-6 space-y-3 p-4">
-        <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl bg-stone-100 p-1">
+        <div className="grid grid-cols-4 gap-1 rounded-xl bg-stone-100 p-1 sm:flex">
           {PERIODS.map((p) => (
             <button
               key={p}
               onClick={() => set({ period: p })}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${f.period === p ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+              className={`rounded-lg px-1.5 py-1.5 text-[13px] font-medium leading-tight transition sm:shrink-0 sm:px-3 sm:text-sm ${f.period === p ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
             >
               {PERIOD_LABELS[p]}
             </button>
@@ -294,14 +296,28 @@ export function ReportsPage() {
             <option value="">Any status</option>
             {STATUSES.map((s) => <option key={s}>{s}</option>)}
           </select>
-          <select className="input py-1.5 sm:w-44" value={f.managerId} onChange={(e) => set({ managerId: e.target.value })} aria-label="Project manager">
-            <option value="">All managers</option>
-            {db.employees.filter((e) => db.projects.some((p) => p.projectManagerId === e.id)).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
-          <select className="input py-1.5 sm:w-52" value={f.clientId} onChange={(e) => set({ clientId: e.target.value })} aria-label="Client">
-            <option value="">All clients</option>
-            {db.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <div className="sm:w-48">
+            <SearchSelect
+              size="sm"
+              value={f.managerId}
+              onChange={(managerId) => set({ managerId })}
+              options={employeeOptions(db.employees.filter((e) => db.projects.some((p) => p.projectManagerId === e.id)))}
+              emptyOption="All managers"
+              searchPlaceholder="Search managers"
+              ariaLabel="Project manager"
+            />
+          </div>
+          <div className="sm:w-56">
+            <SearchSelect
+              size="sm"
+              value={f.clientId}
+              onChange={(clientId) => set({ clientId })}
+              options={clientOptions(db.clients)}
+              emptyOption="All clients"
+              searchPlaceholder="Search clients"
+              ariaLabel="Client"
+            />
+          </div>
           <select className="input py-1.5 sm:w-40" value={f.source} onChange={(e) => set({ source: e.target.value as Lead['source'] | '' })} aria-label="Lead source">
             <option value="">All lead sources</option>
             {SOURCES.map((s) => <option key={s}>{s}</option>)}

@@ -12,6 +12,8 @@ import {
   Modal, Field, FormError, Badge,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { SearchSelect } from '../../components/SearchSelect'
+import { projectOptions } from '../../components/pickerOptions'
 
 const STATUSES: QuotationStatus[] = ['Draft', 'Sent', 'Accepted', 'Rejected']
 type KindFilter = 'All' | CommercialDoc
@@ -242,9 +244,13 @@ function QuotationFormModal({
       <div className="space-y-5">
         <div className="grid gap-4 md:grid-cols-[2fr_1fr_1fr]">
           <Field label="Project" required>
-            <select className="input" value={projectId} onChange={(e) => chooseProject(e.target.value)}>
-              {db.projects.map((p) => <option key={p.id} value={p.id}>{p.name} — {projectType(p)}</option>)}
-            </select>
+            <SearchSelect
+              value={projectId}
+              onChange={chooseProject}
+              options={projectOptions(db, db.projects, projectType)}
+              searchPlaceholder="Search projects"
+              title="Project"
+            />
           </Field>
           <Field label="Date">
             <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
