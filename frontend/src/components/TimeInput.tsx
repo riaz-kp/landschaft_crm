@@ -113,7 +113,7 @@ export function ClockToggle({ className = '' }: { className?: string }) {
           type="button"
           onClick={() => setClock(c)}
           aria-pressed={clock === c}
-          className={`rounded-md px-2.5 py-1 transition ${clock === c ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+          className={`whitespace-nowrap rounded-md px-2.5 py-1 transition ${clock === c ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
         >
           {c === '12h' ? '12-hour' : '24-hour'}
         </button>

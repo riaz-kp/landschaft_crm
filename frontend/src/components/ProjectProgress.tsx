@@ -1,6 +1,73 @@
+import { useState } from 'react'
 import { computeProgress } from '../domain/progress'
 import type { Project } from '../domain/types'
 import { ProgressBar } from './ui'
+import { Icon } from './Icon'
+
+/**
+ * One phase's progress in a table: the bar and percentage, with an edit
+ * button beside it. Editing swaps in a slider and a number box; nothing is
+ * saved until the tick. Without `onChange` it is just the bar.
+ */
+export function ProgressCell({
+  value, onChange, label,
+}: { value: number; onChange?: (next: number) => void; label: string }) {
+  const [draft, setDraft] = useState<number | null>(null)
+  const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)))
+  const save = () => {
+    if (draft !== null && draft !== value) onChange?.(draft)
+    setDraft(null)
+  }
+
+  if (draft !== null && onChange) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="range" min={0} max={100} step={5} value={draft}
+          onChange={(e) => setDraft(clamp(Number(e.target.value)))}
+          className="w-28 accent-brand-600 sm:w-36"
+          aria-label={`${label} progress`}
+        />
+        <span className="flex items-center gap-1">
+          <input
+            type="number" min={0} max={100} value={draft} autoFocus
+            onChange={(e) => setDraft(clamp(Number(e.target.value) || 0))}
+            onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setDraft(null) }}
+            className="input w-16 px-2 py-1 text-right text-sm font-semibold tabular-nums"
+            aria-label={`${label} progress, percent`}
+          />
+          <span className="text-sm text-stone-500">%</span>
+        </span>
+        <span className="flex gap-0.5">
+          <button type="button" onClick={save} className="btn-icon bg-brand-50 text-brand-700 hover:bg-brand-100" title="Save" aria-label="Save progress">
+            <Icon name="check" className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={() => setDraft(null)} className="btn-icon" title="Cancel" aria-label="Cancel">
+            <Icon name="x" className="h-4 w-4" />
+          </button>
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="w-24 sm:w-36"><ProgressBar value={value} /></div>
+      <span className="w-10 text-right text-sm font-semibold tabular-nums text-stone-800">{value}%</span>
+      {onChange && (
+        <button
+          type="button"
+          onClick={() => setDraft(value)}
+          className="btn-icon"
+          title="Edit progress"
+          aria-label={`Edit ${label} progress`}
+        >
+          <Icon name="edit" className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  )
+}
 
 function toneFor(value: number) {
   if (value >= 100) return 'green' as const

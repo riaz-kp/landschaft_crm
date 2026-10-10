@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { navForRole, sectionForPath, titleOf, type NavSection } from '../domain/roles'
+import { moduleOf, navForRole, sectionForPath, titleOf, type NavSection } from '../domain/roles'
 import { formatDateLong, today } from '../domain/format'
 import { useSession } from '../state/session'
 import { useDb } from '../state/useDb'
@@ -69,6 +69,8 @@ export function AdminShell() {
   const sections = navForRole(roleKey, settings.permissions)
   const current = sectionForPath(pathname)
   const tab = current && activeChild(current, pathname)
+  // The same section with only the tabs this role may open.
+  const visible = sections.find((s) => s.label === current?.label)
 
   // Close the drawer and return to the top whenever the page changes.
   useEffect(() => {
@@ -78,7 +80,7 @@ export function AdminShell() {
 
   // Anyone may open their own profile, whatever the Employees permission says.
   const ownProfile = pathname === `/employees/${user.id}`
-  const allowed = !current || ownProfile || canView(current.label)
+  const allowed = !current || ownProfile || canView(moduleOf(current, tab))
 
   const nav = (
     <nav className="sidebar-scroll flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
@@ -188,7 +190,7 @@ export function AdminShell() {
 
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-[1440px] animate-fade-in" key={current?.label}>
-            {allowed && current?.children && <SectionTabs section={current} pathname={pathname} />}
+            {allowed && visible?.children && visible.children.length > 1 && <SectionTabs section={visible} pathname={pathname} />}
             {allowed ? <Outlet /> : <NoAccess />}
           </div>
         </main>

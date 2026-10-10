@@ -112,6 +112,3 @@ export const STATUS_CELL: Record<StaffAttendanceStatus, string> = {
   Leave: 'bg-violet-100 text-violet-800 ring-violet-600/25',
   Absent: 'bg-red-100 text-red-700 ring-red-600/25',
 }
-
-/** Clicking a day steps through these, then back to unmarked. */
-export const CYCLE: (StaffAttendanceStatus | null)[] = ['Present', 'Half Day', 'Leave', 'Absent', null]

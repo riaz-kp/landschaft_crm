@@ -79,10 +79,11 @@ export const leads: Lead[] = [
 ]
 
 export const siteVisits: SiteVisit[] = [
-  { id: 'sv1', leadId: 'l5', location: 'Alappuzha', date: addDays(today(), 2), assignedTo: 'e2', status: 'Scheduled', notes: 'Measure common areas and check soil drainage.' },
-  { id: 'sv2', leadId: 'l6', location: 'Malappuram', date: addDays(today(), 4), assignedTo: 'e3', status: 'Scheduled', notes: 'Client wants a water feature — check water supply.' },
-  { id: 'sv3', leadId: 'l4', location: 'Kollam', date: addDays(today(), -6), assignedTo: 'e2', status: 'Completed', notes: 'Terrace load-bearing confirmed adequate. Quote sent.' },
-  { id: 'sv4', clientId: 'c5', location: 'Kozhikode', date: addDays(today(), -2), assignedTo: 'e6', status: 'Completed', notes: 'Hardscape area marked out with the association secretary.' },
+  { id: 'sv1', leadId: 'l5', location: 'Alappuzha', date: addDays(today(), 2), time: '10:30', assignedTo: 'e2', teamIds: ['e3', 'e10'], remindDaysBefore: 2, status: 'Scheduled', notes: 'Measure common areas and check soil drainage.' },
+  { id: 'sv2', leadId: 'l6', location: 'Malappuram', date: addDays(today(), 4), time: '14:00', assignedTo: 'e3', teamIds: ['e4'], remindDaysBefore: 1, status: 'Scheduled', notes: 'Client wants a water feature — check water supply.' },
+  { id: 'sv6', clientId: 'c6', location: 'Marine Drive, Kochi', date: addDays(today(), 1), time: '11:00', assignedTo: 'e1', teamIds: ['e2', 'e6'], remindDaysBefore: 1, status: 'Scheduled', notes: 'Walk the podium garden with the association before the AMC proposal.' },
+  { id: 'sv3', leadId: 'l4', location: 'Kollam', date: addDays(today(), -6), time: '11:00', assignedTo: 'e2', teamIds: ['e5'], status: 'Completed', notes: 'Terrace load-bearing confirmed adequate. Quote sent.' },
+  { id: 'sv4', clientId: 'c5', location: 'Kozhikode', date: addDays(today(), -2), assignedTo: 'e6', teamIds: ['e7'], status: 'Completed', notes: 'Hardscape area marked out with the association secretary.' },
   { id: 'sv5', leadId: 'l8', location: 'Varkala', date: addDays(today(), -20), assignedTo: 'e2', status: 'Cancelled', notes: 'Client postponed, later lost.' },
 ]
 

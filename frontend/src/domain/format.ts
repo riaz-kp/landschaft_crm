@@ -87,9 +87,10 @@ export function initials(name: string): string {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
 }
 
-/** wa.me wants digits only, country code included. */
-export function whatsappUrl(number: string): string {
-  return `https://wa.me/${number.replace(/\D/g, '')}`
+/** wa.me wants digits only, country code included. `text` pre-fills the message. */
+export function whatsappUrl(number: string, text?: string): string {
+  const base = `https://wa.me/${number.replace(/\D/g, '')}`
+  return text ? `${base}?text=${encodeURIComponent(text)}` : base
 }
 
 /** The current local time as HH:mm. */

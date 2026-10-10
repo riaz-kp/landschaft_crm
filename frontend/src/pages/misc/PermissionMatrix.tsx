@@ -15,6 +15,9 @@ const VIEW_ONLY: ModuleKey[] = ['Dashboard', 'Reports']
 
 const EDITABLE_ROLES = (Object.keys(ROLES) as RoleKey[]).filter((r) => !LOCKED_ROLES.includes(r))
 
+/** Icons for modules that are tabs rather than sidebar sections. */
+const TAB_ICONS: Partial<Record<ModuleKey, string>> = { 'Site Visits': 'pin', Attendance: 'checks' }
+
 /**
  * Settings → Roles & Permissions. Pick a role, then tick what it may do in
  * each module. View decides whether the module appears in the sidebar at all;
@@ -58,7 +61,9 @@ export function PermissionMatrixEditor({
 
   const visibleCount = (r: RoleKey) => MODULES.filter((m) => value[r][m].view).length
   const people = (r: RoleKey) => db.employees.filter((e) => e.role === r)
-  const icon = (m: ModuleKey) => NAV.find((n) => n.label === m)?.icon ?? 'grid'
+  const icon = (m: ModuleKey) => TAB_ICONS[m] ?? NAV.find((n) => n.label === m)?.icon ?? 'grid'
+  // Tabs with a permission of their own name the section they sit in.
+  const parentOf = (m: ModuleKey) => NAV.find((n) => n.children?.some((c) => c.module === m))?.label
 
   return (
     <div>
@@ -141,7 +146,10 @@ export function PermissionMatrixEditor({
                       <span className={`hidden h-7 w-7 items-center justify-center rounded-lg sm:flex ${p.view ? 'bg-brand-50 text-brand-700' : 'bg-stone-100 text-stone-400'}`}>
                         <Icon name={icon(m)} className="h-4 w-4" />
                       </span>
-                      {m}
+                      <span className="min-w-0">
+                        {m}
+                        {parentOf(m) && <span className="block text-[11px] font-normal text-stone-400">Tab in {parentOf(m)}</span>}
+                      </span>
                       {isLocked && <Badge tone="stone">always on</Badge>}
                     </span>
                   </td>

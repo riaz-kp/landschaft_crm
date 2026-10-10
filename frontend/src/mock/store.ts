@@ -1,5 +1,6 @@
 import * as seed from './seed'
 import { today } from '../domain/format'
+import { normalizePermissions } from '../domain/roles'
 import type {
   CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
   DocumentRecord, Employee, ID, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
@@ -84,7 +85,12 @@ function load(): DbShape {
     if (!parsed.projects || !parsed.reports) return freshDb()
     // Collections and settings added after the payload was written start from the seed.
     const fresh = freshDb()
-    return { ...fresh, ...parsed, settings: { ...fresh.settings, ...parsed.settings } }
+    return {
+      ...fresh,
+      ...parsed,
+      // Renamed and newly added permission modules are filled in, keeping every tick already made.
+      settings: { ...fresh.settings, ...parsed.settings, permissions: normalizePermissions(parsed.settings?.permissions) },
+    }
   } catch {
     return freshDb()
   }
@@ -98,6 +104,12 @@ let version = 0
 let snapshot = { version, db }
 
 function commit() {
+  // Records are changed in place, so every collection is handed out as a fresh
+  // array. Anything memoised on a collection — the attendance register, a
+  // foreman's crew — then sees the change instead of showing the old value.
+  db = Object.fromEntries(
+    Object.entries(db).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]),
+  ) as unknown as DbShape
   version += 1
   snapshot = { version, db }
   try {

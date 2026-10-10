@@ -5,6 +5,7 @@ import { useDb } from '../state/useDb'
 import { useSession } from '../state/session'
 import { addDays, formatDate, formatTime, today } from '../domain/format'
 import { occurrencesBetween, visibleTo } from '../domain/reminders'
+import { dueVisitReminders, visitPeople, visitSubject } from '../domain/siteVisits'
 import { Icon } from './Icon'
 import { ReminderModal } from './ReminderModal'
 import { useClickOutside } from './useClickOutside'
@@ -25,18 +26,21 @@ export function NotificationBell() {
     .filter((o) => !o.done)
     .reverse()
   const coming = occurrencesBetween(visibleTo(db.reminders, user.id), addDays(today(), 1), addDays(today(), 7)).slice(0, 4)
+  // Site visits this person is on, once their reminder window opens. They clear when the visit is done.
+  const visits = dueVisitReminders(db.siteVisits, user.id, today())
+  const count = due.length + visits.length
 
   return (
     <div ref={root} className="relative">
       <button
         onClick={() => setOpen(!open)}
         className="btn-icon relative h-10 w-10 rounded-xl"
-        aria-label={`Reminders${due.length ? `, ${due.length} due` : ''}`}
+        aria-label={`Reminders${count ? `, ${count} due` : ''}`}
       >
         <Icon name="bell" className="h-5 w-5" />
-        {due.length > 0 && (
+        {count > 0 && (
           <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
-            {due.length}
+            {count}
           </span>
         )}
       </button>
@@ -50,7 +54,32 @@ export function NotificationBell() {
               <button onClick={() => { setAdding(true); setOpen(false) }} className="text-xs font-semibold text-brand-700">+ Add reminder</button>
             </div>
             <div className="max-h-[60vh] overflow-y-auto sm:max-h-80">
-              {due.length === 0 && <p className="px-4 py-6 text-center text-sm text-stone-400">Nothing due today.</p>}
+              {visits.map((v) => {
+                const others = visitPeople(v).length - 1
+                return (
+                  <Link
+                    key={v.id}
+                    to="/consultations/site-visits"
+                    onClick={() => setOpen(false)}
+                    className="flex items-start gap-3 border-b border-stone-50 bg-amber-50/40 px-4 py-2.5 hover:bg-amber-50"
+                  >
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-700">
+                      <Icon name="pin" className="h-3 w-3" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-stone-800">Site visit — {visitSubject(v, db.leads, db.clients)}</p>
+                      <p className="text-xs text-stone-500">
+                        <span className={v.date === today() ? 'font-semibold text-amber-700' : ''}>
+                          {v.date === today() ? 'Today' : v.date === addDays(today(), 1) ? 'Tomorrow' : formatDate(v.date)}
+                        </span>
+                        {v.time && ` · ${formatTime(v.time)}`} · {v.location}
+                        {others > 0 && ` · with ${others} other${others === 1 ? '' : 's'}`}
+                      </p>
+                    </div>
+                  </Link>
+                )
+              })}
+              {count === 0 && <p className="px-4 py-6 text-center text-sm text-stone-400">Nothing due today.</p>}
               {due.map((o) => (
                 <div key={`${o.reminder.id}-${o.date}`} className="flex items-start gap-3 border-b border-stone-50 px-4 py-2.5">
                   <button

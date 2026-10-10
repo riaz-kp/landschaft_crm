@@ -5,8 +5,9 @@ import { usePermissions } from '../../state/permissions'
 import { formatDate } from '../../domain/format'
 import { MEP_LABELS, MEP_SERVICES, PHASE_LABELS } from '../../domain/types'
 import {
-  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, ProgressBar, StatTile, Badge,
+  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, StatTile, Badge,
 } from '../../components/ui'
+import { ProgressCell } from '../../components/ProjectProgress'
 
 type Key = 'hardscape' | 'softscape' | 'mep'
 
@@ -62,7 +63,7 @@ export function ExecutionPhasePage({ phase }: { phase: Key }) {
           <Table head={[
             'Project', 'Client', 'Site',
             ...(phase === 'mep' ? ['Services'] : []),
-            'Last Report', 'Progress', editable ? 'Adjust' : '', 'Status',
+            'Last Report', 'Progress', 'Status',
           ]}>
             {projects.map((project) => {
               const lastReport = db.reports
@@ -91,22 +92,11 @@ export function ExecutionPhasePage({ phase }: { phase: Key }) {
                     {lastReport ? formatDate(lastReport.date) : <span className="text-stone-400">—</span>}
                   </td>
                   <td className="td">
-                    <div className="flex items-center gap-2">
-                      <div className="w-28"><ProgressBar value={project.execution[phase].progress} /></div>
-                      <span className="w-10 text-right text-sm font-semibold tabular-nums">
-                        {project.execution[phase].progress}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="td">
-                    {editable && (
-                      <input
-                        type="range" min={0} max={100} step={5} value={project.execution[phase].progress}
-                        onChange={(e) => api.projects.setPhaseProgress(project.id, phase, Number(e.target.value))}
-                        className="w-28 accent-brand-600"
-                        aria-label={`Set ${PHASE_LABELS[phase]} progress for ${project.name}`}
-                      />
-                    )}
+                    <ProgressCell
+                      value={project.execution[phase].progress}
+                      label={`${PHASE_LABELS[phase]} for ${project.name}`}
+                      onChange={editable ? (v) => api.projects.setPhaseProgress(project.id, phase, v) : undefined}
+                    />
                   </td>
                   <td className="td">
                     <div className="flex flex-wrap gap-1">

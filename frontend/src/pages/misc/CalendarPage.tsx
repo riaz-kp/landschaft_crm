@@ -4,6 +4,7 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { addDays, formatDate, formatDateLong, formatTime, today } from '../../domain/format'
 import { partyName } from '../../domain/consultations'
+import { visitPeople } from '../../domain/siteVisits'
 import { occurrencesBetween, visibleTo } from '../../domain/reminders'
 import { ReminderModal } from '../../components/ReminderModal'
 import { allOccurrences } from '../../domain/amc'
@@ -20,7 +21,7 @@ const STYLE: Record<EventType, { dot: string; chip: string; label: string }> = {
   Deadline: { dot: 'bg-amber-500', chip: 'bg-amber-50 text-amber-800 border-amber-200', label: 'Deadlines' },
   Meeting: { dot: 'bg-clay-500', chip: 'bg-clay-50 text-clay-800 border-clay-200', label: 'Meetings' },
   'AMC Visit': { dot: 'bg-brand-500', chip: 'bg-brand-50 text-brand-800 border-brand-200', label: 'AMC visits & renewals' },
-  Consultation: { dot: 'bg-violet-500', chip: 'bg-violet-50 text-violet-800 border-violet-200', label: 'CEO consultations' },
+  Consultation: { dot: 'bg-violet-500', chip: 'bg-violet-50 text-violet-800 border-violet-200', label: 'Consultations' },
   Reminder: { dot: 'bg-rose-500', chip: 'bg-rose-50 text-rose-800 border-rose-200', label: 'Reminders' },
   'Project Due': { dot: 'bg-red-500', chip: 'bg-red-50 text-red-800 border-red-200', label: 'Project completions' },
 }
@@ -73,7 +74,7 @@ export function CalendarPage() {
     ...reminderEvents,
     ...db.siteVisits.filter((v) => v.status !== 'Cancelled').map((v): CalEvent => ({
       id: v.id, title: `Site visit — ${subject(v.leadId, v.clientId) ?? v.location}`, date: v.date, type: 'Site Visit',
-      people: [v.assignedTo], to: '/crm/site-visits',
+      people: visitPeople(v), to: '/consultations/site-visits',
     })),
     ...db.tasks.filter((t) => t.status !== 'Done').map((t): CalEvent => ({
       id: t.id, title: t.title, date: t.dueDate, type: 'Task Due', people: [t.assigneeId], to: `/tasks/all?open=${t.id}`,
@@ -92,7 +93,7 @@ export function CalendarPage() {
       id: `renew-${m.id}`, title: `AMC renewal — ${projectName(m.projectId)}`, date: m.renewalDate!, type: 'AMC Visit', people: [], to: '/amc/renewals',
     })),
     ...db.consultations.filter((c) => c.status === 'Scheduled').map((c): CalEvent => ({
-      id: c.id, title: `CEO · ${c.purpose} — ${partyName(c, db.clients, db.leads)}`, date: c.date, time: c.start,
+      id: c.id, title: `Consultation · ${c.purpose} — ${partyName(c, db.clients, db.leads)}`, date: c.date, time: c.start,
       type: 'Consultation', people: [c.bookedBy, db.employees.find((e) => e.role === 'ceo')?.id ?? ''], to: '/consultations',
     })),
     ...db.projects.filter((p) => p.status !== 'Completed').map((p): CalEvent => ({
@@ -126,7 +127,7 @@ export function CalendarPage() {
     <div>
       <PageHeader
         title="Calendar"
-        subtitle="Reminders, site visits, task due dates, deadlines, meetings, AMC visits, CEO consultations and project completions — tick what to show."
+        subtitle="Reminders, site visits, task due dates, deadlines, meetings, AMC visits, consultations and project completions — tick what to show."
         actions={<button onClick={() => setAdding(selected)} className="btn-primary"><Icon name="bell" className="h-4 w-4" /> Add reminder</button>}
       />
 

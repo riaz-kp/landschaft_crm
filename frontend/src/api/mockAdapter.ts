@@ -432,12 +432,15 @@ export const adapter: Api = {
         const existing = index >= 0 ? db.attendance[index] : undefined
         const status = patch.status ?? existing?.status ?? 'Present'
         const working = status === 'Present' || status === 'Half Day'
+        // A field named in the patch wins even when it is empty, so a time or overtime can be cleared.
+        const pick = <K extends 'checkIn' | 'checkOut' | 'otHours'>(key: K) =>
+          key in patch ? patch[key] || undefined : existing?.[key]
         const entry = {
           kind, personId, date, status,
           // Marking someone in notes the time as their time in; leave and absence clear the times.
-          checkIn: working ? (patch.checkIn ?? existing?.checkIn ?? (date === today() ? nowTime() : '09:00')) : undefined,
-          checkOut: working ? (patch.checkOut ?? existing?.checkOut) : undefined,
-          otHours: working ? (patch.otHours ?? existing?.otHours) : undefined,
+          checkIn: working ? ('checkIn' in patch ? pick('checkIn') : existing?.checkIn ?? (date === today() ? nowTime() : '09:00')) : undefined,
+          checkOut: working ? pick('checkOut') : undefined,
+          otHours: working ? pick('otHours') : undefined,
         }
         if (index >= 0) db.attendance[index] = entry
         else db.attendance.push(entry)

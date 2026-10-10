@@ -4,9 +4,9 @@ import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
 import { titleOf } from '../../domain/roles'
-import { formatDate, formatDateLong, formatDuration, minutesBetween, today } from '../../domain/format'
+import { currentTime, formatDate, formatDateLong, formatDuration, formatTime, minutesBetween, today } from '../../domain/format'
 import {
-  CYCLE, STATUS_CELL, STATUS_CODE, daysOfMonth, indexRegister, indexWorkerReports, isOffDay,
+  STATUS_CELL, STATUS_CODE, daysOfMonth, indexRegister, indexWorkerReports, isOffDay,
   resolveDay, totalsFor, type ResolvedDay,
 } from '../../domain/attendance'
 import {
@@ -14,6 +14,8 @@ import {
 } from '../../domain/types'
 import { PageHeader, Section, StatTile, Avatar, Pills, SearchInput, Badge, EmptyState } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { ClockToggle } from '../../components/TimeInput'
+import { AttendanceDayModal } from './AttendanceDayModal'
 
 interface Person {
   kind: PersonKind
@@ -37,21 +39,32 @@ function shiftMonth(month: string, delta: number): string {
 }
 
 /**
+ * A day taken from a daily report has no register entry yet. When it is
+ * corrected, carry its times across so they are not replaced by defaults.
+ */
+function fromReport(day?: ResolvedDay) {
+  return day?.source === 'report'
+    ? { status: day.status, checkIn: day.checkIn, checkOut: day.checkOut, otHours: day.otHours }
+    : {}
+}
+
+/**
  * The attendance register for the whole company — office staff and site
  * workers on one page. Mark the day at the top; the month grid below shows
  * everyone's month with totals. Workers' days fill in from the foremen's
- * daily reports, and can be corrected here.
+ * daily reports, and can be corrected here. Any day opens in an editor.
  */
 export function Attendance() {
   const db = useDb()
   const { can } = usePermissions()
-  const canEdit = can('Employees', 'edit')
+  const canEdit = can('Attendance', 'edit')
 
   const [kind, setKind] = useState<KindFilter>('all')
   const [group, setGroup] = useState('')
   const [query, setQuery] = useState('')
   const [date, setDate] = useState(today())
   const [month, setMonth] = useState(() => today().slice(0, 7))
+  const [editing, setEditing] = useState<{ person: Person; date: string } | null>(null)
 
   const register = useMemo(() => indexRegister(db.attendance), [db.attendance])
   const workerReports = useMemo(() => indexWorkerReports(db.reports), [db.reports])
@@ -79,12 +92,14 @@ export function Attendance() {
   const unmarked = todays.filter((t) => !t.day)
 
   const projectName = (id: ID) => db.projects.find((p) => p.id === id)?.siteLocation ?? ''
+  const open = (person: Person, d: string) => setEditing({ person, date: d })
 
   return (
     <div>
       <PageHeader
         title="Attendance"
-        subtitle="Daily register for employees and execution workers — status, time in and out, and overtime. Workers fill in automatically from the foremen's daily reports. Open a person for their totals."
+        subtitle="Daily register for employees and execution workers — status, time in and out, and overtime. Workers fill in automatically from the foremen's daily reports. Tap anyone's day to edit it."
+        actions={<ClockToggle />}
       />
 
       {/* Filters */}
@@ -117,6 +132,12 @@ export function Attendance() {
         <StatTile label="Not Marked" value={unmarked.length} tone={unmarked.length ? 'amber' : 'green'} icon="users" />
       </div>
 
+      {!canEdit && (
+        <p className="mb-4 flex items-center gap-2 rounded-xl bg-stone-100 px-4 py-2.5 text-sm text-stone-600">
+          <Icon name="eye" className="h-4 w-4 shrink-0" /> You can view attendance. Editing is granted from Settings → Roles &amp; Permissions → Attendance.
+        </p>
+      )}
+
       {/* Day register */}
       <Section
         className="mb-6"
@@ -133,6 +154,9 @@ export function Attendance() {
               onChange={(e) => e.target.value && setDate(e.target.value)}
               className="input w-auto py-1.5" aria-label="Register date"
             />
+            {date !== today() && (
+              <button onClick={() => setDate(today())} className="btn-secondary py-1.5">Today</button>
+            )}
             {canEdit && unmarked.length > 0 && (
               <button
                 onClick={() => unmarked.forEach(({ person }) => api.attendance.set(person.kind, person.id, date, { status: 'Present' }))}
@@ -147,26 +171,41 @@ export function Attendance() {
         {shown.length === 0 ? (
           <EmptyState title="No one matches these filters." icon="users" />
         ) : (
-          <div className="grid gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-3 bg-stone-50/60 p-3 sm:p-4 md:grid-cols-2 2xl:grid-cols-3">
             {todays.map(({ person, day }) => (
               <RegisterCard
                 key={`${person.kind}-${person.id}`}
                 person={person} date={date} day={day} canEdit={canEdit}
                 sites={day?.projectIds.map(projectName) ?? []}
+                onOpen={() => open(person, date)}
               />
             ))}
           </div>
         )}
         <p className="border-t border-stone-100 px-5 py-3 text-xs text-stone-400">
-          Marking someone present or half day notes the time as their time in. Set the time out when they leave and any
-          overtime in hours — all of it can be corrected. Click a selected status again to clear it.
+          Tap a letter to set the status quickly — tap it again to clear. Tap the hours to edit time in, time out and
+          overtime. Marking someone present notes the current time as their time in.
         </p>
       </Section>
 
       <MonthRegister
         people={shown} month={month} setMonth={setMonth} canEdit={canEdit}
-        dayOf={dayOf} holidays={holidays}
+        dayOf={dayOf} holidays={holidays} onOpen={open}
       />
+
+      {editing && (
+        <AttendanceDayModal
+          key={`${editing.person.kind}-${editing.person.id}-${editing.date}`}
+          kind={editing.person.kind}
+          personId={editing.person.id}
+          name={editing.person.name}
+          photo={editing.person.photo}
+          date={editing.date}
+          day={dayOf(editing.person, editing.date)}
+          canEdit={canEdit && editing.date <= today()}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   )
 }
@@ -174,14 +213,15 @@ export function Attendance() {
 // ---------------------------------------------------------------- one person, one day
 
 function RegisterCard({
-  person, date, day, canEdit, sites,
-}: { person: Person; date: string; day?: ResolvedDay; canEdit: boolean; sites: string[] }) {
+  person, date, day, canEdit, sites, onOpen,
+}: { person: Person; date: string; day?: ResolvedDay; canEdit: boolean; sites: string[]; onOpen: () => void }) {
   const working = day?.status === 'Present' || day?.status === 'Half Day'
   const set = (patch: Parameters<typeof api.attendance.set>[3]) => api.attendance.set(person.kind, person.id, date, patch)
-  const hours = day?.checkIn && day.checkOut ? formatDuration(minutesBetween(day.checkIn, day.checkOut)) : null
+  const hours = working && day?.checkIn && day.checkOut ? formatDuration(minutesBetween(day.checkIn, day.checkOut)) : null
+  const canClockOut = canEdit && working && date === today() && !day?.checkOut
 
   return (
-    <div className={`rounded-2xl border p-3.5 transition ${day ? 'border-stone-200 bg-white' : 'border-dashed border-amber-300 bg-amber-50/30'}`}>
+    <div className={`rounded-2xl border p-3.5 shadow-sm transition ${day ? 'border-stone-200 bg-white' : 'border-dashed border-amber-300 bg-amber-50/40'}`}>
       <div className="flex items-start justify-between gap-3">
         <Link to={person.to} className="flex min-w-0 items-center gap-2.5">
           <Avatar name={person.name} size="sm" src={person.photo} />
@@ -198,9 +238,11 @@ function RegisterCard({
                 key={s}
                 type="button"
                 disabled={!canEdit}
-                onClick={() => set(on ? null : { status: s })}
+                onClick={() => set(on ? null : { ...fromReport(day), status: s })}
                 title={s}
-                className={`h-7 w-7 rounded-lg text-xs font-bold ring-1 ring-inset transition ${
+                aria-label={`${s} — ${person.name}`}
+                aria-pressed={on}
+                className={`h-8 w-8 rounded-lg text-xs font-bold ring-1 ring-inset transition ${
                   on ? STATUS_CELL[s] : 'bg-white text-stone-400 ring-stone-200 hover:text-stone-700 hover:ring-stone-300'
                 } disabled:cursor-default`}
               >
@@ -211,48 +253,67 @@ function RegisterCard({
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-[auto_1fr_auto_1fr] items-center gap-x-2 gap-y-2 sm:grid-cols-[auto_1fr_auto_1fr_auto_auto]">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">In</span>
-        <input
-          type="time" value={day?.checkIn ?? ''} disabled={!canEdit || !working}
-          onChange={(e) => set({ checkIn: e.target.value })}
-          className="input px-2 py-1 text-xs" aria-label={`Time in for ${person.name}`}
-        />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Out</span>
-        <input
-          type="time" value={day?.checkOut ?? ''} disabled={!canEdit || !working}
-          onChange={(e) => set({ checkOut: e.target.value })}
-          className="input px-2 py-1 text-xs" aria-label={`Time out for ${person.name}`}
-        />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">OT</span>
-        <div className="flex items-center gap-1">
-          <input
-            type="number" min={0} step={0.5} value={day?.otHours ?? ''} placeholder="0" disabled={!canEdit || !working}
-            onChange={(e) => set({ otHours: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)) })}
-            className="input w-14 px-2 py-1 text-right text-xs" aria-label={`Overtime hours for ${person.name}`}
-          />
-          <span className="text-xs text-stone-400">h</span>
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="mt-3 flex w-full items-center gap-3 rounded-xl bg-stone-50 px-3 py-2 text-left ring-1 ring-inset ring-stone-200/70 transition hover:bg-brand-50/60 hover:ring-brand-200"
+        aria-label={`${canEdit ? 'Edit' : 'View'} ${person.name}'s day`}
+      >
+        {working ? (
+          <span className="grid flex-1 grid-cols-3 gap-2 text-xs">
+            <TimeCell label="In" value={day?.checkIn ? formatTime(day.checkIn) : '—'} />
+            <TimeCell label="Out" value={day?.checkOut ? formatTime(day.checkOut) : '—'} muted={!day?.checkOut} />
+            <TimeCell label="OT" value={day?.otHours ? `${day.otHours}h` : '—'} muted={!day?.otHours} />
+          </span>
+        ) : (
+          <span className="flex-1 text-xs text-stone-500">
+            {day ? `${day.status} — no hours to record` : 'Not marked yet'}
+          </span>
+        )}
+        {canEdit && (
+          <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-700">
+            <Icon name="edit" className="h-3.5 w-3.5" /> Edit
+          </span>
+        )}
+      </button>
 
-      {(day?.source === 'report' || sites.length > 0 || hours) && (
-        <p className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] text-stone-500">
+      {(canClockOut || day?.source === 'report' || sites.length > 0 || hours) && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] text-stone-500">
           {hours && <span className="tabular-nums">{hours} worked</span>}
-          {sites.length > 0 && <><Icon name="pin" className="h-3 w-3" /> {sites.join(', ')}</>}
+          {sites.length > 0 && <span className="flex items-center gap-1"><Icon name="pin" className="h-3 w-3" /> {sites.join(', ')}</span>}
           {day?.source === 'report' && <Badge tone="stone">from daily report</Badge>}
-        </p>
+          {canClockOut && (
+            <button
+              type="button"
+              onClick={() => set({ ...fromReport(day), checkOut: currentTime() })}
+              className="ml-auto rounded-lg bg-brand-50 px-2 py-1 font-semibold text-brand-700 hover:bg-brand-100"
+            >
+              Time out now
+            </button>
+          )}
+        </div>
       )}
     </div>
+  )
+}
+
+function TimeCell({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <span className="min-w-0">
+      <span className="block text-[10px] font-bold uppercase tracking-wider text-stone-400">{label}</span>
+      <span className={`block truncate font-semibold tabular-nums ${muted ? 'text-stone-400' : 'text-stone-800'}`}>{value}</span>
+    </span>
   )
 }
 
 // ---------------------------------------------------------------- the month
 
 function MonthRegister({
-  people, month, setMonth, canEdit, dayOf, holidays,
+  people, month, setMonth, canEdit, dayOf, holidays, onOpen,
 }: {
   people: Person[]; month: string; setMonth: (m: string) => void; canEdit: boolean
   dayOf: (p: Person, date: string) => ResolvedDay | undefined; holidays: string[]
+  onOpen: (p: Person, date: string) => void
 }) {
   const days = daysOfMonth(month)
   const working = days.filter((d) => !isOffDay(d, holidays))
@@ -260,12 +321,6 @@ function MonthRegister({
   const offThisMonth = days.filter((d) => isOffDay(d, holidays))
   const sundays = offThisMonth.filter((d) => new Date(d + 'T00:00:00').getDay() === 0).length
   const holidayList = offThisMonth.filter((d) => new Date(d + 'T00:00:00').getDay() !== 0)
-
-  const cycle = (p: Person, date: string) => {
-    const current = dayOf(p, date)?.status ?? null
-    const next = CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length]
-    api.attendance.set(p.kind, p.id, date, next ? { status: next } : null)
-  }
 
   const label = new Date(month + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
 
@@ -356,17 +411,16 @@ function MonthRegister({
                     {rows.map(({ date: d, day }) => {
                       const off = isOffDay(d, holidays)
                       const future = d > today()
-                      const clickable = canEdit && !future
                       return (
                         <td key={d} className={`border-b border-stone-100 px-0.5 py-1 text-center ${off ? 'bg-stone-50' : ''} ${d === today() ? 'bg-brand-50/60' : ''}`}>
                           <button
                             type="button"
-                            disabled={!clickable}
-                            onClick={() => cycle(p, d)}
-                            title={day ? `${formatDate(d)} · ${day.status}${day.checkIn ? ` · in ${day.checkIn}` : ''}${day.checkOut ? ` · out ${day.checkOut}` : ''}${day.otHours ? ` · OT ${day.otHours}h` : ''}${day.source === 'report' ? ' · from daily report' : ''}` : formatDate(d)}
+                            disabled={future}
+                            onClick={() => onOpen(p, d)}
+                            title={day ? `${formatDate(d)} · ${day.status}${day.checkIn ? ` · in ${formatTime(day.checkIn)}` : ''}${day.checkOut ? ` · out ${formatTime(day.checkOut)}` : ''}${day.otHours ? ` · OT ${day.otHours}h` : ''}${day.source === 'report' ? ' · from daily report' : ''}` : formatDate(d)}
                             className={`relative mx-auto flex h-7 w-7 items-center justify-center rounded-md text-[11px] font-bold transition ${
                               day ? `ring-1 ring-inset ${STATUS_CELL[day.status]}` : off ? 'text-stone-300' : 'text-stone-300 hover:bg-stone-100'
-                            } ${clickable ? 'hover:brightness-95' : 'cursor-default'} ${day?.source === 'report' ? 'outline-dashed outline-1 outline-offset-[-3px] outline-brand-600/30' : ''}`}
+                            } ${future ? 'cursor-default' : 'hover:brightness-95'} ${day?.source === 'report' ? 'outline-dashed outline-1 outline-offset-[-3px] outline-brand-600/30' : ''}`}
                           >
                             {day ? STATUS_CODE[day.status] : off || future ? '' : '·'}
                             {day?.otHours ? <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-sky-500" /> : null}
@@ -395,12 +449,11 @@ function MonthRegister({
           Off this month: {sundays} Sundays{holidayList.length > 0 && ` · ${holidayList.map((d) => formatDateLong(d)).join(', ')}`}.
           Days marked * include work on an off day. Dashed cells come from a foreman's daily report.
         </p>
-        {canEdit && (
-          <p>
-            Click a day to step through Present, Half day, Leave, Absent and blank. Click a date to make it an off day for
-            everyone, such as a holiday. A dot marks overtime, entered in hours in the register above.
-          </p>
-        )}
+        <p>
+          {canEdit
+            ? 'Click any day to set its status, times and overtime. Click a date at the top to make it an off day for everyone, such as a holiday.'
+            : 'Click any day to see its times and overtime.'}
+        </p>
       </div>
     </Section>
   )

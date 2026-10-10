@@ -14,6 +14,7 @@ import { WorkerPicker } from '../../components/WorkerPicker'
 import { PhotoGrid } from '../../components/PhotoGrid'
 import { ClockToggle, TimeInput } from '../../components/TimeInput'
 import { Icon } from '../../components/Icon'
+import { directionsUrl } from '../../components/mapLinks'
 import { ProgressBar, SiteName, StatusBadge } from '../../components/ui'
 
 function FormSection({
@@ -191,6 +192,13 @@ export function DailyWorkReportForm() {
             <p className="mt-0.5 truncate text-sm text-stone-500">
               <SiteName name={draft.siteLocation} /> · {project.name}
             </p>
+            <a
+              href={directionsUrl(project.siteCoords ?? project.siteLocation)}
+              target="_blank" rel="noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-700"
+            >
+              <Icon name="map" className="h-3.5 w-3.5" /> Directions to site
+            </a>
           </div>
           <StatusBadge status={draft.status} />
         </div>

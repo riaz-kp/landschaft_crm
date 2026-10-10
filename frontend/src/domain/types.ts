@@ -181,7 +181,7 @@ export interface PaymentFollowUp {
   nextFollowUp?: string
 }
 
-// ---------------------------------------------------------------- CEO consultations
+// ---------------------------------------------------------------- consultations & site visits
 
 export type ConsultationStatus = 'Scheduled' | 'Completed' | 'Cancelled'
 
@@ -217,13 +217,24 @@ export interface Consultation {
 
 export type SiteVisitStatus = 'Scheduled' | 'Completed' | 'Cancelled'
 
+/**
+ * A visit to a lead's or client's site. One person leads it; others can go
+ * along as a group, and everyone on it is reminded ahead of the day.
+ */
 export interface SiteVisit {
   id: ID
   leadId?: ID
   clientId?: ID
   location: string
   date: string
+  /** HH:mm the team meets on site. Optional — older visits have none. */
+  time?: string
+  /** Who leads the visit. */
   assignedTo: ID
+  /** Other employees going along. */
+  teamIds?: ID[]
+  /** Remind everyone on the visit this many days before (0 = on the day). Unset means no reminder. */
+  remindDaysBefore?: number
   status: SiteVisitStatus
   notes: string
 }
@@ -606,10 +617,14 @@ export interface Settings {
 
 // ---------------------------------------------------------------- permissions
 
-/** Every module a role can be granted, matching the sidebar. */
+/**
+ * Every module a role can be granted, matching the sidebar. Site Visits and
+ * Attendance are tabs inside Consultations and Employees, but carry their own
+ * permission so either can be granted without the rest of its section.
+ */
 export const MODULES = [
-  'Dashboard', 'CEO Consultations', 'CRM', 'Projects', 'Tasks', 'Design', 'Execution', 'AMC',
-  'Accounts', 'Employees', 'Gallery', 'Documents', 'Calendar', 'Reports', 'Settings',
+  'Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Projects', 'Tasks', 'Design', 'Execution', 'AMC',
+  'Accounts', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar', 'Reports', 'Settings',
 ] as const
 export type ModuleKey = (typeof MODULES)[number]
 

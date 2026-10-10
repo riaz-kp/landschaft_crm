@@ -1,8 +1,11 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
+import { usePermissions } from '../../state/permissions'
 import { can } from '../../domain/roles'
+import { visitPeople, visitSubject } from '../../domain/siteVisits'
 import { addDays, formatDate, formatDateLong, formatTime, today } from '../../domain/format'
 import {
   DAY_END, DAY_START, DURATIONS, SLOT_MINUTES, endOf, findClash, firstFreeSlot, partyName, slotTimes,
@@ -41,6 +44,7 @@ type Draft = { date: string; start: string }
 export function Consultations() {
   const db = useDb()
   const { user, roleKey } = useSession()
+  const { canView } = usePermissions()
   const [weekStart, setWeekStart] = useState(currentWeekStart)
   const [booking, setBooking] = useState<Draft | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -66,11 +70,14 @@ export function Consultations() {
   const name = (c: Consultation) => partyName(c, db.clients, db.leads)
   const staffName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
   const opened = db.consultations.find((c) => c.id === openId)
+  const siteVisits = db.siteVisits
+    .filter((v) => v.status === 'Scheduled' && v.date >= today())
+    .sort((a, b) => (a.date + (a.time ?? '')).localeCompare(b.date + (b.time ?? '')))
 
   return (
     <div>
       <PageHeader
-        title="CEO Consultation Schedule"
+        title="Consultations"
         subtitle={`${ceo?.name ?? 'The CEO'}'s consultation diary. Everyone can see it and book a slot.`}
         actions={<button onClick={() => {
           const base = today() < days[0] ? days[0] : today()
@@ -202,6 +209,38 @@ export function Consultations() {
               </ul>
             )}
           </Section>
+
+          {canView('Site Visits') && (
+            <Section
+              title="Site Visits"
+              description={siteVisits.length ? `${siteVisits.length} coming up` : undefined}
+              actions={<Link to="/consultations/site-visits" className="text-sm font-semibold text-brand-700">All visits</Link>}
+            >
+              {siteVisits.length === 0 ? (
+                <EmptyState title="No site visits coming up." icon="pin" />
+              ) : (
+                <ul className="divide-y divide-stone-100">
+                  {siteVisits.slice(0, 5).map((v) => {
+                    const people = visitPeople(v)
+                    return (
+                      <li key={v.id}>
+                        <Link to="/consultations/site-visits" className="block px-5 py-3 hover:bg-stone-50">
+                          <p className="text-xs font-semibold tabular-nums text-clay-700">
+                            {v.date === today() ? 'Today' : formatDateLong(v.date)}{v.time && ` · ${formatTime(v.time)}`}
+                          </p>
+                          <p className="mt-0.5 text-sm font-medium text-stone-800">{visitSubject(v, db.leads, db.clients)}</p>
+                          <p className="text-xs text-stone-400">
+                            {v.location} · {staffName(v.assignedTo)}{people.length > 1 && ` + ${people.length - 1}`}
+                            {people.includes(user.id) && <span className="ml-1.5 font-semibold text-clay-700">· you're on it</span>}
+                          </p>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </Section>
+          )}
 
           <Section title="Recent">
             {past.length === 0 ? (

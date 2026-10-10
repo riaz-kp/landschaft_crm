@@ -240,7 +240,7 @@ export function WorkerDetail() {
         </div>
       )}
 
-      {tab === 'attendance' && <PersonAttendance kind="worker" personId={worker.id} canEdit={canEdit} />}
+      {tab === 'attendance' && <PersonAttendance kind="worker" personId={worker.id} canEdit={can('Attendance', 'edit')} />}
       {tab === 'payments' && <PersonPayments kind="worker" personId={worker.id} dailyWage={worker.dailyWage} canManage={can('Accounts', 'create') || canEdit} />}
 
       {tab === 'history' && (

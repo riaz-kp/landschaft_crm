@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { computeProgress } from '../../domain/progress'
+import { isOnVisit } from '../../domain/siteVisits'
 import { formatDate, formatTime, pad2, today } from '../../domain/format'
 import { PHASE_LABELS, type Employee } from '../../domain/types'
 import {
@@ -20,7 +21,7 @@ export function EmployeeWorks({ employee }: { employee: Employee }) {
   const managed = db.projects.filter((p) => p.projectManagerId === employee.id)
   const filed = db.reports.filter((r) => r.foremanId === employee.id && r.status !== 'Draft')
   const reviewed = db.reports.filter((r) => r.reviewedBy === employee.id)
-  const visits = db.siteVisits.filter((v) => v.assignedTo === employee.id)
+  const visits = db.siteVisits.filter((v) => isOnVisit(v, employee.id))
   const booked = db.consultations.filter((c) => c.bookedBy === employee.id)
 
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? '—'
@@ -112,11 +113,12 @@ export function EmployeeWorks({ employee }: { employee: Employee }) {
 
       {visits.length > 0 && (
         <Section title="Site Visits">
-          <Table head={['Date', 'Location', 'Notes', 'Status']}>
+          <Table head={['Date', 'Location', 'Role', 'Notes', 'Status']}>
             {visits.map((visit) => (
               <tr key={visit.id} className="row-hover">
                 <td className="td tabular-nums font-medium text-stone-900">{formatDate(visit.date)}</td>
                 <td className="td">{visit.location}</td>
+                <td className="td">{visit.assignedTo === employee.id ? 'Leading' : 'In the group'}</td>
                 <td className="td max-w-sm">{visit.notes}</td>
                 <td className="td"><StatusBadge status={visit.status} /></td>
               </tr>
@@ -126,7 +128,7 @@ export function EmployeeWorks({ employee }: { employee: Employee }) {
       )}
 
       {booked.length > 0 && (
-        <Section title="CEO Consultations Booked">
+        <Section title="Consultations Booked">
           <Table head={['Date', 'Time', 'Purpose', 'Status']}>
             {booked.map((c) => (
               <tr key={c.id} className="row-hover">

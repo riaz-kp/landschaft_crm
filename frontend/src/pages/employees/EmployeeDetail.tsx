@@ -139,7 +139,7 @@ export function EmployeeDetail() {
       {tab === 'profile' && <ProfileDetails key={employee.id} employee={employee} canEdit={canEditPersonal} />}
       {tab === 'works' && <EmployeeWorks key={employee.id} employee={employee} />}
       {tab === 'workers' && employee.role === 'foreman' && <ForemanCrew key={employee.id} foreman={employee} />}
-      {tab === 'attendance' && <EmployeeAttendance key={employee.id} employee={employee} canEdit={can('Employees', 'edit')} />}
+      {tab === 'attendance' && <EmployeeAttendance key={employee.id} employee={employee} canEdit={can('Attendance', 'edit')} />}
       {tab === 'payments' && canSeePay && (
         <PersonPayments key={employee.id} kind="employee" personId={employee.id} monthlySalary={employee.monthlySalary} canManage={can('Accounts', 'create') || can('Employees', 'edit')} />
       )}

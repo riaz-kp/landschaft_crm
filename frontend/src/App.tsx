@@ -7,7 +7,7 @@ import { Dashboard } from './pages/dashboard/Dashboard'
 import { Leads } from './pages/crm/Leads'
 import { Clients } from './pages/crm/Clients'
 import { ClientDetail } from './pages/crm/ClientDetail'
-import { SiteVisits } from './pages/crm/SiteVisits'
+import { SiteVisits } from './pages/consultations/SiteVisits'
 import { ProjectList } from './pages/projects/ProjectList'
 import { ProjectDetail } from './pages/projects/ProjectDetail'
 import { NewProject } from './pages/projects/NewProject'
@@ -78,11 +78,13 @@ export function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/consultations" element={<Consultations />} />
+          <Route path="/consultations/site-visits" element={<SiteVisits />} />
 
           <Route path="/crm/leads" element={<Leads />} />
           <Route path="/crm/clients" element={<Clients />} />
           <Route path="/crm/clients/:clientId" element={<ClientDetail />} />
-          <Route path="/crm/site-visits" element={<SiteVisits />} />
+          {/* Site visits moved from CRM into Consultations. */}
+          <Route path="/crm/site-visits" element={<Navigate to="/consultations/site-visits" replace />} />
 
           <Route path="/projects" element={<ProjectList scope="all" />} />
           <Route path="/projects/new" element={<NewProject />} />

@@ -18,7 +18,7 @@ import { MEP_LABELS, MEP_SERVICES, type PhaseKey } from '../../domain/types'
 import {
   PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, ProgressBar, Tabs, Checkbox,
 } from '../../components/ui'
-import { PhaseStrip, ProjectProgressPanel } from '../../components/ProjectProgress'
+import { PhaseStrip, ProgressCell, ProjectProgressPanel } from '../../components/ProjectProgress'
 import { RepeaterView } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
 
@@ -255,33 +255,24 @@ export function ProjectDetail() {
       {tab === 'phases' && (
         <Section
           title="Phase Progress"
-          description={editable ? 'Adjust each phase to reflect what is complete on the ground.' : undefined}
+          description={editable ? 'Use the pencil beside a phase to update what is complete on the ground.' : undefined}
         >
-          <Table head={['Module', 'Phase', 'Progress', editable ? 'Adjust' : '']}>
+          <Table head={['Phase', 'Module', 'Progress']}>
             {phaseRows.map((row) => (
               <tr key={row.key} className="row-hover">
-                <td className="td"><Badge tone="stone">{row.group}</Badge></td>
                 <td className="td font-medium text-stone-900">
                   {row.label}
                   {row.key === 'maintenance' && (
                     <span className="ml-2 text-xs font-normal text-stone-400">not counted</span>
                   )}
                 </td>
+                <td className="td"><Badge tone="stone">{row.group}</Badge></td>
                 <td className="td">
-                  <div className="flex items-center gap-3">
-                    <div className="w-40"><ProgressBar value={row.progress} /></div>
-                    <span className="w-10 text-right text-sm font-semibold tabular-nums">{row.progress}%</span>
-                  </div>
-                </td>
-                <td className="td">
-                  {editable && (
-                    <input
-                      type="range" min={0} max={100} step={5} value={row.progress}
-                      onChange={(e) => api.projects.setPhaseProgress(project.id, row.key, Number(e.target.value))}
-                      className="w-32 accent-brand-600"
-                      aria-label={`Set ${row.label} progress`}
-                    />
-                  )}
+                  <ProgressCell
+                    value={row.progress}
+                    label={row.label}
+                    onChange={editable ? (v) => api.projects.setPhaseProgress(project.id, row.key, v) : undefined}
+                  />
                 </td>
               </tr>
             ))}

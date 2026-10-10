@@ -40,7 +40,7 @@ export function MarketingDashboard() {
           label="Conversion"
           value={myLeads.length ? `${Math.round((won.length / myLeads.length) * 100)}%` : '—'}
         />
-        <StatTile label="Site Visits" value={pad2(visitsInPeriod.length)} sub={`${when} · ${upcomingVisits.length} still to come`} to="/crm/site-visits" icon="pin" />
+        <StatTile label="Site Visits" value={pad2(visitsInPeriod.length)} sub={`${when} · ${upcomingVisits.length} still to come`} to="/consultations/site-visits" icon="pin" />
       </div>
 
       <Section title="Funnel" className="mt-6">

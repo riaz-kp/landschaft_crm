@@ -5,8 +5,9 @@ import { usePermissions } from '../../state/permissions'
 import { formatCurrency, formatDate } from '../../domain/format'
 import { PHASE_LABELS, type DesignPhaseKey } from '../../domain/types'
 import {
-  PageHeader, Section, StatusBadge, Table, EmptyState, ProgressBar, StatTile,
+  PageHeader, Section, StatusBadge, Table, EmptyState, StatTile,
 } from '../../components/ui'
+import { ProgressCell } from '../../components/ProjectProgress'
 
 const DESCRIPTIONS: Record<DesignPhaseKey, string> = {
   concept: 'Concept development across every project carrying the design module.',
@@ -49,7 +50,7 @@ export function DesignPhasePage({ phase }: { phase: DesignPhaseKey }) {
             hint="Phases are selected per project at creation."
           />
         ) : (
-          <Table head={['Project', 'Client', 'Value', 'Progress', editable ? 'Adjust' : '', 'Status']}>
+          <Table head={['Project', 'Client', 'Value', 'Progress', 'Status']}>
             {projects.map((project) => (
               <tr key={project.id} className="row-hover">
                 <td className="td">
@@ -61,22 +62,11 @@ export function DesignPhasePage({ phase }: { phase: DesignPhaseKey }) {
                 <td className="td">{clientName(project.clientId)}</td>
                 <td className="td tabular-nums">{formatCurrency(project.value, true)}</td>
                 <td className="td">
-                  <div className="flex items-center gap-2">
-                    <div className="w-28"><ProgressBar value={project.design[phase].progress} /></div>
-                    <span className="w-10 text-right text-sm font-semibold tabular-nums">
-                      {project.design[phase].progress}%
-                    </span>
-                  </div>
-                </td>
-                <td className="td">
-                  {editable && (
-                    <input
-                      type="range" min={0} max={100} step={5} value={project.design[phase].progress}
-                      onChange={(e) => api.projects.setPhaseProgress(project.id, phase, Number(e.target.value))}
-                      className="w-28 accent-brand-600"
-                      aria-label={`Set ${PHASE_LABELS[phase]} progress for ${project.name}`}
-                    />
-                  )}
+                  <ProgressCell
+                    value={project.design[phase].progress}
+                    label={`${PHASE_LABELS[phase]} for ${project.name}`}
+                    onChange={editable ? (v) => api.projects.setPhaseProgress(project.id, phase, v) : undefined}
+                  />
                 </td>
                 <td className="td"><StatusBadge status={project.status} /></td>
               </tr>

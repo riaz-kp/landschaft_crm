@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
-import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { formatDuration, formatTime, today } from '../../domain/format'
 import {
-  CYCLE, STATUS_CELL, daysOfMonth, indexRegister, indexWorkerReports, isOffDay, resolveDay, totalsFor,
+  STATUS_CELL, daysOfMonth, indexRegister, indexWorkerReports, isOffDay, resolveDay, totalsFor,
 } from '../../domain/attendance'
 import { ATTENDANCE_STATUSES, type Employee, type ID, type PersonKind } from '../../domain/types'
 import { Section, StatTile } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { AttendanceDayModal } from './AttendanceDayModal'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -32,10 +32,10 @@ export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind
     setMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
   }
 
-  const cycle = (date: string, current: (typeof CYCLE)[number]) => {
-    const next = CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length]
-    api.attendance.set(kind, personId, date, next ? { status: next } : null)
-  }
+  const [opened, setOpened] = useState<string | null>(null)
+  const person = kind === 'employee'
+    ? db.employees.find((e) => e.id === personId)
+    : db.workers.find((w) => w.id === personId)
 
   const site = (id: ID) => db.projects.find((p) => p.id === id)?.siteLocation ?? ''
 
@@ -52,7 +52,7 @@ export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind
 
       <Section
         title={firstDay.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
-        description={canEdit ? 'Click a day to change its status. Sundays and holidays are off days.' : 'Sundays and holidays are off days.'}
+        description={canEdit ? 'Tap a day to set its status, times and overtime. Sundays and holidays are off days.' : 'Tap a day for its times. Sundays and holidays are off days.'}
         actions={
           <div className="flex items-center gap-1">
             <button onClick={() => shiftMonth(-1)} className="btn-icon" aria-label="Previous month"><Icon name="chevron" className="h-4 w-4 rotate-180" /></button>
@@ -70,7 +70,7 @@ export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind
             {days.map(({ date, day }) => {
               const off = isOffDay(date, holidays)
               const future = date > today()
-              const clickable = canEdit && !future
+              const clickable = !future && (canEdit || Boolean(day))
               const tone = day ? STATUS_CELL[day.status] : off ? 'bg-stone-50 text-stone-300 ring-stone-200' : 'bg-white text-stone-500 ring-stone-200'
               const title = day
                 ? `${day.status}${day.checkIn ? ` · in ${formatTime(day.checkIn)}` : ''}${day.checkOut ? ` · out ${formatTime(day.checkOut)}` : ''}${day.otHours ? ` · OT ${day.otHours}h` : ''}`
@@ -80,7 +80,7 @@ export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind
                   key={date}
                   type="button"
                   disabled={!clickable}
-                  onClick={() => cycle(date, day?.status ?? null)}
+                  onClick={() => setOpened(date)}
                   title={title}
                   className={`relative flex min-h-16 flex-col items-start rounded-xl p-1.5 text-left ring-1 ring-inset transition ${tone} ${
                     clickable ? 'hover:brightness-95' : 'cursor-default'
@@ -104,6 +104,20 @@ export function PersonAttendance({ kind, personId, canEdit }: { kind: PersonKind
           </div>
         </div>
       </Section>
+
+      {opened && (
+        <AttendanceDayModal
+          key={opened}
+          kind={kind}
+          personId={personId}
+          name={person?.name ?? ''}
+          photo={person?.photo}
+          date={opened}
+          day={resolveDay(kind, personId, opened, register, workerReports)}
+          canEdit={canEdit}
+          onClose={() => setOpened(null)}
+        />
+      )}
     </div>
   )
 }

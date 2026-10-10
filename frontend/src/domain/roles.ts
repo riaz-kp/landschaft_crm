@@ -70,6 +70,8 @@ export function titleOf(employee: Pick<Employee, 'role' | 'designation'>): strin
 export interface NavItem {
   label: string
   path: string
+  /** A tab with a permission of its own, rather than its section's. */
+  module?: ModuleKey
 }
 
 export interface NavSection {
@@ -88,7 +90,16 @@ export interface NavSection {
  */
 export const NAV: NavSection[] = [
   { label: 'Dashboard', path: '/dashboard', icon: 'grid' },
-  { label: 'CEO Consultations', path: '/consultations', icon: 'clock' },
+  {
+    // The CEO's consultation diary and the team's site visits, side by side.
+    label: 'Consultations',
+    path: '/consultations',
+    icon: 'clock',
+    children: [
+      { label: 'Consultations', path: '/consultations' },
+      { label: 'Site Visits', path: '/consultations/site-visits', module: 'Site Visits' },
+    ],
+  },
   {
     label: 'CRM',
     path: '/crm/leads',
@@ -96,7 +107,6 @@ export const NAV: NavSection[] = [
     children: [
       { label: 'Leads', path: '/crm/leads' },
       { label: 'Clients', path: '/crm/clients' },
-      { label: 'Site Visits', path: '/crm/site-visits' },
     ],
   },
   {
@@ -174,7 +184,7 @@ export const NAV: NavSection[] = [
     children: [
       { label: 'Employees', path: '/employees' },
       { label: 'Execution Workers', path: '/employees/workers' },
-      { label: 'Attendance', path: '/employees/attendance' },
+      { label: 'Attendance', path: '/employees/attendance', module: 'Attendance' },
       { label: 'Work Reports', path: '/employees/work-reports' },
     ],
   },
@@ -224,40 +234,63 @@ const DEFAULTS: Record<Exclude<RoleKey, 'super_admin' | 'ceo' | 'foreman'>, {
   view: ModuleKey[]; manage: ModuleKey[]; remove: ModuleKey[]
 }> = {
   design_director: {
-    view: ['Dashboard', 'CEO Consultations', 'CRM', 'Projects', 'Tasks', 'Design', 'Gallery', 'Documents', 'Calendar', 'Reports'],
-    manage: ['CEO Consultations', 'CRM', 'Projects', 'Tasks', 'Design', 'Documents'],
-    remove: ['Tasks', 'Design', 'Documents'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Projects', 'Tasks', 'Design', 'Gallery', 'Documents', 'Calendar', 'Reports'],
+    manage: ['Consultations', 'Site Visits', 'CRM', 'Projects', 'Tasks', 'Design', 'Documents'],
+    remove: ['Site Visits', 'Tasks', 'Design', 'Documents'],
   },
   design_pm: {
-    view: ['Dashboard', 'CEO Consultations', 'Projects', 'Tasks', 'Design', 'Gallery', 'Documents', 'Calendar'],
-    manage: ['CEO Consultations', 'Tasks', 'Design', 'Documents'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Design', 'Gallery', 'Documents', 'Calendar'],
+    manage: ['Consultations', 'Site Visits', 'Tasks', 'Design', 'Documents'],
     remove: ['Tasks'],
   },
   design_member: {
-    view: ['Dashboard', 'CEO Consultations', 'Projects', 'Tasks', 'Design', 'Documents'],
-    manage: ['CEO Consultations', 'Tasks', 'Documents'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Design', 'Documents'],
+    manage: ['Consultations', 'Tasks', 'Documents'],
     remove: [],
   },
   execution_head: {
-    view: ['Dashboard', 'CEO Consultations', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Gallery', 'Documents', 'Calendar', 'Reports'],
-    manage: ['CEO Consultations', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Documents'],
-    remove: ['Tasks', 'Execution', 'AMC', 'Employees'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar', 'Reports'],
+    manage: ['Consultations', 'Site Visits', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Attendance', 'Documents'],
+    remove: ['Site Visits', 'Tasks', 'Execution', 'AMC', 'Employees', 'Attendance'],
   },
   execution_pm: {
-    view: ['Dashboard', 'CEO Consultations', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Gallery', 'Documents', 'Calendar'],
-    manage: ['CEO Consultations', 'Tasks', 'Execution', 'AMC', 'Documents'],
+    // Attendance is part of the execution PM's remit, so they may mark and correct it.
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar'],
+    manage: ['Consultations', 'Site Visits', 'Tasks', 'Execution', 'AMC', 'Attendance', 'Documents'],
     remove: ['Tasks'],
   },
   accounts: {
-    view: ['Dashboard', 'CEO Consultations', 'CRM', 'Projects', 'Accounts', 'Documents', 'Reports'],
-    manage: ['CEO Consultations', 'CRM', 'Accounts', 'Documents'],
+    // Accounts read attendance for payroll but do not mark it.
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Projects', 'Accounts', 'Attendance', 'Documents', 'Reports'],
+    manage: ['Consultations', 'CRM', 'Accounts', 'Documents'],
     remove: ['Accounts'],
   },
   marketing: {
-    view: ['Dashboard', 'CEO Consultations', 'CRM', 'Calendar'],
-    manage: ['CEO Consultations', 'CRM'],
-    remove: ['CRM'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Calendar'],
+    manage: ['Consultations', 'Site Visits', 'CRM'],
+    remove: ['Site Visits', 'CRM'],
   },
+}
+
+/** Modules that were renamed, so permissions saved under the old name carry over. */
+const RENAMED_MODULES: Record<string, ModuleKey> = { 'CEO Consultations': 'Consultations' }
+
+/**
+ * Brings a permission matrix saved by an older version up to date: renamed
+ * modules keep their ticks, and modules added since start from the defaults.
+ */
+export function normalizePermissions(stored?: Partial<Record<RoleKey, Partial<Record<string, ModulePermission>>>>): PermissionMatrix {
+  const defaults = defaultPermissions()
+  if (!stored) return defaults
+  const out = {} as PermissionMatrix
+  for (const role of Object.keys(defaults) as RoleKey[]) {
+    const rows: Partial<Record<string, ModulePermission>> = { ...stored[role] }
+    for (const [from, to] of Object.entries(RENAMED_MODULES)) {
+      if (rows[from] && !rows[to]) rows[to] = rows[from]
+    }
+    out[role] = Object.fromEntries(MODULES.map((m) => [m, rows[m] ?? defaults[role][m]])) as Record<ModuleKey, ModulePermission>
+  }
+  return out
 }
 
 export function defaultPermissions(): PermissionMatrix {
@@ -297,9 +330,22 @@ export function hasPermission(
   return action === 'view' ? entry.view : entry.view && entry[action]
 }
 
+/** The permission a page answers to: its tab's own module when it has one, otherwise its section's. */
+export function moduleOf(section: NavSection, tab?: NavItem): ModuleKey {
+  return tab?.module ?? section.label
+}
+
+/**
+ * The sidebar for a role. A section shows when any of its tabs may be viewed;
+ * it keeps only those tabs, and its link opens the first of them.
+ */
 export function navForRole(role: RoleKey, matrix?: PermissionMatrix): NavSection[] {
   if (role === 'foreman') return []
-  return NAV.filter((section) => hasPermission(matrix, role, section.label, 'view'))
+  return NAV.flatMap((section) => {
+    if (!section.children) return hasPermission(matrix, role, section.label, 'view') ? [section] : []
+    const children = section.children.filter((tab) => hasPermission(matrix, role, moduleOf(section, tab), 'view'))
+    return children.length ? [{ ...section, path: children[0].path, children }] : []
+  })
 }
 
 /** Capability checks used where a role gates an action rather than a screen. */

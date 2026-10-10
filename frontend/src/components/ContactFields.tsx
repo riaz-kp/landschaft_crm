@@ -51,16 +51,16 @@ export function ContactNumbers({ phone, whatsapp }: { phone: string; whatsapp?: 
   const wa = whatsapp || phone
   return (
     <span className="block space-y-0.5">
-      <a href={`tel:${phone.replace(/\s/g, '')}`} className="flex items-center gap-1.5 hover:text-brand-700">
+      <a href={`tel:${phone.replace(/\s/g, '')}`} className="flex flex-wrap items-center gap-x-1.5 hover:text-brand-700">
         <Icon name="phone" className="h-3.5 w-3.5 text-stone-400" />
-        <span className="tabular-nums">{phone || '—'}</span>
-        {wa === phone && phone && <span className="text-xs text-stone-400">· WhatsApp</span>}
+        <span className="whitespace-nowrap tabular-nums">{phone || '—'}</span>
+        {wa === phone && phone && <span className="whitespace-nowrap text-xs text-stone-400">· WhatsApp</span>}
       </a>
       {wa !== phone && wa && (
-        <a href={whatsappUrl(wa)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-brand-700">
+        <a href={whatsappUrl(wa)} target="_blank" rel="noreferrer" className="flex flex-wrap items-center gap-x-1.5 hover:text-brand-700">
           <Icon name="chat" className="h-3.5 w-3.5 text-brand-600" />
-          <span className="tabular-nums">{wa}</span>
-          <span className="text-xs text-stone-400">· WhatsApp</span>
+          <span className="whitespace-nowrap tabular-nums">{wa}</span>
+          <span className="whitespace-nowrap text-xs text-stone-400">· WhatsApp</span>
         </a>
       )}
     </span>

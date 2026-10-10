@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
@@ -7,12 +8,17 @@ import { unreadRemarks } from '../../domain/chat'
 import { SiteName, StatusBadge } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { FieldCard } from '../../shells/FieldShell'
+import { SiteMap } from './SiteMap'
 
-/** Step one of the foreman flow: MY SITES → SELECT SITE → DAILY WORK REPORT. */
+/**
+ * Step one of the foreman flow: MY SITES → SELECT SITE → DAILY WORK REPORT.
+ * Each site also opens its map, with directions, so the foreman can find it.
+ */
 export function MySites() {
   const db = useDb()
   const { user } = useSession()
   const navigate = useNavigate()
+  const [mapFor, setMapFor] = useState<string | null>(null)
 
   const myProjectIds = db.siteAssignments
     .filter((a) => a.foremanId === user.id)
@@ -77,15 +83,27 @@ export function MySites() {
                   </p>
                 )}
               </button>
-              <div className="grid grid-cols-2 border-t border-stone-100 text-sm font-semibold">
-                <button onClick={() => navigate(`/field/report/${site.id}`)} className="flex items-center justify-center gap-2 py-2.5 text-brand-700 hover:bg-stone-50">
-                  <Icon name="doc" className="h-4 w-4" /> Today's report
+              <div className="grid grid-cols-3 border-t border-stone-100 text-sm font-semibold">
+                <button onClick={() => navigate(`/field/report/${site.id}`)} className="flex items-center justify-center gap-1.5 py-2.5 text-brand-700 hover:bg-stone-50">
+                  <Icon name="doc" className="h-4 w-4" /> Report
                 </button>
-                <button onClick={() => navigate(`/field/chat/${site.id}`)} className="flex items-center justify-center gap-2 border-l border-stone-100 py-2.5 text-stone-700 hover:bg-stone-50">
+                <button onClick={() => navigate(`/field/chat/${site.id}`)} className="flex items-center justify-center gap-1.5 border-l border-stone-100 py-2.5 text-stone-700 hover:bg-stone-50">
                   <Icon name="chat" className="h-4 w-4" /> Remarks
                   {unread > 0 && <span className="rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{unread}</span>}
                 </button>
+                <button
+                  onClick={() => setMapFor(mapFor === site.id ? null : site.id)}
+                  aria-expanded={mapFor === site.id}
+                  className={`flex items-center justify-center gap-1.5 border-l border-stone-100 py-2.5 hover:bg-stone-50 ${mapFor === site.id ? 'bg-brand-50 text-brand-800' : 'text-stone-700'}`}
+                >
+                  <Icon name="map" className="h-4 w-4" /> Map
+                </button>
               </div>
+              {mapFor === site.id && (
+                <div className="border-t border-stone-100 bg-stone-50/50 p-4">
+                  <SiteMap project={site} />
+                </div>
+              )}
             </div>
           )
         })}

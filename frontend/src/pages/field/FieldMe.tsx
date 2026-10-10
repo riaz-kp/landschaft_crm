@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
@@ -15,6 +15,7 @@ import { resizeImage } from '../../components/imageResize'
 import { PersonAttendance } from '../employees/EmployeeAttendance'
 import { monthLabel, useMonthPay } from '../employees/PersonPayments'
 import { FieldCard } from '../../shells/FieldShell'
+import { FieldCrewAttendance } from './FieldCrewAttendance'
 
 function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split('-').map(Number)
@@ -24,14 +25,39 @@ function shiftMonth(month: string, delta: number): string {
 
 // ---------------------------------------------------------------- attendance
 
-/** The foreman's own attendance, month by month. Read-only — the office marks it. */
+/**
+ * Attendance on the foreman's phone: the workers under them, day by day, and
+ * their own month. Both read-only — the office marks the register.
+ */
 export function FieldAttendance() {
   const { user } = useSession()
+  const [params, setParams] = useSearchParams()
+  const view = params.get('view') === 'me' ? 'me' : 'crew'
+
   return (
     <div>
-      <h1 className="text-xl font-bold text-stone-900">My Attendance</h1>
-      <p className="mb-4 mt-1 text-sm text-stone-500">Marked by the office. Speak to your Execution PM if a day looks wrong.</p>
-      <PersonAttendance kind="employee" personId={user.id} canEdit={false} />
+      <h1 className="text-xl font-bold text-stone-900">Attendance</h1>
+      <p className="mt-1 text-sm text-stone-500">
+        {view === 'crew'
+          ? 'Who was on site each day among the workers under you.'
+          : 'Your own days, marked by the office. Speak to your Execution PM if a day looks wrong.'}
+      </p>
+      <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-stone-200/60 p-1">
+        {([['crew', 'My workers', 'users'], ['me', 'My attendance', 'user']] as const).map(([key, label, icon]) => (
+          <button
+            key={key}
+            onClick={() => setParams(key === 'crew' ? {} : { view: key }, { replace: true })}
+            className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition ${
+              view === key ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500'
+            }`}
+          >
+            <Icon name={icon} className="h-4 w-4" /> {label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-4">
+        {view === 'crew' ? <FieldCrewAttendance /> : <PersonAttendance kind="employee" personId={user.id} canEdit={false} />}
+      </div>
     </div>
   )
 }
