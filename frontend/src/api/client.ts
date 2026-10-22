@@ -8,13 +8,20 @@
 import type {
   AttendanceEntry, ChatMessage, Clarification, Client, Consultation, ConsultationStatus,
   DailyWorkReport, DocumentRecord, Employee, ID, Issue, LatLng, Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, PersonKind,
-  ProjectMessage, Reminder,
+  ProjectMessage, Reminder, AreaUnit, ClientDocKey, ClientDocTick, ProjectCategory,
   Project, Quotation, Settings, SiteVisit, Task, Worker,
 } from '../domain/types'
 import * as mock from './mockAdapter'
 
 export interface NewProjectInput {
+  /** The project code, e.g. LS-2026-009. Callers check it is not already taken. */
+  code: string
   name: string
+  category?: ProjectCategory
+  area?: number
+  areaUnit?: AreaUnit
+  /** Client documents already in hand when the project is opened. */
+  clientDocs?: Project['clientDocs']
   clientId: ID
   siteLocation: string
   siteCoords?: LatLng
@@ -48,8 +55,11 @@ export type AttendancePatch = Partial<Pick<AttendanceEntry, 'status' | 'checkIn'
 
 export interface Api {
   projects: {
-    create(input: NewProjectInput): Project
-    update(projectId: ID, patch: Partial<Omit<Project, 'id'>>): void
+    create(input: NewProjectInput, by: ID): Project
+    /** Passing `by` records the change in the project's history. */
+    update(projectId: ID, patch: Partial<Omit<Project, 'id'>>, by?: ID): void
+    /** Marks a client document received or not needed; null puts it back to pending. */
+    setClientDoc(projectId: ID, key: ClientDocKey, tick: ClientDocTick | null, by: ID): void
     setPhaseProgress(projectId: ID, phase: string, progress: number): void
     /** Ticks or clears one BOQ / quotation checklist item. */
     setChecklist(projectId: ID, itemId: string, done: boolean, by: ID): void
@@ -129,8 +139,19 @@ export interface Api {
     remove(payId: ID): void
   }
   siteVisits: Crud<SiteVisit>
-  tasks: Crud<Task> & {
-    setStatus(taskId: ID, status: Task['status']): void
+  /**
+   * Every task change names who made it, so hand-overs and completions land in
+   * the project's history.
+   */
+  tasks: {
+    create(input: Omit<Task, 'id'>, by: ID): Task
+    /** A changed assignee is recorded as a reassignment; moving to or from Done as a completion or reopening. */
+    update(taskId: ID, patch: Partial<Omit<Task, 'id'>>, by: ID): void
+    remove(taskId: ID, by: ID): void
+    /** `note` is the completion note when the task moves to Done. */
+    setStatus(taskId: ID, status: Task['status'], by: ID, note?: string): void
+    /** Hands the task to someone else, with the reason kept in the project history. */
+    reassign(taskId: ID, toId: ID, by: ID, reason?: string): void
   }
   quotations: Crud<Quotation, Omit<Quotation, 'id' | 'number'>>
   issues: { resolve(issueId: ID): void }

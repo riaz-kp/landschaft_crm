@@ -1,12 +1,14 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
 import { projectType } from '../../domain/progress'
 import { daysBetween, formatCurrency, formatDate, today } from '../../domain/format'
 import { amcProgress, describeSchedule, occurrencesFor } from '../../domain/amc'
-import type { Project } from '../../domain/types'
+import { PROJECT_CATEGORIES, type Project, type ProjectCategory } from '../../domain/types'
+import { formatArea } from '../../domain/projectInfo'
 import {
-  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge,
+  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, Pills,
 } from '../../components/ui'
 import { ProgressSummary } from '../../components/ProjectProgress'
 
@@ -32,13 +34,15 @@ const COPY = {
 export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' | 'amc' }) {
   const db = useDb()
   const { can } = usePermissions()
+  const [category, setCategory] = useState<ProjectCategory | 'all'>('all')
 
-  const projects = db.projects.filter((p) => {
+  const inSection = db.projects.filter((p) => {
     if (scope === 'design') return p.services.design
     if (scope === 'execution') return p.services.execution
     if (scope === 'amc') return p.services.amc || db.maintenance.some((m) => m.projectId === p.id && m.type === 'AMC')
     return true
   })
+  const projects = category === 'all' ? inSection : inSection.filter((p) => p.category === category)
 
   const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
   const managerName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
@@ -55,6 +59,17 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
         }
       />
 
+      <div className="mb-4">
+        <Pills<ProjectCategory | 'all'>
+          active={category}
+          onChange={setCategory}
+          options={[
+            { key: 'all', label: 'All types', count: inSection.length },
+            ...PROJECT_CATEGORIES.map((c) => ({ key: c, label: c, count: inSection.filter((p) => p.category === c).length })),
+          ]}
+        />
+      </div>
+
       {scope === 'amc' && <AmcProjectsTable projects={projects} />}
 
       {scope !== 'amc' && (
@@ -62,7 +77,7 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
         {projects.length === 0 ? (
           <EmptyState title="No projects here yet." />
         ) : (
-          <Table head={['Project', 'Client', 'Site', 'Type', 'Manager', 'Value', 'Progress', 'Status']}>
+          <Table head={['Project', 'Client', 'Site', 'Project Type', 'Manager', 'Value', 'Progress', 'Status']}>
             {projects.map((project) => (
               <tr key={project.id} className="row-hover">
                 <td className="td">
@@ -70,12 +85,18 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
                     {project.name}
                   </Link>
                   <span className="block text-xs text-stone-400">
-                    {project.code} · due {formatDate(project.expectedCompletion)}
+                    <span className="font-mono">{project.code}</span> · due {formatDate(project.expectedCompletion)}
                   </span>
                 </td>
                 <td className="td">{clientName(project.clientId)}</td>
-                <td className="td"><SiteName name={project.siteLocation} /></td>
-                <td className="td"><Badge tone="stone">{projectType(project)}</Badge></td>
+                <td className="td">
+                  <SiteName name={project.siteLocation} />
+                  {project.area ? <span className="block text-xs text-stone-400">{formatArea(project)}</span> : null}
+                </td>
+                <td className="td">
+                  <span className="block text-sm font-medium text-stone-800">{project.category ?? <span className="text-stone-400">—</span>}</span>
+                  <span className="mt-0.5 inline-block"><Badge tone="stone">{projectType(project)}</Badge></span>
+                </td>
                 <td className="td">{managerName(project.projectManagerId)}</td>
                 <td className="td tabular-nums">{formatCurrency(project.value, true)}</td>
                 <td className="td"><ProgressSummary project={project} /></td>
@@ -115,7 +136,7 @@ function AmcProjectsTable({ projects }: { projects: Project[] }) {
               <tr key={project.id} className="row-hover">
                 <td className="td">
                   <Link to={`/projects/${project.id}`} className="font-medium text-stone-900 hover:text-brand-700">{project.name}</Link>
-                  <span className="block text-xs text-stone-400">{project.code} · <SiteName name={project.siteLocation} /></span>
+                  <span className="block text-xs text-stone-400"><span className="font-mono">{project.code}</span> · <SiteName name={project.siteLocation} />{project.category && ` · ${project.category}`}</span>
                 </td>
                 <td className="td">{clientName(project.clientId)}</td>
                 <td className="td"><Badge tone={project.services.design || project.services.execution ? 'stone' : 'clay'}>{projectType(project)}</Badge></td>

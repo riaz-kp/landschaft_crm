@@ -287,6 +287,18 @@ export interface MepPhase extends Phase {
 }
 
 export type ProjectStatus = 'Planning' | 'In Progress' | 'On Hold' | 'Completed'
+export const PROJECT_STATUSES: ProjectStatus[] = ['Planning', 'In Progress', 'On Hold', 'Completed']
+
+/**
+ * What kind of property the project is for. Shown as "Project Type"; the mix of
+ * services sold (Design Only, Design + Execution…) is shown as "Services".
+ */
+export const PROJECT_CATEGORIES = ['Residential', 'Commercial', 'Hospitality', 'Institutional'] as const
+export type ProjectCategory = (typeof PROJECT_CATEGORIES)[number]
+
+/** Kerala sites are measured in square feet, or in cents and acres for land. */
+export const AREA_UNITS = ['sq ft', 'sq m', 'cents', 'acres'] as const
+export type AreaUnit = (typeof AREA_UNITS)[number]
 
 export interface LatLng {
   lat: number
@@ -303,6 +315,17 @@ export interface ChecklistTick {
   done: boolean
   by?: ID
   on?: string
+}
+
+/** The documents a client hands over at the start of a project. See domain/clientDocs. */
+export type ClientDocKey = 'model3d' | 'contour' | 'presentation' | 'archFloor' | 'archSections' | 'archElevations' | 'sitePhotos'
+
+/** A client document marked received, or not needed on this project. Anything unmarked is still pending. */
+export interface ClientDocTick {
+  status: 'Received' | 'Not Needed'
+  by?: ID
+  on?: string
+  note?: string
 }
 
 export interface Project {
@@ -334,6 +357,13 @@ export interface Project {
   siteCoords?: LatLng
   /** BOQ and quotation checklist, keyed by checklist item id. */
   checklist?: Record<string, ChecklistTick>
+  /** Residential, Commercial, Hospitality or Institutional. */
+  category?: ProjectCategory
+  /** Site area, in `areaUnit`. */
+  area?: number
+  areaUnit?: AreaUnit
+  /** Documents received from the client — 3D model, contour drawing, architectural drawings… */
+  clientDocs?: Partial<Record<ClientDocKey, ClientDocTick>>
 }
 
 /** Project type is derived, never stored — the services decide it, e.g. "Design + Execution" or "AMC Only". */
@@ -362,6 +392,36 @@ export interface Task {
   dueDate: string
   /** Set when the task was generated from a foreman's Next Day Plan. */
   fromReportId?: ID
+  /** What was done, written when the task is marked Done. Cleared if it is reopened. */
+  doneNote?: string
+  /** Date the task was marked Done, and by whom. */
+  doneOn?: string
+  doneBy?: ID
+}
+
+// ---------------------------------------------------------------- project history
+
+export type ProjectLogKind =
+  | 'task-created' | 'task-reassigned' | 'task-done' | 'task-reopened' | 'task-deleted'
+  | 'project-edited'
+
+/**
+ * One entry in a project's history. Task hand-overs, completions and edits are
+ * written here as they happen, so the history survives the task being deleted.
+ */
+export interface ProjectLogEntry {
+  id: ID
+  projectId: ID
+  taskId?: ID
+  kind: ProjectLogKind
+  /** Local date-time, YYYY-MM-DDTHH:mm. */
+  at: string
+  byId: ID
+  title: string
+  detail?: string
+  /** For a reassignment: who had the task, and who has it now. */
+  fromId?: ID
+  toId?: ID
 }
 
 // ------------------------------------------------- daily work report (§6–15)
@@ -575,6 +635,8 @@ export interface DocumentRecord {
   /** Set on client attachments, which are filed by department. */
   clientId?: ID
   department?: ClientDepartment
+  /** Set when the file is one of the documents the client handed over for the project. */
+  clientDoc?: ClientDocKey
   category: 'Drawing' | 'BOQ' | 'Contract' | 'Photo' | 'Report' | 'Other'
   uploadedBy: ID
   uploadedAt: string

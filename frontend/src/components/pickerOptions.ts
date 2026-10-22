@@ -15,6 +15,7 @@ export function projectOptions(
       value: p.id,
       label: p.name,
       sub: [describe?.(p), p.code, p.siteLocation, client?.name].filter(Boolean).join(' · '),
+      keywords: p.category,
       group: done.length ? (p.status === 'Completed' ? 'Completed' : 'Running') : undefined,
     }
   })

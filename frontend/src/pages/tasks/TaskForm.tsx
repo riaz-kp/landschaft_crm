@@ -2,16 +2,21 @@ import { useState } from 'react'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
-import { addDays, today } from '../../domain/format'
+import { addDays, formatDateLong, today } from '../../domain/format'
 import {
   DESIGN_PHASES, EXECUTION_PHASES, PHASE_LABELS, type PhaseKey, type Task, type TaskPriority, type TaskStatus,
 } from '../../domain/types'
-import { Field, FormError, Modal } from '../../components/ui'
+import { Avatar, Field, FormError, Modal } from '../../components/ui'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions, projectOptions } from '../../components/pickerOptions'
+import { Icon } from '../../components/Icon'
+import { taskHistory } from '../projects/history'
+import { TaskHistoryList } from '../projects/ProjectHistory'
 
 export const TASK_STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Review', 'Done']
 export const TASK_PRIORITIES: TaskPriority[] = ['High', 'Medium', 'Low']
+
+const DONE_NOTE_HINT = 'What was done, and anything left over. Kept on the task and in the project history.'
 
 /** Create a task, or edit one when `task` is passed. */
 export function TaskFormModal({
@@ -34,6 +39,8 @@ export function TaskFormModal({
     status: task?.status ?? defaults?.status ?? ('To Do' as TaskStatus),
     priority: task?.priority ?? ('Medium' as TaskPriority),
     dueDate: task?.dueDate ?? defaults?.dueDate ?? addDays(today(), 3),
+    doneNote: task?.doneNote ?? '',
+    handoverReason: '',
   })
   const [error, setError] = useState<string | null>(null)
   const set = (patch: Partial<typeof form>) => { setForm({ ...form, ...patch }); setError(null) }
@@ -44,6 +51,9 @@ export function TaskFormModal({
     ...DESIGN_PHASES.filter((k) => project.services.design && project.design[k].enabled),
     ...EXECUTION_PHASES.filter((k) => project.services.execution && project.execution[k].enabled),
   ] : []
+  const reassigning = Boolean(task && form.assigneeId !== task.assigneeId)
+  const history = task ? taskHistory(db, task) : []
+  const doneBy = task?.doneBy && db.employees.find((e) => e.id === task.doneBy)?.name
 
   const save = () => {
     if (!form.title.trim()) return setError('Give the task a title.')
@@ -54,13 +64,18 @@ export function TaskFormModal({
       description: form.description.trim() || undefined,
       projectId: form.projectId,
       phase: form.phase && phases.includes(form.phase) ? form.phase : undefined,
-      assigneeId: form.assigneeId,
       status: form.status,
       priority: form.priority,
       dueDate: form.dueDate,
+      doneNote: form.status === 'Done' ? form.doneNote.trim() || undefined : undefined,
     }
-    if (task) api.tasks.update(task.id, values)
-    else api.tasks.create(values)
+    if (task) {
+      // A new assignee is a hand-over: recorded with its reason before the rest is saved.
+      if (reassigning) api.tasks.reassign(task.id, form.assigneeId, user.id, form.handoverReason)
+      api.tasks.update(task.id, values, user.id)
+    } else {
+      api.tasks.create({ ...values, assigneeId: form.assigneeId }, user.id)
+    }
     onClose()
   }
 
@@ -99,7 +114,7 @@ export function TaskFormModal({
               {phases.map((k) => <option key={k} value={k}>{PHASE_LABELS[k]}</option>)}
             </select>
           </Field>
-          <Field label="Assigned to">
+          <Field label={task ? 'Assigned to — change to reassign' : 'Assigned to'}>
             <SearchSelect
               value={form.assigneeId}
               onChange={(assigneeId) => set({ assigneeId })}
@@ -111,6 +126,16 @@ export function TaskFormModal({
           <Field label="Due date" required>
             <input type="date" className="input" value={form.dueDate} onChange={(e) => set({ dueDate: e.target.value })} />
           </Field>
+          {reassigning && (
+            <div className="sm:col-span-2">
+              <Field label="Reason for reassigning" hint="Optional. Saved in the project history with the hand-over.">
+                <input
+                  className="input" value={form.handoverReason} onChange={(e) => set({ handoverReason: e.target.value })}
+                  placeholder="e.g. On leave this week, or closer to the site"
+                />
+              </Field>
+            </div>
+          )}
           <Field label="Priority">
             <div className="flex gap-2">
               {TASK_PRIORITIES.map((p) => (
@@ -129,7 +154,126 @@ export function TaskFormModal({
             </select>
           </Field>
         </div>
+        {form.status === 'Done' && (
+          <Field
+            label={task?.status === 'Done' && task.doneOn
+              ? <>Done note <span className="font-normal normal-case tracking-normal text-stone-400">· done {formatDateLong(task.doneOn)}{doneBy && ` by ${doneBy}`}</span></>
+              : 'Done note'}
+            hint={DONE_NOTE_HINT}
+          >
+            <textarea
+              rows={3} className="input" value={form.doneNote} onChange={(e) => set({ doneNote: e.target.value })}
+              placeholder="e.g. Drawings revised and shared with the client for approval"
+            />
+          </Field>
+        )}
         <FormError message={error} />
+
+        {history.length > 0 && (
+          <div className="border-t border-stone-100 pt-4">
+            <p className="label mb-3">Task history</p>
+            <TaskHistoryList items={history} />
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+/** Asks for a done note as a task is moved to Done from a list or the board. */
+export function TaskDoneModal({ task, onClose }: { task: Task; onClose: () => void }) {
+  const db = useDb()
+  const { user } = useSession()
+  const [note, setNote] = useState('')
+  const project = db.projects.find((p) => p.id === task.projectId)
+
+  const finish = () => {
+    api.tasks.setStatus(task.id, 'Done', user.id, note)
+    onClose()
+  }
+
+  return (
+    <Modal
+      title="Mark task done"
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="btn-secondary">Cancel</button>
+        <button onClick={finish} className="btn-primary"><Icon name="check" className="h-4 w-4" /> Mark done</button>
+      </>}
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl bg-stone-50 px-4 py-3">
+          <p className="font-medium text-stone-900">{task.title}</p>
+          <p className="mt-0.5 text-xs text-stone-500">{project?.name}{project && ` · ${project.code}`}</p>
+        </div>
+        <Field label="Done note" hint={DONE_NOTE_HINT}>
+          <textarea
+            rows={4} className="input" value={note} onChange={(e) => setNote(e.target.value)} autoFocus
+            placeholder="e.g. Pergola drawings revised and sent to the client for approval"
+          />
+        </Field>
+      </div>
+    </Modal>
+  )
+}
+
+/** Hands a task to someone else, with an optional reason that goes into the project history. */
+export function TaskReassignModal({ task, onClose }: { task: Task; onClose: () => void }) {
+  const db = useDb()
+  const { user } = useSession()
+  const [toId, setToId] = useState('')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const current = db.employees.find((e) => e.id === task.assigneeId)
+  const handovers = taskHistory(db, task).filter((h) => h.kind === 'handovers')
+
+  const reassign = () => {
+    if (!toId) return setError('Choose who takes the task over.')
+    api.tasks.reassign(task.id, toId, user.id, reason)
+    onClose()
+  }
+
+  return (
+    <Modal
+      title="Reassign task"
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="btn-secondary">Cancel</button>
+        <button onClick={reassign} className="btn-primary"><Icon name="repeat" className="h-4 w-4" /> Reassign</button>
+      </>}
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl bg-stone-50 px-4 py-3">
+          <p className="font-medium text-stone-900">{task.title}</p>
+          <p className="mt-1.5 flex items-center gap-2 text-sm text-stone-600">
+            <span className="text-xs text-stone-400">With</span>
+            <Avatar name={current?.name ?? '?'} size="sm" src={current?.photo} />
+            {current?.name ?? 'Unassigned'}
+          </p>
+        </div>
+        <Field label="Reassign to" required>
+          <SearchSelect
+            value={toId}
+            onChange={(id) => { setToId(id); setError(null) }}
+            options={employeeOptions(db.employees.filter((e) => e.role !== 'super_admin' && e.id !== task.assigneeId))}
+            placeholder="Choose a person…"
+            searchPlaceholder="Search people"
+            title="Reassign to"
+          />
+        </Field>
+        <Field label="Reason" hint="Optional. Saved in the project history with the hand-over.">
+          <textarea
+            rows={2} className="input" value={reason} onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. On leave this week, or closer to the site"
+          />
+        </Field>
+        <FormError message={error} />
+        {handovers.length > 0 && (
+          <div className="border-t border-stone-100 pt-4">
+            <p className="label mb-3">Earlier hand-overs</p>
+            <TaskHistoryList items={handovers} />
+          </div>
+        )}
       </div>
     </Modal>
   )

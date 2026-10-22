@@ -7,7 +7,11 @@ import { PERIOD_LABELS, describeRange, inRange, rangeOf, type PeriodKey } from '
 import { allOccurrences } from '../../domain/amc'
 import { receivable } from '../../domain/finance'
 import { titleOf } from '../../domain/roles'
-import { DESIGN_PHASES, PHASE_LABELS, type Lead, type Project, type ProjectStatus } from '../../domain/types'
+import { DESIGN_PHASES, PHASE_LABELS, PROJECT_CATEGORIES, type Lead, type Project, type ProjectCategory, type ProjectStatus } from '../../domain/types'
+import { clientDocProgress } from '../../domain/clientDocs'
+import { usePermissions } from '../../state/permissions'
+import { WeeklyTaskReportModal } from '../tasks/WeeklyTaskReport'
+import { WeeklyAttendanceReportModal } from '../employees/WeeklyAttendanceReport'
 import { PageHeader, Section, Table, StatTile, ProgressBar, Badge, EmptyState } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { RUPEES, excelDate, exportWorkbook, sheet } from '../../components/excel'
@@ -25,6 +29,7 @@ interface Filters {
   from: string
   to: string
   service: Service
+  category: ProjectCategory | ''
   status: ProjectStatus | ''
   managerId: string
   clientId: string
@@ -33,7 +38,7 @@ interface Filters {
 
 const DEFAULTS: Filters = {
   period: 'year', from: `${today().slice(0, 7)}-01`, to: today(),
-  service: '', status: '', managerId: '', clientId: '', source: '',
+  service: '', category: '', status: '', managerId: '', clientId: '', source: '',
 }
 
 /**
@@ -45,6 +50,8 @@ export function ReportsPage() {
   const db = useDb()
   const [f, setF] = useState<Filters>(DEFAULTS)
   const [exporting, setExporting] = useState(false)
+  const [weekly, setWeekly] = useState<'tasks' | 'attendance' | null>(null)
+  const { can } = usePermissions()
   const set = (patch: Partial<Filters>) => setF({ ...f, ...patch })
 
   const range = rangeOf(f.period, { from: f.from, to: f.to })
@@ -53,6 +60,7 @@ export function ReportsPage() {
   // The project filters (everything except dates) decide which projects the rest of the report covers.
   const baseMatch = (p: Project) =>
     (!f.service || Boolean(p.services[f.service]))
+    && (!f.category || p.category === f.category)
     && (!f.status || p.status === f.status)
     && (!f.managerId || p.projectManagerId === f.managerId)
     && (!f.clientId || p.clientId === f.clientId)
@@ -88,6 +96,16 @@ export function ReportsPage() {
     }
   })
 
+  // Residential / Commercial / Hospitality / Institutional, with projects not yet typed at the end.
+  const byCategory = [...PROJECT_CATEGORIES, undefined].map((category) => {
+    const projects = active.filter((p) => p.category === category)
+    return {
+      category: category ?? 'Not set', projects,
+      value: projects.reduce((s, p) => s + p.value, 0),
+      average: projects.length ? Math.round(projects.reduce((s, p) => s + computeProgress(p).overall, 0) / projects.length) : 0,
+    }
+  }).filter((r) => r.projects.length > 0)
+
   const byClient = db.clients
     .map((c) => {
       const ids = new Set(scoped.filter((p) => p.clientId === c.id).map((p) => p.id))
@@ -120,7 +138,7 @@ export function ReportsPage() {
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? ''
   const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? ''
   const personName = (id?: string) => db.employees.find((e) => e.id === id)?.name ?? ''
-  const filtersOn = f.service || f.status || f.managerId || f.clientId || f.source
+  const filtersOn = f.service || f.category || f.status || f.managerId || f.clientId || f.source
 
   const exportExcel = async () => {
     setExporting(true)
@@ -128,6 +146,7 @@ export function ReportsPage() {
       const filterNote = [
         `Period: ${PERIOD_LABELS[f.period]} (${describeRange(range)})`,
         f.service && `Service: ${f.service.toUpperCase()}`,
+        f.category && `Project type: ${f.category}`,
         f.status && `Status: ${f.status}`,
         f.managerId && `Manager: ${personName(f.managerId)}`,
         f.clientId && `Client: ${clientName(f.clientId)}`,
@@ -155,8 +174,12 @@ export function ReportsPage() {
             { header: 'Code', value: (p: Project) => p.code, width: 14 },
             { header: 'Project', value: (p: Project) => p.name, width: 34 },
             { header: 'Client', value: (p: Project) => clientName(p.clientId), width: 28 },
-            { header: 'Type', value: (p: Project) => projectType(p), width: 24 },
+            { header: 'Project type', value: (p: Project) => p.category ?? '', width: 14 },
+            { header: 'Services', value: (p: Project) => projectType(p), width: 24 },
             { header: 'Site', value: (p: Project) => p.siteLocation, width: 26 },
+            { header: 'Area', value: (p: Project) => p.area, width: 10 },
+            { header: 'Area unit', value: (p: Project) => (p.area ? p.areaUnit ?? 'sq ft' : ''), width: 10 },
+            { header: 'Client docs received', value: (p: Project) => { const d = clientDocProgress(p); return `${d.received} of ${d.applicable}` }, width: 19 },
             { header: 'Manager', value: (p: Project) => personName(p.projectManagerId), width: 16 },
             { header: 'Status', value: (p: Project) => p.status, width: 13 },
             { header: 'Delayed', value: (p: Project) => p.delayed && p.status !== 'Completed', width: 9 },
@@ -222,6 +245,8 @@ export function ReportsPage() {
             { header: 'Assignee', value: (t) => personName(t.assigneeId), width: 16 },
             { header: 'Priority', value: (t) => t.priority, width: 10 },
             { header: 'Status', value: (t) => t.status, width: 12 },
+            { header: 'Done on', value: (t) => excelDate(t.status === 'Done' ? t.doneOn ?? t.dueDate : undefined), width: 12 },
+            { header: 'Done note', value: (t) => t.doneNote ?? '', width: 50 },
           ],
         }),
         sheet({
@@ -292,6 +317,10 @@ export function ReportsPage() {
             <option value="execution">Execution</option>
             <option value="amc">AMC</option>
           </select>
+          <select className="input py-1.5 sm:w-44" value={f.category} onChange={(e) => set({ category: e.target.value as ProjectCategory | '' })} aria-label="Project type">
+            <option value="">All project types</option>
+            {PROJECT_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+          </select>
           <select className="input py-1.5 sm:w-40" value={f.status} onChange={(e) => set({ status: e.target.value as ProjectStatus | '' })} aria-label="Project status">
             <option value="">Any status</option>
             {STATUSES.map((s) => <option key={s}>{s}</option>)}
@@ -338,10 +367,61 @@ export function ReportsPage() {
         <StatTile label="Tasks Done" value={`${tasksDone.length}/${tasks.length}`} sub="due in the period" tone="violet" icon="check" />
       </div>
 
+      {(can('Tasks', 'view') || can('Attendance', 'view')) && (
+        <Section
+          title="Weekly Reports"
+          description="Pick a week, Monday to Sunday, and download it as an Excel workbook."
+          className="mb-6"
+        >
+          <div className="grid gap-3 p-4 sm:grid-cols-2">
+            {can('Tasks', 'view') && (
+              <button onClick={() => setWeekly('tasks')} className="flex items-start gap-3 rounded-xl border border-stone-200 p-4 text-left transition hover:border-brand-300 hover:bg-brand-50/40">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><Icon name="check" className="h-4 w-4" /></span>
+                <span>
+                  <span className="block font-semibold text-stone-900">Weekly task report</span>
+                  <span className="mt-0.5 block text-sm text-stone-500">Tasks due and done in the week with their done notes, what was still open, and every reassignment — by person.</span>
+                </span>
+              </button>
+            )}
+            {can('Attendance', 'view') && (
+              <button onClick={() => setWeekly('attendance')} className="flex items-start gap-3 rounded-xl border border-stone-200 p-4 text-left transition hover:border-brand-300 hover:bg-brand-50/40">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><Icon name="wallet" className="h-4 w-4" /></span>
+                <span>
+                  <span className="block font-semibold text-stone-900">{can('Accounts', 'view') || can('Employees', 'edit') ? 'Weekly attendance & payout' : 'Weekly attendance'}</span>
+                  <span className="mt-0.5 block text-sm text-stone-500">Each person's week day by day, hours and overtime{can('Accounts', 'view') || can('Employees', 'edit') ? ', what it earned, what was paid, and the net payable' : ''}.</span>
+                </span>
+              </button>
+            )}
+          </div>
+        </Section>
+      )}
+      {weekly === 'tasks' && <WeeklyTaskReportModal scope={{ tasks: db.tasks, label: 'All tasks' }} onClose={() => setWeekly(null)} />}
+      {weekly === 'attendance' && <WeeklyAttendanceReportModal onClose={() => setWeekly(null)} />}
+
       <div className="grid gap-6 xl:grid-cols-2">
-        <Section title="Portfolio by Project Type" description="Projects running in the period">
+        <Section title="Portfolio by Project Type" description="Residential, commercial, hospitality and institutional — projects running in the period">
+          {byCategory.length === 0 ? <EmptyState title="No projects in this period." icon="folder" /> : (
+            <Table head={['Project Type', 'Projects', 'Value', 'Average Progress']}>
+              {byCategory.map(({ category, projects, value, average }) => (
+                <tr key={category} className="row-hover">
+                  <td className="td font-medium text-stone-900">{category}</td>
+                  <td className="td tabular-nums">{projects.length}</td>
+                  <td className="td tabular-nums">{formatCurrency(value, true)}</td>
+                  <td className="td">
+                    <div className="flex items-center gap-2">
+                      <div className="w-24"><ProgressBar value={average} size="sm" /></div>
+                      <span className="w-9 text-right text-xs font-semibold tabular-nums">{average}%</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </Section>
+
+        <Section title="Portfolio by Services" description="Design, Execution and AMC mix — projects running in the period">
           {byType.length === 0 ? <EmptyState title="No projects in this period." icon="folder" /> : (
-            <Table head={['Type', 'Projects', 'Value', 'Average Progress']}>
+            <Table head={['Services', 'Projects', 'Value', 'Average Progress']}>
               {byType.map(({ type, projects, value, average }) => (
                 <tr key={type} className="row-hover">
                   <td className="td font-medium text-stone-900">{type}</td>

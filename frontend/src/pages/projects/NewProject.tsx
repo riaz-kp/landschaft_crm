@@ -8,7 +8,10 @@ import { MapPicker } from '../../components/MapPicker'
 import { ClientPicker } from './ClientPicker'
 import { AmcFields, draftToRecord, emptyAmcDraft, endOf, validateAmc, type AmcDraft } from '../amc/AmcContractForm'
 import { CHECKLISTS, commercialDocs } from '../../domain/commercial'
-import type { LatLng } from '../../domain/types'
+import { AREA_UNITS, PROJECT_CATEGORIES, type AreaUnit, type ClientDocKey, type LatLng, type ProjectCategory } from '../../domain/types'
+import { codeOwner, normaliseCode, suggestProjectCode } from '../../domain/projectInfo'
+import { ClientDocsPicker, type DocState } from './ClientDocuments'
+import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
 import { NoAccess } from '../misc/Fallbacks'
 import { Icon } from '../../components/Icon'
@@ -24,10 +27,16 @@ export function NewProject() {
   const db = useDb()
   const navigate = useNavigate()
   const { can } = usePermissions()
+  const { user } = useSession()
   const [error, setError] = useState<string | null>(null)
   const [siteCoords, setSiteCoords] = useState<LatLng | undefined>()
+  const [clientDocs, setClientDocs] = useState<Partial<Record<ClientDocKey, DocState>>>({})
 
   const [form, setForm] = useState({
+    code: suggestProjectCode(db.projects),
+    category: '' as ProjectCategory | '',
+    area: '',
+    areaUnit: 'sq ft' as AreaUnit,
     name: '',
     clientId: db.clients[0]?.id ?? '',
     siteLocation: '',
@@ -59,6 +68,11 @@ export function NewProject() {
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim()) return setError('Enter a project name.')
+    if (!normaliseCode(form.code)) return setError('Enter a project code.')
+    const taken = codeOwner(db.projects, form.code)
+    if (taken) return setError(`Project code ${normaliseCode(form.code)} is already used by “${taken.name}”.`)
+    if (!form.category) return setError('Choose the project type — Residential, Commercial, Hospitality or Institutional.')
+    if (form.area && !(Number(form.area) > 0)) return setError('The site area must be a number above zero, or left blank.')
     if (!form.clientId) return setError('Select a client.')
     if (!form.siteLocation.trim()) return setError('Enter the site location.')
     if (!design && !execution && !amc) return setError('Select at least one service — Design, Execution or AMC.')
@@ -78,8 +92,18 @@ export function NewProject() {
     }
 
     setError(null)
+    const { category, area, areaUnit, ...basics } = form
     const project = api.projects.create({
-      ...form,
+      ...basics,
+      code: normaliseCode(form.code),
+      category,
+      area: area ? Number(area) : undefined,
+      areaUnit,
+      clientDocs: Object.fromEntries(
+        Object.entries(clientDocs)
+          .filter(([, state]) => state !== 'Pending')
+          .map(([key, state]) => [key, { status: state as 'Received' | 'Not Needed', by: user.id, on: today() }]),
+      ),
       siteCoords,
       services: { design, execution, amc },
       amc: amc ? draftToRecord(amcDraft) : undefined,
@@ -89,7 +113,7 @@ export function NewProject() {
         : {}),
       designPhases,
       executionPhases,
-    })
+    }, user.id)
     navigate(`/projects/${project.id}`)
   }
 
@@ -111,6 +135,53 @@ export function NewProject() {
                 className="input"
               />
             </Field>
+          </div>
+          <Field label="Project Code" required hint="Suggested from the LS-year-number series. Change it to use your own.">
+            <div className="flex gap-2">
+              <input
+                type="text" value={form.code} placeholder="e.g. LS-2026-009"
+                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                className="input font-mono uppercase tracking-wide"
+              />
+              {normaliseCode(form.code) !== suggestProjectCode(db.projects) && (
+                <button type="button" onClick={() => setForm({ ...form, code: suggestProjectCode(db.projects) })} className="btn-secondary shrink-0 px-3" title="Use the next code in the series">
+                  Reset
+                </button>
+              )}
+            </div>
+            {form.code && codeOwner(db.projects, form.code) && (
+              <p className="mt-1 text-xs font-medium text-red-600">Already used by {codeOwner(db.projects, form.code)!.name}.</p>
+            )}
+          </Field>
+          <Field label="Site Area" hint="Optional. Square feet for gardens; cents or acres for land.">
+            <div className="flex gap-2">
+              <input
+                type="number" min={0} step="any" value={form.area} placeholder="e.g. 4500"
+                onChange={(e) => setForm({ ...form, area: e.target.value })}
+                className="input min-w-0 flex-1"
+              />
+              <select
+                value={form.areaUnit} onChange={(e) => setForm({ ...form, areaUnit: e.target.value as AreaUnit })}
+                className="input w-28 shrink-0" aria-label="Area unit"
+              >
+                {AREA_UNITS.map((u) => <option key={u}>{u}</option>)}
+              </select>
+            </div>
+          </Field>
+          {/* Not a <label>: it holds a row of buttons. */}
+          <div className="sm:col-span-2">
+            <span className="label">Project Type<span className="ml-0.5 text-red-500">*</span></span>
+            <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {PROJECT_CATEGORIES.map((c) => (
+                <button
+                  key={c} type="button" onClick={() => setForm({ ...form, category: c })}
+                  className={`chip justify-center py-2 text-sm ${form.category === c ? 'chip-on' : ''}`}
+                  aria-pressed={form.category === c}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
           </div>
           {/* Not a <label>: the picker holds its own buttons, which a label would re-trigger. */}
           <div>
@@ -301,6 +372,17 @@ export function NewProject() {
           </div>
         </Section>
       )}
+
+      <Section
+        title="Client Documents Received"
+        description="Mark what the client has already handed over. The rest stays pending on the project's Client Documents tab, where files can be attached."
+        className="mb-6"
+        actions={<Badge tone="stone">{Object.values(clientDocs).filter((s) => s === 'Received').length} received</Badge>}
+      >
+        <div className="px-5 py-2">
+          <ClientDocsPicker value={clientDocs} onChange={(key, state) => setClientDocs((docs) => ({ ...docs, [key]: state }))} />
+        </div>
+      </Section>
 
       {/* Commercial documents follow the services chosen above. */}
       {docs.length > 0 && (

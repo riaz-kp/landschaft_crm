@@ -13,17 +13,23 @@ import { can as roleCan } from '../../domain/roles'
 import { ProjectChat } from '../../components/ProjectChat'
 import { unreadRemarks } from '../../domain/chat'
 import { computeProgress, projectType } from '../../domain/progress'
-import { formatCurrency, formatDate } from '../../domain/format'
-import { MEP_LABELS, MEP_SERVICES, type PhaseKey } from '../../domain/types'
+import { formatCurrency, formatDate, today } from '../../domain/format'
+import { MEP_LABELS, MEP_SERVICES, PHASE_LABELS, type PhaseKey, type Task, type TaskStatus } from '../../domain/types'
+import { clientDocProgress } from '../../domain/clientDocs'
+import { formatArea } from '../../domain/projectInfo'
 import {
-  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, ProgressBar, Tabs, Checkbox,
+  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, ProgressBar, Tabs, Checkbox, RowActions,
 } from '../../components/ui'
+import { ProjectEditModal } from './ProjectEditModal'
+import { ClientDocumentsTab } from './ClientDocuments'
+import { ProjectHistory } from './ProjectHistory'
+import { TASK_STATUSES, TaskDoneModal, TaskFormModal, TaskReassignModal } from '../tasks/TaskForm'
 import { PhaseStrip, ProgressCell, ProjectProgressPanel } from '../../components/ProjectProgress'
 import { RepeaterView } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
 import { PeoplePicker } from '../../components/PeoplePicker'
 
-type Tab = 'overview' | 'remarks' | 'phases' | 'tasks' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance'
+type Tab = 'overview' | 'remarks' | 'phases' | 'tasks' | 'documents' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance' | 'history'
 
 export function ProjectDetail() {
   const { projectId = '' } = useParams()
@@ -33,6 +39,10 @@ export function ProjectDetail() {
   const [pinning, setPinning] = useState(false)
   const [startingAmc, setStartingAmc] = useState(false)
   const [tab, setTab] = useState<Tab>('overview')
+  const [editingDetails, setEditingDetails] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | 'new' | null>(null)
+  const [finishing, setFinishing] = useState<Task | null>(null)
+  const [reassigning, setReassigning] = useState<Task | null>(null)
 
   const project = db.projects.find((p) => p.id === projectId)
   if (!project) {
@@ -62,12 +72,16 @@ export function ProjectDetail() {
   const photoCount = reports.reduce((s, r) => s + r.photos.length, 0)
   // BOQ is design's to tick, the quotation accounts' or execution's; project editors can do either.
   const canTick = (doc: string) => editable || (doc === 'BOQ' ? can('Design', 'edit') : can('Accounts', 'edit') || can('Execution', 'edit'))
+  const canEditDocs = editable || can('Design', 'edit') || can('Execution', 'edit')
+  const docProgress = clientDocProgress(project)
+  const canEditTask = (t: Task) => can('Tasks', 'edit') || t.assigneeId === user.id
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'remarks', label: 'Remarks', count: unread || undefined },
     { key: 'phases', label: 'Phases', count: phaseRows.length },
     { key: 'tasks', label: 'Tasks', count: tasks.length },
+    { key: 'documents', label: 'Client Documents', count: docProgress.received },
     ...(project.services.execution
       ? [
           { key: 'reports' as Tab, label: 'Daily Reports', count: reports.length },
@@ -77,6 +91,7 @@ export function ProjectDetail() {
     { key: 'commercial', label: docs.join(' & '), count: docs.reduce((s, d) => s + checklistProgress(project, d).done, 0) },
     { key: 'accounts', label: 'Accounts' },
     ...(maintenance.length || project.services.amc ? [{ key: 'maintenance' as Tab, label: 'AMC', count: maintenance.length || undefined }] : []),
+    { key: 'history', label: 'History' },
   ]
 
   return (
@@ -85,7 +100,7 @@ export function ProjectDetail() {
         title={project.name}
         subtitle={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>{project.code}</span>
+            <span className="rounded-md bg-stone-100 px-1.5 py-0.5 font-mono text-xs font-semibold tracking-wide text-stone-700">{project.code}</span>
             <span className="text-stone-300">·</span>
             {client ? <Link to={`/crm/clients/${client.id}`} className="hover:text-brand-700">{client.name}</Link> : <span>—</span>}
             <span className="text-stone-300">·</span>
@@ -94,6 +109,7 @@ export function ProjectDetail() {
         }
         actions={
           <div className="flex items-center gap-2">
+            {project.category && <Badge tone="blue">{project.category}</Badge>}
             <Badge tone="stone">{projectType(project)}</Badge>
             <StatusBadge status={project.status} />
             {project.delayed && project.status !== 'Completed' && <Badge tone="red">Delayed</Badge>}
@@ -109,15 +125,32 @@ export function ProjectDetail() {
 
       {tab === 'overview' && (
         <div className="grid gap-6 lg:grid-cols-3">
-          <Section title="Project Information" className="lg:col-span-2">
+          <Section
+            title="Project Information"
+            className="lg:col-span-2"
+            actions={editable && (
+              <button onClick={() => setEditingDetails(true)} className="btn-secondary py-1.5">
+                <Icon name="edit" className="h-4 w-4" /> Edit details
+              </button>
+            )}
+          >
             <dl className="grid gap-x-8 gap-y-4 px-5 py-5 sm:grid-cols-2">
               {[
+                ['Project Code', <span key="code" className="font-mono tracking-wide">{project.code}</span>],
+                ['Project Type', project.category ?? <span key="t" className="text-stone-400">Not set</span>],
                 ['Client', client
                   ? <Link key="c" to={`/crm/clients/${client.id}`} className="text-brand-700 hover:text-brand-800">{client.name}</Link>
                   : '—'],
                 ['Site Location', <SiteName key="s" name={project.siteLocation} />],
                 ['Project Manager', manager?.name ?? '—'],
-                ['Project Type', projectType(project)],
+                ['Services', projectType(project)],
+                ['Site Area', formatArea(project) || <span key="a" className="text-stone-400">Not recorded</span>],
+                ['Client Documents', (
+                  <button key="docs" onClick={() => setTab('documents')} className="text-left hover:text-brand-700">
+                    {docProgress.received} of {docProgress.applicable} received
+                    {docProgress.pending > 0 && <span className="ml-1.5"><Badge tone="amber">{docProgress.pending} pending</Badge></span>}
+                  </button>
+                )],
                 ['Start Date', formatDate(project.startDate)],
                 ['Expected Completion', formatDate(project.expectedCompletion)],
                 ['Contract Value', formatCurrency(project.value)],
@@ -311,30 +344,74 @@ export function ProjectDetail() {
       )}
 
       {tab === 'tasks' && (
-        <Section title="Tasks">
+        <Section
+          title="Tasks"
+          description="Reassigning a task or marking it done with a note is kept in the project's History."
+          actions={can('Tasks', 'create') && (
+            <button onClick={() => setEditingTask('new')} className="btn-primary py-1.5"><Icon name="plus" className="h-4 w-4" /> New task</button>
+          )}
+        >
           {tasks.length === 0 ? (
             <EmptyState title="No tasks on this project yet." />
           ) : (
-            <Table head={['Task', 'Phase', 'Assignee', 'Due', 'Priority', 'Status']}>
-              {tasks.map((task) => (
-                <tr key={task.id} className="row-hover">
-                  <td className="td font-medium text-stone-900">
-                    {task.title}
-                    {task.fromReportId && (
-                      <span className="ml-2 text-xs font-normal text-stone-400">from daily report</span>
-                    )}
-                  </td>
-                  <td className="td">{task.phase ?? '—'}</td>
-                  <td className="td">{db.employees.find((e) => e.id === task.assigneeId)?.name ?? '—'}</td>
-                  <td className="td tabular-nums">{formatDate(task.dueDate)}</td>
-                  <td className="td">{task.priority}</td>
-                  <td className="td"><StatusBadge status={task.status} /></td>
-                </tr>
-              ))}
+            <Table head={['Task', 'Phase', 'Assignee', 'Due', 'Priority', 'Status', '']}>
+              {[...tasks].sort((a, b) => (a.status === 'Done' ? 1 : 0) - (b.status === 'Done' ? 1 : 0) || a.dueDate.localeCompare(b.dueDate)).map((task) => {
+                const overdue = task.status !== 'Done' && task.dueDate < today()
+                return (
+                  <tr key={task.id} className="row-hover">
+                    <td className="td">
+                      <button onClick={() => canEditTask(task) && setEditingTask(task)} className="text-left">
+                        <span className={`font-medium ${task.status === 'Done' ? 'text-stone-400 line-through' : 'text-stone-900'} hover:text-brand-700`}>{task.title}</span>
+                      </button>
+                      {task.fromReportId && (
+                        <span className="ml-2 text-xs font-normal text-stone-400">from daily report</span>
+                      )}
+                      {task.status === 'Done' && task.doneNote && (
+                        <span className="mt-1 flex items-start gap-1 text-xs text-stone-500">
+                          <Icon name="check" className="mt-px h-3 w-3 shrink-0 text-brand-600" /> {task.doneNote}
+                        </span>
+                      )}
+                    </td>
+                    <td className="td">{task.phase ? PHASE_LABELS[task.phase] : '—'}</td>
+                    <td className="td">{db.employees.find((e) => e.id === task.assigneeId)?.name ?? '—'}</td>
+                    <td className={`td whitespace-nowrap tabular-nums ${overdue ? 'font-semibold text-red-700' : ''}`}>{formatDate(task.dueDate)}</td>
+                    <td className="td">{task.priority}</td>
+                    <td className="td">
+                      <select
+                        value={task.status}
+                        disabled={!canEditTask(task)}
+                        onChange={(e) => {
+                          const status = e.target.value as TaskStatus
+                          if (status === 'Done') setFinishing(task)
+                          else api.tasks.setStatus(task.id, status, user.id)
+                        }}
+                        className="input w-32 py-1 text-xs"
+                        aria-label={`Status for ${task.title}`}
+                      >
+                        {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </td>
+                    <td className="td">
+                      <RowActions
+                        extra={canEditTask(task) && task.status !== 'Done' && (
+                          <button type="button" onClick={() => setReassigning(task)} className="btn-icon" title="Reassign" aria-label={`Reassign ${task.title}`}>
+                            <Icon name="repeat" className="h-4 w-4" />
+                          </button>
+                        )}
+                        onEdit={canEditTask(task) ? () => setEditingTask(task) : undefined}
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
             </Table>
           )}
         </Section>
       )}
+
+      {tab === 'documents' && <ClientDocumentsTab project={project} canEdit={canEditDocs} />}
+
+      {tab === 'history' && <ProjectHistory projectId={project.id} />}
 
       {tab === 'reports' && (
         <Section title="Daily Work Reports">
@@ -428,6 +505,17 @@ export function ProjectDetail() {
           {startingAmc && <AmcContractModal projectId={project.id} onClose={() => setStartingAmc(false)} />}
         </div>
       )}
+
+      {editingDetails && <ProjectEditModal project={project} onClose={() => setEditingDetails(false)} />}
+      {editingTask && (
+        <TaskFormModal
+          task={editingTask === 'new' ? undefined : editingTask}
+          defaults={{ projectId: project.id }}
+          onClose={() => setEditingTask(null)}
+        />
+      )}
+      {finishing && <TaskDoneModal task={finishing} onClose={() => setFinishing(null)} />}
+      {reassigning && <TaskReassignModal task={reassigning} onClose={() => setReassigning(null)} />}
 
       <Link to="/projects" className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-stone-500 hover:text-stone-800">
         <Icon name="back" className="h-4 w-4" /> All projects

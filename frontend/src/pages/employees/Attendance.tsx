@@ -15,6 +15,7 @@ import {
 import { PageHeader, Section, StatTile, Avatar, Pills, SearchInput, Badge, EmptyState } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { DayHours, DayStatusButtons } from './AttendanceDayEditor'
+import { WeeklyAttendanceReportModal } from './WeeklyAttendanceReport'
 
 interface Person {
   kind: PersonKind
@@ -50,6 +51,8 @@ export function Attendance() {
   const db = useDb()
   const { can } = usePermissions()
   const canEdit = can('Attendance', 'edit')
+  const canSeePay = can('Accounts', 'view') || can('Employees', 'edit')
+  const [weekly, setWeekly] = useState(false)
 
   const [kind, setKind] = useState<KindFilter>('all')
   const [group, setGroup] = useState('')
@@ -100,7 +103,13 @@ export function Attendance() {
       <PageHeader
         title="Attendance"
         subtitle="Daily register for employees and execution workers — status, time in and out, and overtime. Workers fill in automatically from the foremen's daily reports."
+        actions={
+          <button onClick={() => setWeekly(true)} className="btn-secondary" title="Download a week of attendance as an Excel workbook">
+            <Icon name="upload" className="h-4 w-4 rotate-180" /> {canSeePay ? 'Weekly attendance & payout' : 'Weekly report'}
+          </button>
+        }
       />
+      {weekly && <WeeklyAttendanceReportModal initialWho={kind} onClose={() => setWeekly(false)} />}
 
       {/* Filters */}
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center">

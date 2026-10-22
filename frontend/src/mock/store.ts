@@ -5,7 +5,7 @@ import type {
   CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
   DocumentRecord, Employee, ID, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
   PaymentRequest, Project, Quotation, Settings, SiteAssignment, SiteVisit, AttendanceEntry,
-  Task, Worker, ProjectMessage, PayRecord, Reminder,
+  Task, Worker, ProjectMessage, PayRecord, Reminder, ProjectLogEntry,
 } from '../domain/types'
 
 export interface DbShape {
@@ -33,6 +33,8 @@ export interface DbShape {
   projectMessages: ProjectMessage[]
   payRecords: PayRecord[]
   reminders: Reminder[]
+  /** Task hand-overs, completions and project edits, written as they happen. */
+  projectLog: ProjectLogEntry[]
   /** When each person last opened each project's remarks, keyed "personId:projectId". */
   chatReads: Record<string, string>
   settings: Settings
@@ -71,6 +73,7 @@ function freshDb(): DbShape {
     projectMessages: seed.projectMessages,
     payRecords: seed.payRecords,
     reminders: seed.reminders,
+    projectLog: seed.projectLog,
     chatReads: {},
     settings: seed.settings,
   })
@@ -88,12 +91,24 @@ function load(): DbShape {
     return {
       ...fresh,
       ...parsed,
+      projects: parsed.projects.map((p) => withSeedDetails(p, fresh.projects)),
       // Renamed and newly added permission modules are filled in, keeping every tick already made.
       settings: { ...fresh.settings, ...parsed.settings, permissions: normalizePermissions(parsed.settings?.permissions) },
     }
   } catch {
     return freshDb()
   }
+}
+
+/**
+ * Project type, area and client documents arrived after browsers already held
+ * data. A seeded project saved before then picks them up from the seed, so the
+ * demo shows them without wiping anything entered since.
+ */
+function withSeedDetails(project: Project, seeded: Project[]): Project {
+  const original = seeded.find((s) => s.id === project.id)
+  if (!original || project.category !== undefined) return project
+  return { ...project, category: original.category, area: original.area, areaUnit: original.areaUnit, clientDocs: project.clientDocs ?? original.clientDocs }
 }
 
 let db: DbShape = load()

@@ -1,12 +1,13 @@
-import { nextId, nowTime, store } from '../mock/store'
-import { addDays, today } from '../domain/format'
+import { nextId, nowTime, store, type DbShape } from '../mock/store'
+import { addDays, formatCurrency, formatDate, today } from '../domain/format'
 import type {
   ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, Employee, ID,
-  Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, Project, ProjectMessage, Quotation, Settings, SiteVisit,
-  Task, Worker, Reminder,
+  Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, Project, ProjectLogEntry, ProjectMessage, Quotation, Settings, SiteVisit,
+  Task, TaskStatus, Worker, Reminder,
 } from '../domain/types'
 import type { Api, NewProjectInput } from './client'
 import { workerSkills } from '../domain/workers'
+import { formatArea, normaliseCode, suggestProjectCode } from '../domain/projectInfo'
 
 type WithId = { id: ID }
 
@@ -32,16 +33,72 @@ function reviewerFor(projectId: ID): ID {
   return project?.projectManagerId ?? 'e7'
 }
 
+/** Writes one line of a project's history, stamped now. */
+function log(db: DbShape, entry: Omit<ProjectLogEntry, 'id' | 'at'>) {
+  db.projectLog.push({ ...entry, id: nextId('pl'), at: `${today()}T${nowTime()}` })
+}
+
+const nameOf = (db: DbShape, id?: ID) => db.employees.find((e) => e.id === id)?.name ?? '—'
+
+/** "Status: In Progress → Completed · Area: — → 4,500 sq ft" for the fields a project edit changed. */
+function describeChanges(db: DbShape, before: Project, patch: Partial<Project>): string {
+  const shown: { label: string; value: (p: Partial<Project>) => string }[] = [
+    { label: 'Name', value: (p) => p.name ?? '' },
+    { label: 'Code', value: (p) => p.code ?? '' },
+    { label: 'Project type', value: (p) => p.category ?? '' },
+    { label: 'Area', value: (p) => formatArea(p) },
+    { label: 'Status', value: (p) => p.status ?? '' },
+    { label: 'Site', value: (p) => p.siteLocation ?? '' },
+    { label: 'Manager', value: (p) => (p.projectManagerId ? nameOf(db, p.projectManagerId) : '') },
+    { label: 'Start', value: (p) => (p.startDate ? formatDate(p.startDate) : '') },
+    { label: 'Due', value: (p) => (p.expectedCompletion ? formatDate(p.expectedCompletion) : '') },
+    { label: 'Value', value: (p) => (p.value !== undefined ? formatCurrency(p.value) : '') },
+  ]
+  const after = { ...before, ...patch }
+  return shown
+    .map(({ label, value }) => [label, value(before), value(after)] as const)
+    .filter(([, from, to]) => from !== to)
+    .map(([label, from, to]) => `${label}: ${from || '—'} → ${to || '—'}`)
+    .join(' · ')
+}
+
+/** Moves a task to a new status, keeping its completion details and the project history in step. */
+function changeStatus(db: DbShape, task: Task, status: TaskStatus, by: ID, note?: string) {
+  const from = task.status
+  task.status = status
+  if (from === status) {
+    // Editing the note on a task that is already done.
+    if (status === 'Done' && note !== undefined) task.doneNote = note.trim() || undefined
+    return
+  }
+  if (status === 'Done') {
+    task.doneOn = today()
+    task.doneBy = by
+    task.doneNote = note?.trim() || undefined
+    log(db, { projectId: task.projectId, taskId: task.id, kind: 'task-done', byId: by, title: task.title, detail: task.doneNote })
+  } else if (from === 'Done') {
+    log(db, {
+      projectId: task.projectId, taskId: task.id, kind: 'task-reopened', byId: by, title: task.title,
+      detail: `Moved back to ${status}${task.doneNote ? `. It had been closed with: “${task.doneNote}”` : ''}`,
+    })
+    task.doneOn = undefined
+    task.doneBy = undefined
+    task.doneNote = undefined
+  }
+}
+
 export const adapter: Api = {
   projects: {
     create(input: NewProjectInput): Project {
       const id = nextId('p')
-      const year = new Date().getFullYear()
-      const seq = String(store.db.projects.length + 1).padStart(3, '0')
       const project: Project = {
         id,
-        code: `LS-${year}-${seq}`,
+        code: normaliseCode(input.code) || suggestProjectCode(store.db.projects),
         name: input.name,
+        category: input.category,
+        area: input.area || undefined,
+        areaUnit: input.area ? input.areaUnit ?? 'sq ft' : undefined,
+        clientDocs: input.clientDocs,
         clientId: input.clientId,
         siteLocation: input.siteLocation,
         projectManagerId: input.projectManagerId,
@@ -85,8 +142,25 @@ export const adapter: Api = {
       return project
     },
 
-    update(projectId, patch) {
-      store.update((db) => patchIn(db.projects, projectId, patch))
+    update(projectId, patch, by) {
+      store.update((db) => {
+        const project = db.projects.find((p) => p.id === projectId)
+        if (!project) return
+        const changes = by ? describeChanges(db, project, patch) : ''
+        Object.assign(project, patch)
+        if (by && changes) log(db, { projectId, kind: 'project-edited', byId: by, title: 'Project details updated', detail: changes })
+      })
+    },
+
+    setClientDoc(projectId, key, tick, by) {
+      store.update((db) => {
+        const project = db.projects.find((p) => p.id === projectId)
+        if (!project) return
+        const docs = { ...project.clientDocs }
+        if (tick) docs[key] = { ...tick, by, on: tick.on ?? today() }
+        else delete docs[key]
+        project.clientDocs = docs
+      })
     },
 
     setChecklist(projectId, itemId, done, by) {
@@ -205,7 +279,7 @@ export const adapter: Api = {
           if (!line.trim()) continue
           const already = db.tasks.some((t) => t.fromReportId === report.id && t.title === line.trim())
           if (already) continue
-          db.tasks.push({
+          const task: Task = {
             id: nextId('t'),
             projectId: report.projectId,
             title: line.trim(),
@@ -214,6 +288,11 @@ export const adapter: Api = {
             priority: 'Medium',
             dueDate: addDays(report.date, 1),
             fromReportId: report.id,
+          }
+          db.tasks.push(task)
+          log(db, {
+            projectId: task.projectId, taskId: task.id, kind: 'task-created', byId: reviewerId, title: task.title,
+            toId: task.assigneeId, detail: `From the next-day plan in the daily report of ${formatDate(report.date)}`,
           })
         }
       })
@@ -662,24 +741,59 @@ export const adapter: Api = {
   },
 
   tasks: {
-    setStatus(taskId, status) {
+    setStatus(taskId, status, by, note) {
       store.update((db) => {
         const task = db.tasks.find((t) => t.id === taskId)
-        if (task) task.status = status
+        if (task) changeStatus(db, task, status, by, note)
       })
     },
-    create(task): Task {
-      const record: Task = { ...task, id: nextId('t') }
+    create(input, by): Task {
+      const record: Task = {
+        ...input,
+        id: nextId('t'),
+        ...(input.status === 'Done' ? { doneOn: today(), doneBy: by } : { doneNote: undefined }),
+      }
       store.update((db) => {
         db.tasks.push(record)
+        log(db, {
+          projectId: record.projectId, taskId: record.id, kind: 'task-created', byId: by, title: record.title,
+          toId: record.assigneeId, detail: `Due ${formatDate(record.dueDate)} · ${record.priority} priority`,
+        })
       })
       return record
     },
-    update(taskId, patch) {
-      store.update((db) => patchIn(db.tasks, taskId, patch))
+    update(taskId, patch, by) {
+      store.update((db) => {
+        const task = db.tasks.find((t) => t.id === taskId)
+        if (!task) return
+        const { status, doneNote, assigneeId, ...rest } = patch
+        Object.assign(task, rest)
+        // A new assignee is a hand-over, and goes into the project history.
+        if (assigneeId && assigneeId !== task.assigneeId) {
+          log(db, { projectId: task.projectId, taskId, kind: 'task-reassigned', byId: by, title: task.title, fromId: task.assigneeId, toId: assigneeId })
+          task.assigneeId = assigneeId
+        }
+        if (status) changeStatus(db, task, status, by, doneNote)
+      })
     },
-    remove(taskId) {
-      store.update((db) => removeFrom(db.tasks, taskId))
+    reassign(taskId, toId, by, reason) {
+      store.update((db) => {
+        const task = db.tasks.find((t) => t.id === taskId)
+        if (!task || task.assigneeId === toId) return
+        log(db, {
+          projectId: task.projectId, taskId, kind: 'task-reassigned', byId: by, title: task.title,
+          fromId: task.assigneeId, toId, detail: reason?.trim() || undefined,
+        })
+        task.assigneeId = toId
+      })
+    },
+    remove(taskId, by) {
+      store.update((db) => {
+        const task = db.tasks.find((t) => t.id === taskId)
+        if (!task) return
+        log(db, { projectId: task.projectId, taskId, kind: 'task-deleted', byId: by, title: task.title, fromId: task.assigneeId })
+        removeFrom(db.tasks, taskId)
+      })
     },
   },
 

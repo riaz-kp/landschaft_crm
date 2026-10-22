@@ -211,6 +211,82 @@ workers are invented for the demo.
   and can be tied to a project. Repeats are ticked off one date at a time.
   The bell in the header shows today's and missed reminders on every page.
 
+## Fifth review round
+
+- **Project code** is a field of its own. New Project suggests the next code in
+  the LS-year-number series. You can type your own code instead, and a code
+  already in use is refused. *Edit details* on the project's Overview changes
+  it later, along with the name, type, area, status, site, manager, dates and
+  value.
+- **Project type**: Residential, Commercial, Hospitality or Institutional.
+  - It is required on New Project.
+  - It shows as a badge on the project, as a column and filter on the project
+    lists, and as a filter on Reports, where *Portfolio by Project Type* groups
+    by it.
+  - The Design / Execution / AMC mix is now labelled **Services**.
+- **Site area** in sq ft, sq m, cents or acres.
+- **Client documents received.** Each project has a checklist of what the
+  client hands over:
+  - 3D model (SketchUp)
+  - contour drawing (CAD)
+  - presentation (PDF)
+  - architectural drawings: floor plans, sections and elevations
+  - site photos
+
+  Each item is Pending, Received (with the date, who logged it and a note) or
+  Not needed. Tick what is already in hand on New Project; the rest is on the
+  project's *Client Documents* tab, where files can be attached. Attached
+  files also appear under Documents and on the client's department tab.
+- **Task done notes.** Moving a task to Done, from the list, the board or the
+  project, asks what was done. The note shows under the task and goes into the
+  history and the weekly report.
+- **Task reassign.** The ⇄ button on a task, or a new assignee in the task
+  form, hands the task over with an optional reason. Each task's form shows
+  its own history.
+- **Project history** (*History* tab on every project). One timeline, which can
+  be filtered, of:
+  - reassignments with their reasons
+  - tasks created, done (with their notes), reopened or deleted
+  - project edits, field by field
+  - documents received
+  - site reports, AMC visits, quotations and payments
+
+  Task events are logged as they happen, so they stay in the history after a
+  task is deleted.
+- **Weekly task report** (*Weekly report* on every task page, and under
+  Reports). Pick a Monday-to-Sunday week and download an Excel workbook with
+  these sheets:
+  - Summary
+  - By Person
+  - Done This Week, with the done notes
+  - Due This Week
+  - Open at Week End
+  - Reassignments, with reasons
+
+  It follows the page's project, person and priority filters.
+- **Weekly attendance & payout** (Attendance page, and under Reports). Choose
+  employees, workers or everyone. The workbook has these sheets:
+  - Summary
+  - Attendance: P / H / L / A for each day, with totals, hours and overtime
+  - Daily Detail
+  - Payout
+  - Payments
+
+  How the payout is worked out:
+  - Earned is the day rate per day worked, or the monthly salary spread over
+    the month's working days.
+  - Net payable is earned less the salary or wages, advances and deductions
+    paid in the week.
+  - Pay for an earlier month, such as last month's salary paid in the first
+    week, is listed separately and not set against the week.
+  - Payout sheets appear only for people who can see pay (Accounts, or
+    Employees edit).
+
+Browser data stays on v4. Seeded projects saved before this round pick up their
+type, area and documents from the seed, so nothing entered earlier is lost. The
+seeded areas, received documents, done notes and hand-overs are invented for the
+demo.
+
 ## What the document asked to keep configurable
 
 These live in **Settings** rather than being hard-coded:

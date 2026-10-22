@@ -5,7 +5,7 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
 import { addDays, formatDate, formatDateLong, today } from '../../domain/format'
-import { PHASE_LABELS, type Task, type TaskStatus } from '../../domain/types'
+import { PHASE_LABELS, type ID, type Task, type TaskStatus } from '../../domain/types'
 import {
   PageHeader, Section, StatusBadge, Table, EmptyState, Badge, Avatar, RowActions, ConfirmDialog,
   SearchInput, StatTile,
@@ -13,7 +13,8 @@ import {
 import { Icon } from '../../components/Icon'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions, projectOptions } from '../../components/pickerOptions'
-import { TASK_PRIORITIES, TASK_STATUSES, TaskFormModal } from './TaskForm'
+import { TASK_PRIORITIES, TASK_STATUSES, TaskDoneModal, TaskFormModal, TaskReassignModal } from './TaskForm'
+import { WeeklyTaskReportModal, type WeeklyTaskScope } from './WeeklyTaskReport'
 
 // ---------------------------------------------------------------- time filter
 
@@ -155,6 +156,36 @@ function applyFilters(tasks: Task[], f: Filters, projectName: (id: string) => st
   })
 }
 
+/** What the weekly report covers from a task page: its scope and filters, ignoring the date window and search. */
+function reportScope(
+  tasks: Task[], f: Filters, label: string, name: { project: (id: string) => string; person: (id: string) => string }, people?: ID[],
+): WeeklyTaskScope {
+  return {
+    tasks: applyFilters(tasks, { ...f, period: 'all', query: '' }, name.project),
+    label: [label, f.projectId && name.project(f.projectId), f.assigneeId && name.person(f.assigneeId), f.priority && `${f.priority} priority`]
+      .filter(Boolean).join(' · '),
+    people: f.assigneeId ? [f.assigneeId] : people,
+    projectId: f.projectId || undefined,
+  }
+}
+
+/** Under a finished task's title: its done note. */
+function DoneNote({ task }: { task: Task }) {
+  if (task.status !== 'Done' || !task.doneNote) return null
+  return (
+    <span className="mt-1 flex items-start gap-1 text-xs text-stone-500">
+      <Icon name="check" className="mt-px h-3 w-3 shrink-0 text-brand-600" />
+      <span className="line-clamp-2">{task.doneNote}</span>
+    </span>
+  )
+}
+
+const WeeklyButton = ({ onClick }: { onClick: () => void }) => (
+  <button onClick={onClick} className="btn-secondary" title="Download a week of tasks as an Excel workbook">
+    <Icon name="upload" className="h-4 w-4 rotate-180" /> Weekly report
+  </button>
+)
+
 function FilterBar({
   filters, setFilters, sort, setSort, sortKeys, showAssignee, total, shown,
 }: {
@@ -259,8 +290,12 @@ function useOpenFromUrl(setEditing: (t: Task) => void) {
 }
 
 function TaskList({
-  title, subtitle, scope, showAssignee,
-}: { title: string; subtitle: string; scope: (t: Task) => boolean; showAssignee?: boolean }) {
+  title, subtitle, scope, showAssignee, people,
+}: {
+  title: string; subtitle: string; scope: (t: Task) => boolean; showAssignee?: boolean
+  /** Whose tasks the page shows, for the weekly report's hand-overs; unset means everyone. */
+  people?: ID[]
+}) {
   const db = useDb()
   const { user } = useSession()
   const { can } = usePermissions()
@@ -268,6 +303,9 @@ function TaskList({
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const [editing, setEditing] = useState<Task | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Task | null>(null)
+  const [finishing, setFinishing] = useState<Task | null>(null)
+  const [reassigning, setReassigning] = useState<Task | null>(null)
+  const [weekly, setWeekly] = useState(false)
   useOpenFromUrl(setEditing)
 
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? ''
@@ -290,9 +328,12 @@ function TaskList({
       <PageHeader
         title={title}
         subtitle={subtitle}
-        actions={can('Tasks', 'create') && (
-          <button onClick={() => setEditing('new')} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New task</button>
-        )}
+        actions={<>
+          <WeeklyButton onClick={() => setWeekly(true)} />
+          {can('Tasks', 'create') && (
+            <button onClick={() => setEditing('new')} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New task</button>
+          )}
+        </>}
       />
 
       <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -330,6 +371,7 @@ function TaskList({
                       {task.phase && <span>{PHASE_LABELS[task.phase]}</span>}
                       {task.fromReportId && <span>from daily report</span>}
                     </span>
+                    <DoneNote task={task} />
                   </td>
                   <td className="td">
                     <Link to={`/projects/${task.projectId}`} className="hover:text-brand-700">{projectName(task.projectId) || '—'}</Link>
@@ -355,7 +397,12 @@ function TaskList({
                     <select
                       value={task.status}
                       disabled={!canEdit(task)}
-                      onChange={(e) => api.tasks.setStatus(task.id, e.target.value as TaskStatus)}
+                      onChange={(e) => {
+                        const status = e.target.value as TaskStatus
+                        // Finishing a task asks for its done note first.
+                        if (status === 'Done') setFinishing(task)
+                        else api.tasks.setStatus(task.id, status, user.id)
+                      }}
                       className="input w-32 py-1 text-xs"
                       aria-label={`Status for ${task.title}`}
                     >
@@ -364,6 +411,11 @@ function TaskList({
                   </td>
                   <td className="td">
                     <RowActions
+                      extra={canEdit(task) && task.status !== 'Done' && (
+                        <button type="button" onClick={() => setReassigning(task)} className="btn-icon" title="Reassign" aria-label={`Reassign ${task.title}`}>
+                          <Icon name="repeat" className="h-4 w-4" />
+                        </button>
+                      )}
                       onEdit={canEdit(task) ? () => setEditing(task) : undefined}
                       onDelete={can('Tasks', 'delete') ? () => setDeleting(task) : undefined}
                     />
@@ -388,7 +440,15 @@ function TaskList({
           title="Delete this task?"
           message={<>“{deleting.title}” will be removed from {projectName(deleting.projectId) || 'its project'}.</>}
           onClose={() => setDeleting(null)}
-          onConfirm={() => api.tasks.remove(deleting.id)}
+          onConfirm={() => api.tasks.remove(deleting.id, user.id)}
+        />
+      )}
+      {finishing && <TaskDoneModal task={finishing} onClose={() => setFinishing(null)} />}
+      {reassigning && <TaskReassignModal task={reassigning} onClose={() => setReassigning(null)} />}
+      {weekly && (
+        <WeeklyTaskReportModal
+          scope={reportScope(scoped, filters, title, { project: projectName, person: personName }, people)}
+          onClose={() => setWeekly(false)}
         />
       )}
     </div>
@@ -402,6 +462,7 @@ export function MyTasks() {
       title="My Tasks"
       subtitle={`Everything assigned to ${user.name}.`}
       scope={(t) => t.assigneeId === user.id}
+      people={[user.id]}
     />
   )
 }
@@ -420,6 +481,7 @@ export function TeamTasks() {
       subtitle={['super_admin', 'ceo'].includes(roleKey) ? 'Everything assigned across the company.' : `Everything assigned across the ${department} team.`}
       scope={(t) => teamIds.includes(t.assigneeId)}
       showAssignee
+      people={teamIds}
     />
   )
 }
@@ -452,6 +514,8 @@ export function TaskBoard() {
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const [editing, setEditing] = useState<Task | { status: TaskStatus } | null>(null)
   const [deleting, setDeleting] = useState<Task | null>(null)
+  const [finishing, setFinishing] = useState<Task | null>(null)
+  const [weekly, setWeekly] = useState(false)
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<TaskStatus | null>(null)
   // On a phone the board shows one column at a time instead of scrolling sideways.
@@ -466,10 +530,13 @@ export function TaskBoard() {
     <div>
       <PageHeader
         title="Task Board"
-        subtitle="Every task by stage. Drag a card to move it; click it to edit."
-        actions={can('Tasks', 'create') && (
-          <button onClick={() => setEditing({ status: 'To Do' })} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New task</button>
-        )}
+        subtitle="Every task by stage. Drag a card to move it; click it to edit. Dropping a card on Done asks for its done note."
+        actions={<>
+          <WeeklyButton onClick={() => setWeekly(true)} />
+          {can('Tasks', 'create') && (
+            <button onClick={() => setEditing({ status: 'To Do' })} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New task</button>
+          )}
+        </>}
       />
 
       <FilterBar
@@ -504,7 +571,11 @@ export function TaskBoard() {
               onDragLeave={() => setOver((o) => (o === status ? null : o))}
               onDrop={(e) => {
                 e.preventDefault()
-                if (dragging) api.tasks.setStatus(dragging, status)
+                const task = db.tasks.find((t) => t.id === dragging)
+                if (task && task.status !== status) {
+                  if (status === 'Done') setFinishing(task)
+                  else api.tasks.setStatus(task.id, status, user.id)
+                }
                 setDragging(null)
                 setOver(null)
               }}
@@ -551,6 +622,7 @@ export function TaskBoard() {
                       >
                         {projectName(task.projectId)}{task.phase && ` · ${PHASE_LABELS[task.phase]}`}
                       </Link>
+                      <DoneNote task={task} />
                       <div className="mt-2.5 flex items-center justify-between gap-2">
                         <span className="flex items-center gap-1.5 text-xs text-stone-500">
                           <Avatar name={assignee?.name ?? '?'} size="sm" src={assignee?.photo} />
@@ -588,7 +660,14 @@ export function TaskBoard() {
           title="Delete this task?"
           message={<>“{deleting.title}” will be removed from {projectName(deleting.projectId) || 'its project'}.</>}
           onClose={() => setDeleting(null)}
-          onConfirm={() => api.tasks.remove(deleting.id)}
+          onConfirm={() => api.tasks.remove(deleting.id, user.id)}
+        />
+      )}
+      {finishing && <TaskDoneModal task={finishing} onClose={() => setFinishing(null)} />}
+      {weekly && (
+        <WeeklyTaskReportModal
+          scope={reportScope(db.tasks, filters, 'All tasks', { project: projectName, person: personName })}
+          onClose={() => setWeekly(false)}
         />
       )}
     </div>

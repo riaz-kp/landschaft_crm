@@ -5,6 +5,7 @@ import type {
   DocumentRecord, Employee, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
   MaintenanceVisit, PaymentRequest, Phase, PhotoSession, Project, Quotation, ReportPhoto, Settings, SiteAssignment,
   SiteVisit, StaffAttendanceStatus, Task, Worker, ProjectMessage, PayRecord, Reminder,
+  ClientDocKey, ClientDocTick, ProjectLogEntry,
 } from '../domain/types'
 import { placeholderSitePhoto } from './photos'
 import { CHECKLISTS } from '../domain/commercial'
@@ -95,6 +96,14 @@ function ticks(ids: string[], by: string): Record<string, ChecklistTick> {
   return Object.fromEntries(ids.map((id, i) => [id, { done: true, by, on: addDays(today(), -40 + i * 2) }]))
 }
 
+/** Client documents already handed over on a seeded project. */
+function received(keys: ClientDocKey[], by: string, on: string, notNeeded: ClientDocKey[] = []): Partial<Record<ClientDocKey, ClientDocTick>> {
+  return Object.fromEntries([
+    ...keys.map((k) => [k, { status: 'Received', by, on }]),
+    ...notNeeded.map((k) => [k, { status: 'Not Needed', by, on }]),
+  ])
+}
+
 /**
  * The three worked examples from the structure document, seeded so the client
  * recognises their own numbers: 45% design-only, 55% execution-only, 82% both.
@@ -102,6 +111,8 @@ function ticks(ids: string[], by: string): Record<string, ChecklistTick> {
 export const projects: Project[] = [
   {
     id: 'p1', code: 'LS-2026-001', name: 'Residence Landscape Design', clientId: 'c1',
+    category: 'Residential', area: 4500, areaUnit: 'sq ft',
+    clientDocs: received(['contour', 'archFloor', 'archSections', 'archElevations', 'sitePhotos'], 'e3', '2026-04-28', ['model3d']),
     siteLocation: 'Kowdiar, Thiruvananthapuram', projectManagerId: 'e3',
     startDate: '2026-05-01', expectedCompletion: '2026-09-30', status: 'In Progress',
     services: { design: true, execution: false },
@@ -112,6 +123,8 @@ export const projects: Project[] = [
   },
   {
     id: 'p2', code: 'LS-2026-002', name: 'Villa Landscape Execution', clientId: 'c2',
+    category: 'Residential', area: 6800, areaUnit: 'sq ft',
+    clientDocs: received(['model3d', 'presentation', 'archFloor', 'sitePhotos'], 'e7', '2026-05-28'),
     siteLocation: 'Panampilly Nagar, Kochi', projectManagerId: 'e7',
     startDate: '2026-06-01', expectedCompletion: '2026-10-15', status: 'In Progress',
     services: { design: false, execution: true },
@@ -126,6 +139,8 @@ export const projects: Project[] = [
   },
   {
     id: 'p3', code: 'LS-2026-003', name: 'Resort Landscape', clientId: 'c3',
+    category: 'Hospitality', area: 3.5, areaUnit: 'acres',
+    clientDocs: received(['model3d', 'contour', 'presentation', 'archFloor', 'archSections', 'archElevations', 'sitePhotos'], 'e3', '2026-04-10'),
     siteLocation: 'Kovalam, Thiruvananthapuram', projectManagerId: 'e7',
     startDate: '2026-04-15', expectedCompletion: '2026-11-30', status: 'In Progress',
     services: { design: true, execution: true },
@@ -139,6 +154,8 @@ export const projects: Project[] = [
   },
   {
     id: 'p4', code: 'LS-2026-004', name: 'Edava Residence Garden', clientId: 'c4',
+    category: 'Residential', area: 18, areaUnit: 'cents',
+    clientDocs: received(['archFloor', 'sitePhotos'], 'e7', '2026-06-26', ['model3d', 'presentation']),
     siteLocation: 'എടവ, Varkala', projectManagerId: 'e7',
     startDate: '2026-07-01', expectedCompletion: '2026-09-15', status: 'In Progress',
     services: { design: false, execution: true },
@@ -153,6 +170,8 @@ export const projects: Project[] = [
   },
   {
     id: 'p5', code: 'LS-2026-005', name: 'Greenfield Common Areas', clientId: 'c5',
+    category: 'Residential', area: 22000, areaUnit: 'sq ft',
+    clientDocs: received(['contour', 'archFloor', 'sitePhotos'], 'e3', '2026-06-18'),
     siteLocation: 'Kozhikode', projectManagerId: 'e7',
     startDate: '2026-06-20', expectedCompletion: '2026-10-30', status: 'In Progress',
     services: { design: true, execution: true },
@@ -166,6 +185,7 @@ export const projects: Project[] = [
   },
   {
     id: 'p6', code: 'LS-2026-006', name: 'Kovalam Villa Concept', clientId: 'c3',
+    category: 'Hospitality', area: 2400, areaUnit: 'sq ft',
     siteLocation: 'Kovalam', projectManagerId: 'e3',
     startDate: '2026-08-01', expectedCompletion: '2026-10-20', status: 'Planning',
     services: { design: true, execution: false },
@@ -176,6 +196,8 @@ export const projects: Project[] = [
   },
   {
     id: 'p7', code: 'LS-2025-018', name: 'Sea Breeze Villa', clientId: 'c2',
+    category: 'Residential', area: 9500, areaUnit: 'sq ft',
+    clientDocs: received(['model3d', 'contour', 'presentation', 'archFloor', 'archSections', 'archElevations', 'sitePhotos'], 'e3', '2025-10-27'),
     siteLocation: 'Fort Kochi', projectManagerId: 'e7',
     startDate: '2025-11-01', expectedCompletion: '2026-06-30', status: 'Completed',
     services: { design: true, execution: true, amc: true },
@@ -189,6 +211,8 @@ export const projects: Project[] = [
   },
   {
     id: 'p8', code: 'LS-2026-007', name: 'Cyber Park Softscape', clientId: 'c5',
+    category: 'Commercial', area: 1.2, areaUnit: 'acres',
+    clientDocs: received(['contour', 'sitePhotos'], 'e7', '2026-08-06'),
     siteLocation: 'Kozhikode', projectManagerId: 'e7',
     startDate: '2026-08-10', expectedCompletion: '2026-12-15', status: 'In Progress',
     services: { design: false, execution: true },
@@ -204,6 +228,8 @@ export const projects: Project[] = [
   {
     // Sold as an AMC alone — no design or execution by us.
     id: 'p9', code: 'LS-2026-008', name: 'Marine Drive Towers — Garden AMC', clientId: 'c6',
+    category: 'Residential', area: 14000, areaUnit: 'sq ft',
+    clientDocs: received(['sitePhotos'], 'e6', addDays(today(), -50), ['model3d', 'contour', 'presentation', 'archSections', 'archElevations']),
     siteLocation: 'Marine Drive, Kochi', projectManagerId: 'e6',
     startDate: addDays(today(), -45), expectedCompletion: addDays(today(), 319), status: 'In Progress',
     services: { design: false, execution: false, amc: true },
@@ -277,6 +303,43 @@ export const tasks: Task[] = [
   { id: 'td22', projectId: 'p7', phase: 'softscape', title: 'Final planting', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -33) },
   { id: 'td23', projectId: 'p7', phase: 'softscape', title: 'Lawn laying', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -34) },
   { id: 'td24', projectId: 'p7', phase: 'mep', title: 'Irrigation commissioning', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -35) },
+]
+
+/** What the team wrote when finishing some of the seeded tasks. */
+const DONE_NOTES: Record<string, string> = {
+  t11: 'Edging re-laid along the east side. Walked it with the client, who signed off.',
+  t13: 'Reconciled against site measurements — three line items revised and shared with accounts.',
+  t14: 'Client chose concept option B, with a smaller water feature near the sit-out.',
+  td1: 'Full survey done; levels and existing trees marked on the base drawing.',
+  td5: 'Sub-base compacted in two layers and the levels checked.',
+  td16: 'Wall finished to coping level. Plastering left for the mason next week.',
+  td24: 'All zones tested. Controller programmed for morning and evening cycles.',
+}
+
+// Finished tasks record when they were done, by whom, and the note left at the time.
+for (const task of tasks) {
+  if (task.status !== 'Done') continue
+  task.doneOn = task.dueDate
+  task.doneBy = task.assigneeId
+  task.doneNote = DONE_NOTES[task.id]
+}
+
+/** A few hand-overs already in the project histories. */
+export const projectLog: ProjectLogEntry[] = [
+  {
+    id: 'pl1', projectId: 'p5', taskId: 't7', kind: 'task-reassigned', at: `${addDays(today(), -5)}T10:15`, byId: 'e2',
+    title: 'Revise civil drawing per association feedback', fromId: 'e4', toId: 'e5',
+    detail: 'Nihal drew the original civil set, so he takes the revision.',
+  },
+  {
+    id: 'pl2', projectId: 'p3', taskId: 't5', kind: 'task-reassigned', at: `${addDays(today(), -3)}T16:40`, byId: 'e6',
+    title: 'Irrigation trunk line layout', fromId: 'e6', toId: 'e7',
+    detail: 'Jidhin is on site at Kovalam all week.',
+  },
+  {
+    id: 'pl3', projectId: 'p2', taskId: 't10', kind: 'task-reassigned', at: `${addDays(today(), -2)}T09:30`, byId: 'e6',
+    title: 'Source native palm varieties', fromId: 'e7', toId: 'e6',
+  },
 ]
 
 const present = (ids: string[], all: string[], checkIn = '10:00', checkOut = '15:40') =>
