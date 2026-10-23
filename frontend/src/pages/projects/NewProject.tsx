@@ -8,7 +8,7 @@ import { MapPicker } from '../../components/MapPicker'
 import { ClientPicker } from './ClientPicker'
 import { AmcFields, draftToRecord, emptyAmcDraft, endOf, validateAmc, type AmcDraft } from '../amc/AmcContractForm'
 import { CHECKLISTS, commercialDocs } from '../../domain/commercial'
-import { AREA_UNITS, PROJECT_CATEGORIES, type AreaUnit, type ClientDocKey, type LatLng, type ProjectCategory } from '../../domain/types'
+import { AREA_UNITS, PROJECT_CATEGORIES, type AreaUnit, type ClientDocKey, type LatLng, type ProjectCategory, type RoleKey } from '../../domain/types'
 import { codeOwner, normaliseCode, suggestProjectCode } from '../../domain/projectInfo'
 import { ClientDocsPicker, type DocState } from './ClientDocuments'
 import { useSession } from '../../state/session'
@@ -17,6 +17,9 @@ import { NoAccess } from '../misc/Fallbacks'
 import { Icon } from '../../components/Icon'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions } from '../../components/pickerOptions'
+
+/** Roles that manage projects — who a new project is given to by default. */
+const MANAGER_ROLES: RoleKey[] = ['design_pm', 'execution_pm', 'design_director', 'execution_head']
 
 /**
  * Project creation from §18. Services come first and everything below reacts
@@ -40,7 +43,8 @@ export function NewProject() {
     name: '',
     clientId: db.clients[0]?.id ?? '',
     siteLocation: '',
-    projectManagerId: 'e3',
+    // The person opening it when they manage projects, else the first project manager.
+    projectManagerId: MANAGER_ROLES.includes(user.role) ? user.id : db.employees.find((e) => MANAGER_ROLES.includes(e.role))?.id ?? user.id,
     startDate: today(),
     expectedCompletion: addDays(today(), 90),
     value: 0,

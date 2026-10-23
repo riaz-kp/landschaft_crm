@@ -1,9 +1,10 @@
 /**
- * The single seam between the UI and its data source.
+ * The single seam between the UI and its data.
  *
- * The prototype binds this to an in-memory mock adapter. Swapping to the real
- * FastAPI backend means implementing the same interface with fetch calls and
- * changing the one export at the bottom of this file — no page needs to change.
+ * Every write goes through here into the in-memory store, which pages read
+ * synchronously. data/sync then saves each change to Supabase (or, in the
+ * offline demo, data/demo keeps it in the browser) — no page talks to the
+ * database directly.
  */
 import type {
   AttendanceEntry, ChatMessage, Clarification, Client, Consultation, ConsultationStatus,
@@ -11,7 +12,7 @@ import type {
   ProjectMessage, Reminder, AreaUnit, ClientDocKey, ClientDocTick, ProjectCategory,
   Project, Quotation, Settings, SiteVisit, Task, Worker,
 } from '../domain/types'
-import * as mock from './mockAdapter'
+import { adapter } from './storeAdapter'
 
 export interface NewProjectInput {
   /** The project code, e.g. LS-2026-009. Callers check it is not already taken. */
@@ -156,9 +157,8 @@ export interface Api {
   quotations: Crud<Quotation, Omit<Quotation, 'id' | 'number'>>
   issues: { resolve(issueId: ID): void }
   settings: { save(next: Settings): void }
-  reset(): void
 }
 
-export const api: Api = mock.adapter
+export const api: Api = adapter
 
 export type { Issue, Project }

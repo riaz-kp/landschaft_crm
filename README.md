@@ -1,19 +1,80 @@
-# Landschaft CRM — Clickable Prototype
+# Landschaft CRM
 
 An internal CRM for a landscaping company that does garden **design**, site
-**execution**, and ongoing **maintenance**. This is a clickable prototype: every
-screen is real and the interactions work, but there is no backend and no
-authentication yet.
+**execution**, and ongoing **maintenance**. It runs on Supabase (Postgres,
+Auth, Storage and Realtime) with a React single-page app, and keeps an offline
+demo mode with sample data for showing the product.
 
 Built from the client's structure document (`landschaft_crm_strudcture.pdf`).
 
 ## Running it
 
+The app runs in one of two modes:
+
+| Mode | Data | Sign-in | Start it with |
+|---|---|---|---|
+| **Live** | Supabase, shared by everyone | Email + password | `npm run dev` with `.env.local` set |
+| **Demo** | Sample data in this browser only | Pick anyone from the account menu | `npm run dev:demo` |
+
 ```bash
-cd frontend && npm install && npm run dev
+cd frontend && npm install
+npm run dev:demo        # offline demo, http://localhost:5173
 ```
 
-Then open http://localhost:5173.
+For the live app, copy `frontend/.env.example` to `frontend/.env.local` and
+fill in the project URL and publishable key, then `npm run dev`. A build with
+neither the Supabase settings nor demo mode shows a "Not configured" screen
+rather than running against nothing.
+
+## Going live
+
+1. **Database.** Apply `supabase/migrations/*.sql` to the Supabase project
+   (SQL editor, or `supabase db push`). It creates one table per collection,
+   row-level security on every table, the triggers that guard roles, pay and
+   Settings, and the private `files` bucket for photos and documents.
+2. **Login function.** Deploy `supabase/functions/staff-accounts` with JWT
+   verification off (`supabase functions deploy staff-accounts --no-verify-jwt`).
+   It checks the caller's token itself; it is how admins create logins.
+3. **Auth settings** (Supabase → Authentication):
+   - turn **off** "Allow new users to sign up" — staff logins are created by an
+     admin, never by sign-up;
+   - set the **Site URL** to the app's address and add it (and
+     `http://localhost:5173`) under Redirect URLs, so password-reset links
+     come back to the app.
+4. **Hosting.** `frontend/vercel.json` serves the SPA on Vercel. Set
+   `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in the project's
+   environment variables and deploy. Never put the service-role key in the app.
+5. **First admin.** Open the app. While the database has no logins at all, the
+   sign-in page offers **Set up Landschaft CRM**: it creates the first Super
+   Admin. The default Settings and permission matrix are saved on that first
+   sign-in. Everyone else gets a login from **Employees → (person) → Login**.
+
+### How data moves
+
+- On sign-in every collection the person may see is loaded into memory, so
+  screens read it instantly, exactly as the prototype did.
+- Each change is saved in the background. A change waiting to go out is kept on
+  the device, so a foreman with no signal loses nothing: it sends when the
+  connection returns, even after the app was closed. The header shows
+  *Saving…*, *Offline · n waiting*, or the reason a change was refused.
+- Other people's changes arrive live (Supabase Realtime).
+- Two people editing the same record at the same moment: the last save wins.
+
+### Who can reach what
+
+The database enforces the same rules as the screens, so the public key alone
+reaches nothing:
+
+- Only a signed-in employee with an active login sees any data.
+- Foremen read only what the field app needs, and write only their own daily
+  reports, issues, remarks and profile.
+- Pay records: your own, or everyone's for Accounts and Employees managers.
+- Only a Super Admin or the CEO can give anyone either of those two roles.
+  Nobody can change their own role, department, reporting line or salary.
+- Settings and the permission matrix need *Settings → edit*. Adding a worker
+  skill or a holiday is the one exception, and it touches nothing else.
+- Photos and documents sit in a private bucket and open through links that
+  expire within the hour.
 
 ## Two things drive the whole design
 
@@ -39,10 +100,10 @@ Site foremen get `MY SITES → SELECT SITE → DAILY WORK REPORT` and nothing el
 They cannot reach the rest of the CRM; navigating to `/projects` as a foreman
 redirects back to the field app.
 
-## Walking the prototype
+## Walking the demo
 
-There is no login. Use the **role switcher** in the top-right to sign in as
-anyone in the org chart.
+In demo mode there is no login. Use the **account menu** in the top-right to
+view the app as anyone in the org chart.
 
 A good demo path:
 
@@ -310,27 +371,19 @@ appear nowhere. There is no client login — internal employees only.
 ## Structure
 
 ```
+supabase/
+├── migrations/   tables, row-level security, guards, storage bucket
+└── functions/    staff-accounts — first admin, create / reset / switch off logins
 frontend/src/
-├── domain/       types, roles + permissions, progress, finance, consultations, formatting
-├── api/          client.ts is the seam; mockAdapter.ts holds the behaviour
-├── mock/         seeded data and the persisted store
+├── domain/       types, roles + permissions, defaults, progress, finance, formatting
+├── api/          client.ts is the seam every page writes through; storeAdapter.ts holds the behaviour
+├── data/         the in-memory store, Supabase sync, file storage, and the demo loader
+├── lib/          the Supabase client
+├── mock/         sample data for the demo (loaded only in demo mode)
 ├── shells/       AdminShell (desktop CRM) and FieldShell (foreman mobile)
 ├── components/   progress, repeaters, worker picker, photo grid, shared UI
-└── pages/        one folder per navigation section
+└── pages/        one folder per navigation section, plus auth (sign-in screens)
 ```
 
-State lives in the browser (`localStorage`), so a submitted report survives a
-reload and the dashboards genuinely move when you act. **Settings → Reset
-prototype data** restores the seed.
-
-## Wiring up the real backend
-
-The target stack is FastAPI + Postgres + React SPA. `src/api/client.ts` defines
-a typed `Api` interface and exports a single binding:
-
-```ts
-export const api: Api = mock.adapter
-```
-
-Swapping to the real backend means writing an `httpAdapter` against the same
-interface and changing that one line. No page imports the mock directly.
+In demo mode everything lives in the browser (`localStorage`), and **Settings →
+Reset demo data** restores the sample data.

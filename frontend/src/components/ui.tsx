@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import type { Department } from '../domain/types'
 import { Icon } from './Icon'
+import { useFileUrl } from './StoredImage'
 
 // ---------------------------------------------------------------- page frame
 
@@ -228,12 +229,13 @@ const AVATAR_TONES = [
 export function Avatar({
   name, size = 'md', src,
 }: { name: string; size?: 'sm' | 'md' | 'lg' | 'xl'; src?: string }) {
+  const url = useFileUrl(src)
   const initials = name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
   const dim = {
     sm: 'h-7 w-7 text-[10px]', md: 'h-9 w-9 text-xs', lg: 'h-12 w-12 text-sm', xl: 'h-24 w-24 text-2xl',
   }[size]
-  if (src) {
-    return <img src={src} alt={name} className={`shrink-0 rounded-full object-cover ring-2 ring-white ${dim}`} />
+  if (url) {
+    return <img src={url} alt={name} className={`shrink-0 rounded-full object-cover ring-2 ring-white ${dim}`} />
   }
   const tone = AVATAR_TONES[[...name].reduce((s, c) => s + c.charCodeAt(0), 0) % AVATAR_TONES.length]
   return (

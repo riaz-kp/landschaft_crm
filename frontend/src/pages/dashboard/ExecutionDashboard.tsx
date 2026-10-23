@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { today, pad2 } from '../../domain/format'
-import { executionDashboardSeed } from '../../mock/seed'
 import { PERIOD_LABELS, inRange, periodPhrase } from '../../domain/period'
 import { allOccurrences } from '../../domain/amc'
 import { PeriodSwitch, useDashboardPeriod } from '../../components/PeriodSwitch'
@@ -30,7 +29,7 @@ export function ExecutionDashboard() {
   const submitted = db.reports.filter((r) => r.status === 'Submitted')
   const filed = todaysReports.filter((r) => r.status !== 'Draft')
 
-  const activeSites = Math.max(executionProjects.length, executionDashboardSeed.activeSites)
+  const activeSites = executionProjects.length
   const workersToday = todaysReports.reduce(
     (sum, r) => sum + r.attendance.filter((a) => a.present).length, 0,
   )

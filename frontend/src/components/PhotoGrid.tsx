@@ -3,6 +3,8 @@ import { PHOTO_SESSIONS, type PhotoSession, type ReportPhoto } from '../domain/t
 import { currentTime, formatTime } from '../domain/format'
 import { Icon } from './Icon'
 import { compressImage, formatKb } from './imageResize'
+import { storePhoto } from '../data/files'
+import { StoredImg } from './StoredImage'
 import { useDb } from '../state/useDb'
 import { Lightbox } from './Lightbox'
 
@@ -14,8 +16,8 @@ const SESSION_ICON: Record<PhotoSession, string> = { Morning: 'sun', Evening: 'm
  * its session. With `session` set the grid shows and adds only that session;
  * without it, it shows everything grouped by session (read-only views).
  *
- * The prototype stores shrunk data URLs so an upload survives a reload;
- * production would put these in object storage and keep only the key.
+ * Each photo is shrunk on the phone, then stored in the file bucket; the
+ * report keeps only its reference.
  */
 export function PhotoGrid({
   photos, onChange, disabled, session,
@@ -40,15 +42,17 @@ export function PhotoGrid({
         // Shrunk on the phone before it is saved, so uploads stay small on a site connection.
         const shot = await compressImage(file, settings.photoMaxPx, settings.photoMaxKb)
         added.push({
-          id: `ph${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
-          src: shot.dataUrl,
+          id: `ph${crypto.randomUUID().slice(0, 12)}`,
+          src: await storePhoto(shot.dataUrl, 'reports'),
           session,
           takenAt: currentTime(),
           sizeKb: shot.sizeKb,
           originalKb: shot.originalKb,
         })
-      } catch {
-        setError(`${file.name} could not be read as an image.`)
+      } catch (e) {
+        setError(e instanceof Error && e.message.startsWith('Upload failed')
+          ? `${file.name} could not be uploaded. Check the connection and try again.`
+          : `${file.name} could not be read as an image.`)
       }
     }
     setBusy(0)
@@ -69,7 +73,7 @@ export function PhotoGrid({
     <figure key={photo.id} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
       <div className="relative">
         <button type="button" onClick={() => setViewing(shown.indexOf(photo))} className="block w-full">
-          <img src={photo.src} alt={photo.caption ?? 'Site photo'} className="h-32 w-full object-cover transition hover:opacity-90" />
+          <StoredImg src={photo.src} alt={photo.caption ?? 'Site photo'} className="h-32 w-full object-cover transition hover:opacity-90" />
         </button>
         <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-md bg-stone-900/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">
           <Icon name={SESSION_ICON[photo.session]} className="h-3 w-3" />

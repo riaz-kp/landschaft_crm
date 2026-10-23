@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { moduleOf, navForRole, sectionForPath, titleOf, type NavSection } from '../domain/roles'
 import { formatDateLong, today } from '../domain/format'
@@ -8,10 +8,11 @@ import { usePermissions } from '../state/permissions'
 import { Icon } from '../components/Icon'
 import { Avatar } from '../components/ui'
 import { LogoLockup } from '../components/Logo'
-import { RoleSwitcher } from '../components/RoleSwitcher'
+import { UserMenu } from '../components/UserMenu'
+import { SyncIndicator } from '../components/SyncIndicator'
 import { GlobalSearch } from '../components/GlobalSearch'
 import { NotificationBell } from '../components/NotificationBell'
-import { NoAccess } from '../pages/misc/Fallbacks'
+import { NoAccess, PageLoading } from '../pages/misc/Fallbacks'
 
 function Logo() {
   return (
@@ -175,12 +176,13 @@ export function AdminShell() {
             )}
 
             <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
+              <SyncIndicator />
               <GlobalSearch />
               <NotificationBell />
               <span className="hidden whitespace-nowrap rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-500 xl:inline">
                 {formatDateLong(today())}
               </span>
-              <RoleSwitcher />
+              <UserMenu />
             </div>
           </div>
         </header>
@@ -188,7 +190,7 @@ export function AdminShell() {
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-[1440px] animate-fade-in" key={current?.label}>
             {allowed && visible?.children && visible.children.length > 1 && <SectionTabs section={visible} pathname={pathname} />}
-            {allowed ? <Outlet /> : <NoAccess />}
+            {allowed ? <Suspense fallback={<PageLoading />}><Outlet /></Suspense> : <NoAccess />}
           </div>
         </main>
       </div>

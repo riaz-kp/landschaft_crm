@@ -10,6 +10,7 @@ import {
 import { Icon } from '../../../components/Icon'
 import { SearchSelect } from '../../../components/SearchSelect'
 import { projectOptions } from '../../../components/pickerOptions'
+import { FileLink, MAX_FILE_MB, uploadDocument } from '../../../components/FileLink'
 
 /**
  * One department's desk on a client: the clarifications it is handling, the
@@ -208,36 +209,48 @@ function Attachments({ client, department }: { client: Client; department: Clien
   const db = useDb()
   const { user } = useSession()
   const inputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const files = db.documents
     .filter((d) => d.clientId === client.id && d.department === department)
     .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
 
-  const upload = (list: FileList | null) => {
-    Array.from(list ?? []).forEach((file) => {
-      api.documents.create({
-        name: file.name,
-        clientId: client.id,
-        department,
-        category: categoryFor(file.name),
-        uploadedBy: user.id,
-        uploadedAt: today(),
-        sizeKb: Math.max(1, Math.round(file.size / 1024)),
-      })
-    })
+  const upload = async (list: FileList | null) => {
+    const chosen = Array.from(list ?? [])
+    setUploadError(null)
+    setUploading(chosen.length)
+    for (const file of chosen) {
+      try {
+        const stored = await uploadDocument(file, `clients/${client.id}`)
+        api.documents.create({
+          name: file.name,
+          clientId: client.id,
+          department,
+          category: categoryFor(file.name),
+          uploadedBy: user.id,
+          uploadedAt: today(),
+          sizeKb: Math.max(1, Math.round(file.size / 1024)),
+          file: stored,
+        })
+      } catch (e) {
+        setUploadError((e as Error).message)
+      }
+      setUploading((n) => n - 1)
+    }
   }
 
   return (
     <Section
       title={<span className="flex items-center gap-2"><Icon name="clip" className="h-4 w-4 text-stone-400" /> {department} Attachments</span>}
-      description="The prototype records the file name and size; production stores the file."
+      description={uploadError ? <span className="text-red-600">{uploadError}</span> : `Up to ${MAX_FILE_MB} MB a file. Click a file to open it.`}
       actions={<>
         <input
           ref={inputRef} type="file" multiple className="hidden"
-          onChange={(e) => { upload(e.target.files); e.target.value = '' }}
+          onChange={(e) => { void upload(e.target.files); e.target.value = '' }}
         />
-        <button onClick={() => inputRef.current?.click()} className="btn-secondary py-1.5">
-          <Icon name="upload" className="h-4 w-4" /> Upload
+        <button onClick={() => inputRef.current?.click()} disabled={uploading > 0} className="btn-secondary py-1.5 disabled:opacity-60">
+          <Icon name="upload" className="h-4 w-4" /> {uploading > 0 ? `Uploading ${uploading}…` : 'Upload'}
         </button>
       </>}
     >
@@ -247,7 +260,7 @@ function Attachments({ client, department }: { client: Client; department: Clien
         <Table head={['File', 'Category', 'Uploaded By', 'Date', 'Size']}>
           {files.map((doc) => (
             <tr key={doc.id} className="row-hover">
-              <td className="td font-medium text-stone-900">{doc.name}</td>
+              <td className="td font-medium text-stone-900"><FileLink file={doc.file} name={doc.name} /></td>
               <td className="td"><Badge tone="stone">{doc.category}</Badge></td>
               <td className="td">{db.employees.find((e) => e.id === doc.uploadedBy)?.name ?? '—'}</td>
               <td className="td tabular-nums">{formatDate(doc.uploadedAt)}</td>

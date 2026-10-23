@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useDb } from '../../state/useDb'
-import type { DbShape } from '../../mock/store'
+import type { DbShape } from '../../data/store'
 import { daysBetween, today } from '../../domain/format'
 import type { DateRange } from '../../domain/period'
 import { titleOf } from '../../domain/roles'

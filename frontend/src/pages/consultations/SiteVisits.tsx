@@ -248,7 +248,7 @@ function SiteVisitFormModal({ visit, onClose }: { visit?: SiteVisit; onClose: ()
     coords: visit?.coords,
     date: visit?.date ?? addDays(today(), 1),
     time: visit?.time ?? '10:00',
-    assignedTo: visit?.assignedTo ?? (user.role === 'super_admin' ? 'e2' : user.id),
+    assignedTo: visit?.assignedTo ?? (user.role === 'super_admin' ? db.employees.find((e) => e.role === 'ceo')?.id ?? user.id : user.id),
     teamIds: visit?.teamIds ?? [],
     remind: visit ? (visit.remindDaysBefore === undefined ? 'none' : String(visit.remindDaysBefore)) : '1',
     status: visit?.status ?? ('Scheduled' as SiteVisitStatus),

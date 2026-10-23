@@ -49,7 +49,7 @@ export interface Employee {
   phone: string
   whatsapp?: string
   email: string
-  /** Profile photo as a data URL in the prototype; an object-store key in production. */
+  /** Profile photo: a stored-file reference ("sb:…"), or a data URL. See data/files. */
   photo?: string
   dob?: string
   address?: string
@@ -445,7 +445,7 @@ export const PHOTO_SESSIONS: PhotoSession[] = ['Morning', 'Evening']
 
 export interface ReportPhoto {
   id: ID
-  /** Data URL in the prototype; an object-store key in production. */
+  /** A stored-file reference ("sb:…"), or a data URL when taken offline. See data/files. */
   src: string
   caption?: string
   session: PhotoSession
@@ -637,6 +637,8 @@ export interface DocumentRecord {
   department?: ClientDepartment
   /** Set when the file is one of the documents the client handed over for the project. */
   clientDoc?: ClientDocKey
+  /** The file itself, in the file bucket ("sb:…"). Absent on records from before files were stored. */
+  file?: string
   category: 'Drawing' | 'BOQ' | 'Contract' | 'Photo' | 'Report' | 'Other'
   uploadedBy: ID
   uploadedAt: string

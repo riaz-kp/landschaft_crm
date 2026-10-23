@@ -9,6 +9,7 @@ import { PhotoGrid } from '../../components/PhotoGrid'
 import { RepeaterView } from '../../components/RepeaterList'
 import { FieldCard } from '../../shells/FieldShell'
 import { FieldCrewList } from './FieldWorkers'
+import { StoredImg } from '../../components/StoredImage'
 
 function monthName(month: string) {
   return new Date(month + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
@@ -112,7 +113,7 @@ function ReportList() {
               </ul>
               {r.photos.length > 0 && (
                 <div className="mt-3 flex gap-2">
-                  {r.photos.slice(0, 4).map((p) => <img key={p.id} src={p.src} alt="" className="h-14 w-14 rounded-lg object-cover" />)}
+                  {r.photos.slice(0, 4).map((p) => <StoredImg key={p.id} src={p.src} alt="" className="h-14 w-14 rounded-lg object-cover" />)}
                 </div>
               )}
             </FieldCard>

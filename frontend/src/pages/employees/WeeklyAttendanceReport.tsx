@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
-import type { DbShape } from '../../mock/store'
+import type { DbShape } from '../../data/store'
 import { addDays, formatCurrency, formatTime, minutesBetween, today } from '../../domain/format'
 import type { DateRange } from '../../domain/period'
 import { titleOf } from '../../domain/roles'
