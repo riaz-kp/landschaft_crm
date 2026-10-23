@@ -1,7 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+/**
+ * The project URL, tidied. The dashboard also shows the REST endpoint
+ * (".../rest/v1/"); pasted in by mistake it would send sign-in, storage and
+ * functions to the wrong paths, so that suffix and any trailing slash go.
+ */
+const url = import.meta.env.VITE_SUPABASE_URL?.trim().replace(/\/+$/, '').replace(/\/rest\/v1$/, '')
+const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim()
 
 /**
  * The offline demo: seed data kept in this browser, and a switcher to view the
