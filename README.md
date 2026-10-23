@@ -21,10 +21,11 @@ cd frontend && npm install
 npm run dev:demo        # offline demo, http://localhost:5173
 ```
 
-For the live app, copy `frontend/.env.example` to `frontend/.env.local` and
-fill in the project URL and publishable key, then `npm run dev`. A build with
-neither the Supabase settings nor demo mode shows a "Not configured" screen
-rather than running against nothing.
+The live project's URL and publishable key are in `frontend/.env.production`,
+which every production build reads — Vercel's included. For local development
+copy them to `frontend/.env.local` (see `frontend/.env.example`), then
+`npm run dev`. A build with neither the Supabase settings nor demo mode shows
+a "Not configured" screen rather than running against nothing.
 
 ## Going live
 
@@ -41,9 +42,10 @@ rather than running against nothing.
    - set the **Site URL** to the app's address and add it (and
      `http://localhost:5173`) under Redirect URLs, so password-reset links
      come back to the app.
-4. **Hosting.** `frontend/vercel.json` serves the SPA on Vercel. Set
-   `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in the project's
-   environment variables and deploy. Never put the service-role key in the app.
+4. **Hosting.** `frontend/vercel.json` serves the SPA on Vercel. The build
+   takes the project URL and publishable key from `frontend/.env.production`
+   (both are public by design); variables set in Vercel override it, e.g. to
+   point a preview at another project. Never put the service-role key in the app.
 5. **First admin.** Open the app. While the database has no logins at all, the
    sign-in page offers **Set up Landschaft CRM**: it creates the first Super
    Admin. The default Settings and permission matrix are saved on that first
