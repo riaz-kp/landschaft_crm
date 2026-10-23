@@ -9,8 +9,11 @@ import {
 import { Field, FormError, Modal } from '../../components/ui'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions } from '../../components/pickerOptions'
+import { Icon } from '../../components/Icon'
+import { applyScope, scopeOf, scopeProblem, type ProjectScope } from '../../domain/projectScope'
+import { DesignPhasePicker, ExecutionPhasePicker, ServicePicker } from './ProjectScope'
 
-/** Edits a project's details. Every change is written to the project history. */
+/** Edits a project's details and scope — its services and phases. Every change is written to the project history. */
 export function ProjectEditModal({ project, onClose }: { project: Project; onClose: () => void }) {
   const db = useDb()
   const { user } = useSession()
@@ -27,12 +30,17 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
     expectedCompletion: project.expectedCompletion,
     value: project.value,
   })
+  const [scope, setScopeState] = useState<ProjectScope>(() => scopeOf(project))
   const [error, setError] = useState<string | null>(null)
   const set = (patch: Partial<typeof form>) => { setForm({ ...form, ...patch }); setError(null) }
+  const setScope = (patch: Partial<ProjectScope>) => { setScopeState({ ...scope, ...patch }); setError(null) }
   const managers = db.employees.filter((e) =>
     ['design_pm', 'design_director', 'execution_pm', 'execution_head', 'ceo'].includes(e.role) || e.id === project.projectManagerId,
   )
   const taken = form.code ? codeOwner(db.projects, form.code, project.id) : undefined
+  const hasAmcContract = db.maintenance.some((m) => m.projectId === project.id && m.type === 'AMC')
+  const was = project.services
+  const droppedService = (was.design && !scope.services.design) || (was.execution && !scope.services.execution)
 
   const save = () => {
     if (!form.name.trim()) return setError('Enter a project name.')
@@ -42,7 +50,13 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
     if (form.area && !(Number(form.area) > 0)) return setError('The site area must be a number above zero, or left blank.')
     if (!form.siteLocation.trim()) return setError('Enter the site location.')
     if (form.expectedCompletion < form.startDate) return setError('Expected completion cannot be before the start date.')
+    const problem = scopeProblem(scope)
+    if (problem) return setError(problem)
+    if (hasAmcContract && !scope.services.amc) {
+      return setError('This project has an AMC contract. Delete it from the AMC tab before taking AMC off the services.')
+    }
     api.projects.update(project.id, {
+      ...applyScope(scope, project),
       name: form.name.trim(),
       code: normaliseCode(form.code),
       category: form.category,
@@ -60,7 +74,7 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
 
   return (
     <Modal
-      title="Edit project details"
+      title="Edit project"
       size="lg"
       onClose={onClose}
       footer={<>
@@ -132,6 +146,41 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
         <Field label="Expected Completion">
           <input type="date" className="input" value={form.expectedCompletion} onChange={(e) => set({ expectedCompletion: e.target.value })} />
         </Field>
+
+        {/* Not a <label>: these hold their own buttons and checkboxes. */}
+        <div className="space-y-4 border-t border-stone-100 pt-4 sm:col-span-2">
+          <div>
+            <span className="label">Services<span className="ml-0.5 text-red-500">*</span></span>
+            <div className="mt-1.5">
+              <ServicePicker
+                value={scope.services} onChange={(services) => setScope({ services })}
+                amcHint="Annual Maintenance Contract — repeat visits with reminders."
+              />
+            </div>
+          </div>
+          {scope.services.design && (
+            <div>
+              <span className="label">Design Phases</span>
+              <div className="mt-2"><DesignPhasePicker value={scope.designPhases} onChange={(designPhases) => setScope({ designPhases })} /></div>
+            </div>
+          )}
+          {scope.services.execution && (
+            <div>
+              <span className="label">Execution Phases</span>
+              <div className="mt-2"><ExecutionPhasePicker value={scope.executionPhases} onChange={(executionPhases) => setScope({ executionPhases })} /></div>
+            </div>
+          )}
+          {droppedService && (
+            <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
+              Phase progress is kept, so switching a service back on restores it. Tasks, reports and documents already on the project stay.
+            </p>
+          )}
+          {scope.services.amc && !hasAmcContract && (
+            <p className="text-xs text-stone-500">Set up the AMC contract — visit schedule, reminders and renewal — from the project's AMC tab once saved.</p>
+          )}
+        </div>
+
         <div className="sm:col-span-2"><FormError message={error} /></div>
       </div>
     </Modal>

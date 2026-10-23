@@ -5,7 +5,7 @@ import type {
   DocumentRecord, Employee, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
   MaintenanceVisit, PaymentRequest, Phase, PhotoSession, Project, Quotation, ReportPhoto, Settings, SiteAssignment,
   SiteVisit, StaffAttendanceStatus, Task, Worker, ProjectMessage, PayRecord, Reminder,
-  ClientDocKey, ClientDocTick, ProjectLogEntry,
+  ClientDocKey, ClientDocTick, ProjectLogEntry, ClientBrief,
 } from '../domain/types'
 import { placeholderSitePhoto } from './photos'
 import { CHECKLISTS } from '../domain/commercial'
@@ -120,6 +120,8 @@ export const projects: Project[] = [
     execution: { hardscape: phase(false), softscape: phase(false), mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } }, maintenance: phase(false) },
     value: 850000, delayed: false,
     siteCoords: { lat: 8.5241, lng: 76.9606 }, checklist: ticks(['boq.measure', 'boq.quantities'], 'e3'),
+    // The client has filled in the requirement checklist — see clientBriefs below.
+    briefToken: 'demo-residence-checklist',
   },
   {
     id: 'p2', code: 'LS-2026-002', name: 'Villa Landscape Execution', clientId: 'c2',
@@ -595,12 +597,17 @@ const AMC_NOTES = [
  * up to yesterday. Dates are relative to today so the calendar always has a
  * past, a next visit inside its reminder window, and a future.
  */
-function pastVisits(prefix: string, first: string, everyDays: number, teamIds: string[]): MaintenanceVisit[] {
+function pastVisits(prefix: string, first: string, everyDays: number, teamIds: string[], site: string): MaintenanceVisit[] {
   const out: MaintenanceVisit[] = []
   for (let date = first, i = 0; date < today(); date = addDays(date, everyDays), i += 1) {
+    const photos = (['Morning', 'Evening'] as const).map((session, j) => ({
+      id: `${prefix}${i + 1}p${j}`,
+      src: placeholderSitePhoto(`${prefix}${date}${j}`, site, session, j ? '11:40' : '08:30'),
+      caption: j ? 'After — lawn edged and beds cleared' : 'Before the visit',
+    }))
     out.push({
       id: `${prefix}${i + 1}`, date, teamIds, notes: AMC_NOTES[i % AMC_NOTES.length],
-      issues: i === 2 ? ['Two drip emitters blocked, replaced.'] : [], photoCount: 3 + (i % 4), done: true,
+      issues: i === 2 ? ['Two drip emitters blocked, replaced.'] : [], photoCount: photos.length, photos, done: true,
     })
   }
   return out
@@ -628,7 +635,9 @@ export const maintenance: MaintenanceRecord[] = [
     visitSchedule: 'Fortnightly — client prefers mornings',
     schedule: { every: 2, unit: 'week', firstVisit: addDays(seaBreezeStart, 3), reminderDaysBefore: 7 },
     renewalDate: addDays(seaBreezeStart, 364), renewalReminderDays: 60, value: 240000,
-    visits: pastVisits('m2v', addDays(seaBreezeStart, 3), 14, ['w6', 'w7']),
+    visits: pastVisits('m2v', addDays(seaBreezeStart, 3), 14, ['w6', 'w7'], 'Sea Breeze Villa'),
+    // The client's report link is on: /portal/amc/demo-sea-breeze-amc
+    shareToken: 'demo-sea-breeze-amc',
   },
   {
     // An AMC sold on its own — monthly visits, reminded three days ahead.
@@ -838,4 +847,28 @@ export const reminders: Reminder[] = [
   { id: 'rm2', title: 'Follow up Greenfield association on walkway sign-off', date: today(), time: '11:00', repeat: 'none', createdBy: 'e1', forIds: ['e1'], doneDates: [], projectId: 'p5' },
   { id: 'rm3', title: 'Salary run — foremen and site workers', date: `${today().slice(0, 7)}-28`, repeat: 'monthly', createdBy: 'e8', forIds: ['e8', 'e9', 'e1'], doneDates: [] },
   { id: 'rm4', title: 'Renew vehicle insurance — site pickup', date: addDays(today(), 12), repeat: 'yearly', createdBy: 'e1', forIds: [], doneDates: [] },
+]
+
+/** ABC Holdings filled in the requirement checklist from their link (/portal/checklist/demo-residence-checklist). */
+export const clientBriefs: ClientBrief[] = [
+  {
+    id: 'p1', projectId: 'p1',
+    submittedAt: `${addDays(today(), -9)}T10:42:00.000Z`, updatedAt: `${addDays(today(), -7)}T16:05:00.000Z`,
+    answers: {
+      clientName: 'Arun Kumar', clientName2: 'Divya Arun', profession: 'Cardiologist / Architect',
+      projectLocation: 'Kowdiar, Thiruvananthapuram', contactNumber: '+91 94470 30001',
+      familyMembers: '5', residence: 'Will stay here', ageGroups: ['Children', 'Adults', 'Elders'], elderlyAccess: 'Yes',
+      pets: 'Yes', petSpace: 'Open area',
+      usage: ['Daily relaxation', 'Family gathering', 'Outdoor dining / BBQ', "Children's play area"], gatheringSize: '25–30',
+      usageTime: ['Evening', 'Weekends'],
+      playArea: 'Yes', playType: ['Lawn play', 'Swings'], elderlyNeeds: ['Shaded seating', 'Easy walking path', 'Non-slippery surface'],
+      spaces: ['Lawn', 'Seating area', 'Outdoor dining', 'Pathways', 'Water feature', 'Other'], spacesOther: 'Small kitchen garden for herbs',
+      style: ['Tropical', 'Kerala traditional'], preferredPlants: 'Plumeria, heliconia, areca palms. No thorny plants near the play area.',
+      significantPlants: 'The old mango tree at the gate was planted by Arun’s father — it must stay.', waterFeature: 'Maybe',
+      privacy: 'Yes', lighting: 'Yes', lightingTypes: ['Pathway lighting', 'Mood lighting'],
+      waterSource: 'Borewell', maintenanceLevel: 'Low', maintainedBy: 'Landschaft maintenance team',
+      budget: '₹8–10 lakh', execution: 'Phase-wise execution',
+      notes: 'Would like the front garden finished before the housewarming in February.',
+    },
+  },
 ]

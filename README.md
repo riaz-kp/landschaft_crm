@@ -13,7 +13,7 @@ The app runs in one of two modes:
 
 | Mode | Data | Sign-in | Start it with |
 |---|---|---|---|
-| **Live** | Supabase, shared by everyone | Email + password | `npm run dev` with `.env.local` set |
+| **Live** | Supabase, shared by everyone | Username + password | `npm run dev` with `.env.local` set |
 | **Demo** | Sample data in this browser only | Pick anyone from the account menu | `npm run dev:demo` |
 
 ```bash
@@ -33,15 +33,13 @@ a "Not configured" screen rather than running against nothing.
    (SQL editor, or `supabase db push`). It creates one table per collection,
    row-level security on every table, the triggers that guard roles, pay and
    Settings, and the private `files` bucket for photos and documents.
-2. **Login function.** Deploy `supabase/functions/staff-accounts` with JWT
-   verification off (`supabase functions deploy staff-accounts --no-verify-jwt`).
-   It checks the caller's token itself; it is how admins create logins.
-3. **Auth settings** (Supabase → Authentication):
-   - turn **off** "Allow new users to sign up" — staff logins are created by an
-     admin, never by sign-up;
-   - set the **Site URL** to the app's address and add it (and
-     `http://localhost:5173`) under Redirect URLs, so password-reset links
-     come back to the app.
+2. **Functions.** Deploy both with JWT verification off
+   (`supabase functions deploy staff-accounts --no-verify-jwt`, and the same for
+   `client-portal`). `staff-accounts` checks the caller's token itself; it is
+   how admins create logins. `client-portal` serves the client links (below),
+   whose callers have no login at all.
+3. **Auth settings** (Supabase → Authentication): turn **off** "Allow new users
+   to sign up" — staff logins are created by an admin, never by sign-up.
 4. **Hosting.** `frontend/vercel.json` serves the SPA on Vercel. The build
    takes the project URL and publishable key from `frontend/.env.production`
    (both are public by design); variables set in Vercel override it, e.g. to
@@ -50,6 +48,31 @@ a "Not configured" screen rather than running against nothing.
    sign-in page offers **Set up Landschaft CRM**: it creates the first Super
    Admin. The default Settings and permission matrix are saved on that first
    sign-in. Everyone else gets a login from **Employees → (person) → Login**.
+
+### Logins
+
+Staff sign in with a **username** and password. Supabase Auth keys every login
+by email, so each username stands for `<username>@users.landschaft.invalid` —
+a domain reserved never to receive mail. There is no "forgot password": an
+admin sets a new one from the person's Login section, and anyone signed in can
+change their own from the account menu. Logins made before usernames still sign
+in with their email until an admin gives them a username from the same place.
+
+### Client links
+
+Two pages open without a login, from a link the team sends the client:
+
+- **AMC report** (`/portal/amc/…`) — from an AMC contract's *Client report*
+  button. The client sees every visit's work notes, issues found, photos and
+  report documents, and when the next visit is due.
+- **Requirement checklist** (`/portal/checklist/…`) — from a project's *Client
+  Checklist* tab. The client fills in the Landscape Requirement Checklist
+  (family, garden use, spaces, style, water, budget) and can come back to change
+  it; the answers show on that tab.
+
+The link's secret is stored on the contract or project and cleared by *Turn off
+this link*. The `client-portal` function reads it with the service role and
+returns only what that one link is for — no staff, money or other projects.
 
 ### How data moves
 
@@ -375,7 +398,8 @@ appear nowhere. There is no client login — internal employees only.
 ```
 supabase/
 ├── migrations/   tables, row-level security, guards, storage bucket
-└── functions/    staff-accounts — first admin, create / reset / switch off logins
+└── functions/    staff-accounts — first admin, create / rename / reset / switch off logins
+                  client-portal — the AMC report and requirement checklist links
 frontend/src/
 ├── domain/       types, roles + permissions, defaults, progress, finance, formatting
 ├── api/          client.ts is the seam every page writes through; storeAdapter.ts holds the behaviour

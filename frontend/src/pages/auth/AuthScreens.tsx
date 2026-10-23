@@ -1,5 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { staffAccounts, supabase } from '../../lib/supabase'
+import {
+  USERNAME_HINT, USERNAME_RULE, loginEmail, loginName, normaliseUsername, staffAccounts, suggestUsername, supabase,
+} from '../../lib/supabase'
 import { LogoLockup, LogoMark } from '../../components/Logo'
 import { Field } from '../../components/ui'
 import { Icon } from '../../components/Icon'
@@ -39,18 +41,21 @@ function Submit({ busy, children }: { busy: boolean; children: ReactNode }) {
 
 /** Turns Supabase Auth's wording into something a site foreman can act on. */
 function authMessage(message: string): string {
-  if (/invalid login credentials/i.test(message)) return 'That email and password do not match. Check both and try again.'
+  if (/invalid login credentials/i.test(message)) return 'That username and password do not match. Check both and try again.'
   if (/banned/i.test(message)) return 'This login has been switched off. Ask an admin to turn it back on.'
   if (/rate limit|too many/i.test(message)) return 'Too many attempts. Wait a minute and try again.'
   if (/fetch|network/i.test(message)) return 'Could not reach the server. Check the connection and try again.'
   return message
 }
 
+/** Usernames are typed on phones, so no auto-capitals or corrections. */
+const USERNAME_INPUT = { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } as const
+
 // ---------------------------------------------------------------- sign in
 
+/** Passwords are not reset by email: an admin sets a new one from the person's employee profile. */
 export function SignIn() {
-  const [mode, setMode] = useState<'sign-in' | 'forgot' | 'sent'>('sign-in')
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -59,60 +64,23 @@ export function SignIn() {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    const { error: failure } = await supabase().auth.signInWithPassword({ email: email.trim(), password })
+    const { error: failure } = await supabase().auth.signInWithPassword({ email: loginEmail(username), password })
     setBusy(false)
     if (failure) setError(authMessage(failure.message))
-  }
-
-  const sendReset = async (e: FormEvent) => {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    const { error: failure } = await supabase().auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin })
-    setBusy(false)
-    if (failure) setError(authMessage(failure.message))
-    else setMode('sent')
-  }
-
-  if (mode === 'sent') {
-    return (
-      <AuthFrame title="Check your email" subtitle={<>If <strong>{email.trim()}</strong> has a login, a link to set a new password is on its way.</>}>
-        <button onClick={() => setMode('sign-in')} className="btn-secondary w-full justify-center">Back to sign in</button>
-      </AuthFrame>
-    )
-  }
-
-  if (mode === 'forgot') {
-    return (
-      <AuthFrame title="Reset your password" subtitle="We'll email you a link to choose a new one. An admin can also set it for you from your employee profile.">
-        <form onSubmit={sendReset} className="space-y-4">
-          <Field label="Email">
-            <input type="email" required autoFocus autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input" />
-          </Field>
-          <ErrorLine message={error} />
-          <Submit busy={busy}>Send reset link</Submit>
-          <button type="button" onClick={() => { setMode('sign-in'); setError(null) }} className="w-full text-center text-sm font-semibold text-brand-700">
-            Back to sign in
-          </button>
-        </form>
-      </AuthFrame>
-    )
   }
 
   return (
-    <AuthFrame title="Sign in" subtitle="Use the email and password your admin gave you.">
+    <AuthFrame title="Sign in" subtitle="Use the username and password your admin gave you.">
       <form onSubmit={signIn} className="space-y-4">
-        <Field label="Email">
-          <input type="email" required autoFocus autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className="input" />
+        <Field label="Username">
+          <input required autoFocus autoComplete="username" {...USERNAME_INPUT} value={username} onChange={(e) => setUsername(e.target.value)} className="input" />
         </Field>
         <Field label="Password">
           <input type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="input" />
         </Field>
         <ErrorLine message={error} />
         <Submit busy={busy}>Sign in</Submit>
-        <button type="button" onClick={() => { setMode('forgot'); setError(null) }} className="w-full text-center text-sm font-semibold text-brand-700">
-          Forgot password?
-        </button>
+        <p className="text-center text-xs text-stone-400">Forgotten your password? Ask an admin to set a new one.</p>
       </form>
     </AuthFrame>
   )
@@ -123,7 +91,7 @@ export function SignIn() {
 /** Shown only while the CRM has no logins at all: creates the first Super Admin. */
 export function FirstAdminSetup({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
@@ -131,13 +99,14 @@ export function FirstAdminSetup({ onDone }: { onDone: () => void }) {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
+    if (!USERNAME_RULE.test(normaliseUsername(username))) return setError(USERNAME_HINT)
     if (password.length < MIN_PASSWORD) return setError(`Use at least ${MIN_PASSWORD} characters for the password.`)
     if (password !== confirm) return setError('The two passwords do not match.')
     setBusy(true)
     setError(null)
     try {
-      await staffAccounts({ action: 'bootstrap', name: name.trim(), email: email.trim(), password })
-      const { error: failure } = await supabase().auth.signInWithPassword({ email: email.trim(), password })
+      await staffAccounts({ action: 'bootstrap', name: name.trim(), username: normaliseUsername(username), password })
+      const { error: failure } = await supabase().auth.signInWithPassword({ email: loginEmail(username), password })
       if (failure) throw new Error(authMessage(failure.message))
       onDone()
     } catch (failure) {
@@ -150,10 +119,18 @@ export function FirstAdminSetup({ onDone }: { onDone: () => void }) {
     <AuthFrame title="Set up Landschaft CRM" subtitle="Create the first admin account. You'll add everyone else from Employees once you're in.">
       <form onSubmit={submit} className="space-y-4">
         <Field label="Your name" required>
-          <input required autoFocus autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} className="input" />
+          <input
+            required autoFocus autoComplete="name" value={name}
+            onChange={(e) => {
+              // The username follows the name until it is typed over.
+              if (username === suggestUsername(name)) setUsername(suggestUsername(e.target.value))
+              setName(e.target.value)
+            }}
+            className="input"
+          />
         </Field>
-        <Field label="Email" required>
-          <input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className="input" />
+        <Field label="Username" hint={USERNAME_HINT} required>
+          <input required autoComplete="username" {...USERNAME_INPUT} value={username} onChange={(e) => setUsername(e.target.value)} className="input" />
         </Field>
         <Field label="Password" hint={`At least ${MIN_PASSWORD} characters.`} required>
           <input type="password" required autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className="input" />
@@ -163,43 +140,6 @@ export function FirstAdminSetup({ onDone }: { onDone: () => void }) {
         </Field>
         <ErrorLine message={error} />
         <Submit busy={busy}>Create admin account</Submit>
-      </form>
-    </AuthFrame>
-  )
-}
-
-// ---------------------------------------------------------------- new password
-
-/** Reached from a password-reset email: the link has signed them in, so they choose a new password. */
-export function SetNewPassword({ onDone }: { onDone: () => void }) {
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (password.length < MIN_PASSWORD) return setError(`Use at least ${MIN_PASSWORD} characters for the password.`)
-    if (password !== confirm) return setError('The two passwords do not match.')
-    setBusy(true)
-    setError(null)
-    const { error: failure } = await supabase().auth.updateUser({ password })
-    setBusy(false)
-    if (failure) setError(authMessage(failure.message))
-    else onDone()
-  }
-
-  return (
-    <AuthFrame title="Choose a new password">
-      <form onSubmit={submit} className="space-y-4">
-        <Field label="New password" hint={`At least ${MIN_PASSWORD} characters.`}>
-          <input type="password" required autoFocus autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className="input" />
-        </Field>
-        <Field label="Confirm new password">
-          <input type="password" required autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="input" />
-        </Field>
-        <ErrorLine message={error} />
-        <Submit busy={busy}>Save password</Submit>
       </form>
     </AuthFrame>
   )
@@ -218,10 +158,11 @@ export function Splash({ message = 'Loading…' }: { message?: string }) {
 
 /** Signed in, but not as anyone the CRM knows — no linked employee, or the login is switched off. */
 export function NoAccessScreen({ email, onSignOut }: { email?: string; onSignOut: () => void }) {
+  const shown = email && loginName(email)
   return (
     <AuthFrame
       title="No access yet"
-      subtitle={<>{email ? <><strong>{email}</strong> is</> : 'This login is'} not linked to an active employee. Ask an admin to give you a login from Employees.</>}
+      subtitle={<>{shown ? <><strong>{shown}</strong> is</> : 'This login is'} not linked to an active employee. Ask an admin to give you a login from Employees.</>}
     >
       <button onClick={onSignOut} className="btn-secondary w-full justify-center">Sign out</button>
     </AuthFrame>

@@ -7,7 +7,7 @@ import { closeSession, flushNow, openSession } from '../data/sync'
 import { openDemo } from '../data/demo'
 import { useDb } from './useDb'
 import {
-  FirstAdminSetup, LoadError, NoAccessScreen, NotConfigured, SetNewPassword, SignIn, Splash,
+  FirstAdminSetup, LoadError, NoAccessScreen, NotConfigured, SignIn, Splash,
 } from '../pages/auth/AuthScreens'
 
 interface SessionValue {
@@ -85,7 +85,6 @@ function DemoSession({ children }: { children: ReactNode }) {
 type Phase =
   | { kind: 'starting' }
   | { kind: 'signed-out'; needsSetup: boolean }
-  | { kind: 'recovery' }
   | { kind: 'loading' }
   | { kind: 'no-access'; email?: string }
   | { kind: 'error'; message: string }
@@ -96,8 +95,6 @@ function SupabaseSession({ children }: { children: ReactNode }) {
   const userRef = useRef<User | null>(null)
   // The user whose data is loaded or loading, so token refreshes do not reload it.
   const loadedFor = useRef<string | null>(null)
-  // Arrived from a password-reset email: the new password comes before anything else.
-  const recovering = useRef(false)
 
   // Sign-in shows at once; the first-admin set-up replaces it only on a CRM with no logins yet.
   const showSignIn = useCallback(async () => {
@@ -116,7 +113,7 @@ function SupabaseSession({ children }: { children: ReactNode }) {
       if (error) throw error
       if (!link?.active) return setPhase({ kind: 'no-access', email: user.email })
       await openSession(user.id, link.employee_id)
-      if (loadedFor.current === user.id && !recovering.current) setPhase({ kind: 'ready', employeeId: link.employee_id })
+      if (loadedFor.current === user.id) setPhase({ kind: 'ready', employeeId: link.employee_id })
     } catch (e) {
       setPhase({ kind: 'error', message: (e as Error).message })
     }
@@ -128,14 +125,11 @@ function SupabaseSession({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const { data } = supabase().auth.onAuthStateChange((event, session) => {
+    const { data } = supabase().auth.onAuthStateChange((_event, session) => {
       // Supabase asks that nothing awaits inside this callback, so the work runs just after it.
       setTimeout(() => {
         userRef.current = session?.user ?? null
-        if (event === 'PASSWORD_RECOVERY') {
-          recovering.current = true
-          setPhase({ kind: 'recovery' })
-        } else if (!session) {
+        if (!session) {
           loadedFor.current = null
           void closeSession()
           void showSignIn()
@@ -153,15 +147,6 @@ function SupabaseSession({ children }: { children: ReactNode }) {
       return <Splash />
     case 'signed-out':
       return phase.needsSetup ? <FirstAdminSetup onDone={() => setPhase({ kind: 'loading' })} /> : <SignIn />
-    case 'recovery':
-      return (
-        <SetNewPassword
-          onDone={() => {
-            recovering.current = false
-            if (userRef.current) void begin(userRef.current)
-          }}
-        />
-      )
     case 'no-access':
       return <NoAccessScreen email={phase.email} onSignOut={() => void signOut()} />
     case 'error':

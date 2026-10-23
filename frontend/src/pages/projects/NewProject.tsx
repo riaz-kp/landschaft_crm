@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { addDays, today } from '../../domain/format'
-import { PageHeader, Section, Field, Checkbox, Badge } from '../../components/ui'
+import { PageHeader, Section, Field, Badge } from '../../components/ui'
+import { newScope, scopeProblem, type ProjectScope } from '../../domain/projectScope'
+import { DesignPhasePicker, ExecutionPhasePicker, ServicePicker } from './ProjectScope'
 import { MapPicker } from '../../components/MapPicker'
 import { ClientPicker } from './ClientPicker'
 import { AmcFields, draftToRecord, emptyAmcDraft, endOf, validateAmc, type AmcDraft } from '../amc/AmcContractForm'
@@ -49,17 +51,9 @@ export function NewProject() {
     expectedCompletion: addDays(today(), 90),
     value: 0,
   })
-  const [design, setDesign] = useState(true)
-  const [execution, setExecution] = useState(false)
-  const [amc, setAmc] = useState(false)
+  const [scope, setScope] = useState<ProjectScope>(newScope)
+  const { design, execution, amc } = scope.services
   const [amcDraft, setAmcDraft] = useState<AmcDraft>(() => emptyAmcDraft(today()))
-  const [designPhases, setDesignPhases] = useState({
-    concept: true, threeD: true, civilWork: true, boq: true,
-  })
-  const [executionPhases, setExecutionPhases] = useState({
-    hardscape: true, softscape: true, mep: false,
-    irrigation: false, electrical: false, drainage: false,
-  })
 
   const managers = db.employees.filter((e) =>
     ['design_pm', 'design_director', 'execution_pm', 'execution_head'].includes(e.role),
@@ -79,17 +73,8 @@ export function NewProject() {
     if (form.area && !(Number(form.area) > 0)) return setError('The site area must be a number above zero, or left blank.')
     if (!form.clientId) return setError('Select a client.')
     if (!form.siteLocation.trim()) return setError('Enter the site location.')
-    if (!design && !execution && !amc) return setError('Select at least one service — Design, Execution or AMC.')
-    if (design && !Object.values(designPhases).some(Boolean)) {
-      return setError('Select at least one design phase.')
-    }
-    if (execution && !executionPhases.hardscape && !executionPhases.softscape && !executionPhases.mep) {
-      return setError('Select at least one execution phase.')
-    }
-    if (execution && executionPhases.mep &&
-        !executionPhases.irrigation && !executionPhases.electrical && !executionPhases.drainage) {
-      return setError('Select at least one MEP service, or turn MEP off.')
-    }
+    const problem = scopeProblem(scope)
+    if (problem) return setError(problem)
     if (amc) {
       const problem = validateAmc(amcDraft)
       if (problem) return setError(`AMC: ${problem}`)
@@ -109,14 +94,12 @@ export function NewProject() {
           .map(([key, state]) => [key, { status: state as 'Received' | 'Not Needed', by: user.id, on: today() }]),
       ),
       siteCoords,
-      services: { design, execution, amc },
+      ...scope,
       amc: amc ? draftToRecord(amcDraft) : undefined,
       // An AMC-only project runs for the contract term and is worth the contract value.
       ...(amc && !design && !execution
         ? { expectedCompletion: endOf(amcDraft), value: form.value || amcDraft.value }
         : {}),
-      designPhases,
-      executionPhases,
     }, user.id)
     navigate(`/projects/${project.id}`)
   }
@@ -257,58 +240,16 @@ export function NewProject() {
         description="At least one must be selected."
         className="mb-6"
       >
-        <div className="grid gap-3 px-5 py-5 sm:grid-cols-3">
-          {[
-            { on: design, set: setDesign, label: 'Design', hint: 'Concept, 3D, civil work, BOQ' },
-            { on: execution, set: setExecution, label: 'Execution', hint: 'Hardscape, softscape, MEP, maintenance' },
-            { on: amc, set: setAmc, label: 'AMC', hint: 'Annual Maintenance Contract — repeat visits with reminders. Can be sold alone.' },
-          ].map((service) => (
-            <button
-              key={service.label}
-              type="button"
-              onClick={() => service.set(!service.on)}
-              className={`rounded-xl border-2 p-4 text-left transition-colors ${
-                service.on ? 'border-brand-500 bg-brand-50' : 'border-stone-200 bg-white hover:border-stone-300'
-              }`}
-            >
-              <span className="flex items-center gap-2.5">
-                <span className={`flex h-5 w-5 items-center justify-center rounded border-2 ${
-                  service.on ? 'border-brand-600 bg-brand-600' : 'border-stone-300'
-                }`}>
-                  {service.on && (
-                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20 6L9 17l-5-5" />
-                    </svg>
-                  )}
-                </span>
-                <span className="font-semibold text-stone-900">{service.label}</span>
-              </span>
-              <span className="mt-1.5 block pl-[30px] text-sm text-stone-500">{service.hint}</span>
-            </button>
-          ))}
+        <div className="px-5 py-5">
+          <ServicePicker value={scope.services} onChange={(services) => setScope({ ...scope, services })} />
         </div>
       </Section>
 
       {/* Step 3 — conditional phase selection */}
       {design && (
         <Section title="Design Phases" className="mb-6">
-          <div className="grid gap-3 px-5 py-5 sm:grid-cols-2">
-            <Checkbox
-              checked={designPhases.concept} label="Concept"
-              onChange={(v) => setDesignPhases({ ...designPhases, concept: v })}
-            />
-            <Checkbox
-              checked={designPhases.threeD} label="3D Presentation"
-              onChange={(v) => setDesignPhases({ ...designPhases, threeD: v })}
-            />
-            <Checkbox
-              checked={designPhases.civilWork} label="Civil Work"
-              onChange={(v) => setDesignPhases({ ...designPhases, civilWork: v })}
-            />
-            <Checkbox
-              checked={designPhases.boq} label="BOQ"
-              onChange={(v) => setDesignPhases({ ...designPhases, boq: v })}
-            />
+          <div className="px-5 py-5">
+            <DesignPhasePicker value={scope.designPhases} onChange={(designPhases) => setScope({ ...scope, designPhases })} />
           </div>
         </Section>
       )}
@@ -316,45 +257,7 @@ export function NewProject() {
       {execution && (
         <Section title="Execution Phases" className="mb-6">
           <div className="space-y-3 px-5 py-5">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Checkbox
-                checked={executionPhases.hardscape} label="Hardscape"
-                onChange={(v) => setExecutionPhases({ ...executionPhases, hardscape: v })}
-              />
-              <Checkbox
-                checked={executionPhases.softscape} label="Softscape"
-                onChange={(v) => setExecutionPhases({ ...executionPhases, softscape: v })}
-              />
-            </div>
-
-            <div className="rounded-lg border border-stone-200 bg-stone-50 p-4">
-              <Checkbox
-                checked={executionPhases.mep} label={<span className="font-semibold">MEP (Optional)</span>}
-                onChange={(v) => setExecutionPhases({
-                  ...executionPhases, mep: v,
-                  // Clearing MEP clears its sub-services too.
-                  irrigation: v && executionPhases.irrigation,
-                  electrical: v && executionPhases.electrical,
-                  drainage: v && executionPhases.drainage,
-                })}
-              />
-              {executionPhases.mep && (
-                <div className="mt-3 space-y-2.5 border-l-2 border-stone-300 pl-4">
-                  <Checkbox
-                    checked={executionPhases.irrigation} label="Irrigation"
-                    onChange={(v) => setExecutionPhases({ ...executionPhases, irrigation: v })}
-                  />
-                  <Checkbox
-                    checked={executionPhases.electrical} label="Electrical"
-                    onChange={(v) => setExecutionPhases({ ...executionPhases, electrical: v })}
-                  />
-                  <Checkbox
-                    checked={executionPhases.drainage} label="Drainage"
-                    onChange={(v) => setExecutionPhases({ ...executionPhases, drainage: v })}
-                  />
-                </div>
-              )}
-            </div>
+            <ExecutionPhasePicker value={scope.executionPhases} onChange={(executionPhases) => setScope({ ...scope, executionPhases })} />
 
             <p className="text-xs text-stone-500">
               The free maintenance month follows execution automatically. Tick AMC above to add an annual contract now.

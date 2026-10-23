@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { daysBetween, formatCurrency, formatDate, today } from '../../domain/format'
 import { amcProgress, describeSchedule, occurrencesFor, type AmcOccurrence } from '../../domain/amc'
-import type { MaintenanceRecord } from '../../domain/types'
+import type { MaintenanceRecord, MaintenanceVisit } from '../../domain/types'
+import { api } from '../../api/client'
 import { Badge, ProgressBar, Section, Table, type Tone } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { ShareLinkModal, newShareToken, portalUrl } from '../../components/ShareLink'
 import { AmcContractModal } from './AmcContractForm'
 import { MoveVisitModal, VisitDoneModal } from './AmcVisitModals'
 
@@ -39,6 +41,7 @@ export function AmcContractCard({ record, canManage, showProject = true }: { rec
   const [editing, setEditing] = useState(false)
   const [doing, setDoing] = useState<AmcOccurrence | null>(null)
   const [moving, setMoving] = useState<AmcOccurrence | null>(null)
+  const [sharing, setSharing] = useState(false)
   const [showAll, setShowAll] = useState(false)
 
   const project = db.projects.find((p) => p.id === record.projectId)
@@ -71,6 +74,10 @@ export function AmcContractCard({ record, canManage, showProject = true }: { rec
               {renewalLeft < 0 ? 'Lapsed' : `Renews ${formatDate(record.renewalDate!)}`}
             </Badge>
           )}
+          <button onClick={() => setSharing(true)} className="btn-secondary py-1.5 text-xs" title="The link the client opens to see visit reports and photos">
+            <Icon name="send" className="h-3.5 w-3.5" /> Client report
+            {record.shareToken && <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-label="Link is on" />}
+          </button>
           {canManage && (
             <button onClick={() => setEditing(true)} className="btn-secondary py-1.5 text-xs">
               <Icon name="repeat" className="h-3.5 w-3.5" /> Schedule
@@ -136,6 +143,7 @@ export function AmcContractCard({ record, canManage, showProject = true }: { rec
             <td className="td max-w-sm">
               {o.visit?.notes || <span className="text-stone-400">{o.status === 'Planned' ? 'From the repeat schedule' : '—'}</span>}
               {o.visit?.issues.length ? <span className="block text-xs text-clay-800">{o.visit.issues.join('; ')}</span> : null}
+              {o.visit?.done && <VisitAttachmentsLine visit={o.visit} />}
             </td>
             <td className="td">
               {canManage && o.status !== 'Done' && (
@@ -144,6 +152,13 @@ export function AmcContractCard({ record, canManage, showProject = true }: { rec
                   {o.date <= today() || inReminderWindow(o) ? (
                     <button onClick={() => setDoing(o)} className="btn-secondary py-1 text-xs">Mark done</button>
                   ) : null}
+                </div>
+              )}
+              {canManage && o.status === 'Done' && (
+                <div className="flex justify-end">
+                  <button onClick={() => setDoing(o)} className="btn-ghost px-2 py-1 text-xs" title="Add photos or documents, or correct the notes">
+                    <Icon name="edit" className="h-3.5 w-3.5" /> Report
+                  </button>
                 </div>
               )}
             </td>
@@ -159,6 +174,36 @@ export function AmcContractCard({ record, canManage, showProject = true }: { rec
       {editing && <AmcContractModal record={record} onClose={() => setEditing(false)} />}
       {doing && <VisitDoneModal occurrence={doing} onClose={() => setDoing(null)} />}
       {moving && <MoveVisitModal occurrence={moving} onClose={() => setMoving(null)} />}
+      {sharing && (
+        <ShareLinkModal
+          title="Client report link"
+          intro={<>
+            The client opens this link — no login — to see every visit's work notes, issues found, photos and report documents for
+            {' '}<strong>{project?.name ?? 'this contract'}</strong>, and when the next visit is due. It updates as visits are recorded.
+          </>}
+          url={record.shareToken && portalUrl('amc', record.shareToken)}
+          phone={client?.whatsapp || client?.phone}
+          message={`Hello${client ? ` ${client.name}` : ''}, here are the maintenance visit reports and photos for ${project?.name ?? 'your garden'} from Landschaft:`}
+          canManage={canManage}
+          onCreate={() => api.amc.update(record.id, { shareToken: newShareToken() })}
+          onDisable={() => api.amc.update(record.id, { shareToken: undefined })}
+          onClose={() => setSharing(false)}
+        />
+      )}
     </Section>
+  )
+}
+
+/** "3 photos · 1 document" under a done visit's notes. */
+function VisitAttachmentsLine({ visit }: { visit: MaintenanceVisit }) {
+  const photos = visit.photos?.length ?? 0
+  const files = visit.files?.length ?? 0
+  if (!photos && !files) return null
+  return (
+    <span className="mt-1 flex items-center gap-1.5 text-xs text-stone-500">
+      {photos > 0 && <><Icon name="image" className="h-3.5 w-3.5 text-stone-400" /> {photos} photo{photos === 1 ? '' : 's'}</>}
+      {photos > 0 && files > 0 && <span className="text-stone-300">·</span>}
+      {files > 0 && <><Icon name="doc" className="h-3.5 w-3.5 text-stone-400" /> {files} document{files === 1 ? '' : 's'}</>}
+    </span>
   )
 }

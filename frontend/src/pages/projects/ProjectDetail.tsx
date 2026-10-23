@@ -22,6 +22,8 @@ import {
 } from '../../components/ui'
 import { ProjectEditModal } from './ProjectEditModal'
 import { ClientDocumentsTab } from './ClientDocuments'
+import { ClientBriefTab } from './ClientBriefTab'
+import { briefFor } from '../../domain/clientBrief'
 import { ProjectHistory } from './ProjectHistory'
 import { TASK_STATUSES, TaskDoneModal, TaskFormModal, TaskReassignModal } from '../tasks/TaskForm'
 import { PhaseStrip, ProgressCell, ProjectProgressPanel } from '../../components/ProjectProgress'
@@ -29,7 +31,7 @@ import { RepeaterView } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
 import { PeoplePicker } from '../../components/PeoplePicker'
 
-type Tab = 'overview' | 'remarks' | 'phases' | 'tasks' | 'documents' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance' | 'history'
+type Tab = 'overview' | 'remarks' | 'phases' | 'tasks' | 'documents' | 'brief' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance' | 'history'
 
 export function ProjectDetail() {
   const { projectId = '' } = useParams()
@@ -74,6 +76,7 @@ export function ProjectDetail() {
   const canTick = (doc: string) => editable || (doc === 'BOQ' ? can('Design', 'edit') : can('Accounts', 'edit') || can('Execution', 'edit'))
   const canEditDocs = editable || can('Design', 'edit') || can('Execution', 'edit')
   const docProgress = clientDocProgress(project)
+  const brief = briefFor(db.clientBriefs, project.id)
   const canEditTask = (t: Task) => can('Tasks', 'edit') || t.assigneeId === user.id
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
@@ -82,6 +85,7 @@ export function ProjectDetail() {
     { key: 'phases', label: 'Phases', count: phaseRows.length },
     { key: 'tasks', label: 'Tasks', count: tasks.length },
     { key: 'documents', label: 'Client Documents', count: docProgress.received },
+    { key: 'brief', label: 'Client Checklist' },
     ...(project.services.execution
       ? [
           { key: 'reports' as Tab, label: 'Daily Reports', count: reports.length },
@@ -130,7 +134,7 @@ export function ProjectDetail() {
             className="lg:col-span-2"
             actions={editable && (
               <button onClick={() => setEditingDetails(true)} className="btn-secondary py-1.5">
-                <Icon name="edit" className="h-4 w-4" /> Edit details
+                <Icon name="edit" className="h-4 w-4" /> Edit project
               </button>
             )}
           >
@@ -149,6 +153,13 @@ export function ProjectDetail() {
                   <button key="docs" onClick={() => setTab('documents')} className="text-left hover:text-brand-700">
                     {docProgress.received} of {docProgress.applicable} received
                     {docProgress.pending > 0 && <span className="ml-1.5"><Badge tone="amber">{docProgress.pending} pending</Badge></span>}
+                  </button>
+                )],
+                ['Client Checklist', (
+                  <button key="brief" onClick={() => setTab('brief')} className="text-left hover:text-brand-700">
+                    {brief
+                      ? <>Received {formatDate(brief.submittedAt.slice(0, 10))}</>
+                      : project.briefToken ? <Badge tone="amber">Waiting for client</Badge> : <span className="text-stone-400">Not sent yet</span>}
                   </button>
                 )],
                 ['Start Date', formatDate(project.startDate)],
@@ -410,6 +421,8 @@ export function ProjectDetail() {
       )}
 
       {tab === 'documents' && <ClientDocumentsTab project={project} canEdit={canEditDocs} />}
+
+      {tab === 'brief' && <ClientBriefTab project={project} canManage={canEditDocs} />}
 
       {tab === 'history' && <ProjectHistory projectId={project.id} />}
 

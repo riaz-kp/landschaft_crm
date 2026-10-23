@@ -364,6 +364,28 @@ export interface Project {
   areaUnit?: AreaUnit
   /** Documents received from the client — 3D model, contour drawing, architectural drawings… */
   clientDocs?: Partial<Record<ClientDocKey, ClientDocTick>>
+  /**
+   * The secret in the link the client fills the requirement checklist through
+   * (/portal/checklist/…). Cleared to switch the link off.
+   */
+  briefToken?: string
+}
+
+/** Answers on the client's requirement checklist, keyed by question. See domain/clientBrief. */
+export type BriefAnswers = Record<string, string | string[]>
+
+/**
+ * The landscape requirement checklist a client fills in through their link —
+ * family, how the garden will be used, style, budget. One per project, with
+ * the project's id. Written by the client portal; the team reads it.
+ */
+export interface ClientBrief {
+  id: ID
+  projectId: ID
+  answers: BriefAnswers
+  /** When the client first sent it, and last changed it — ISO date-times. */
+  submittedAt: string
+  updatedAt: string
 }
 
 /** Project type is derived, never stored — the services decide it, e.g. "Design + Execution" or "AMC Only". */
@@ -544,13 +566,32 @@ export interface Payment {
 
 // ---------------------------------------------------------------- maintenance
 
+/** A photo taken on a maintenance visit. The client sees it on the AMC report link. */
+export interface VisitPhoto {
+  id: ID
+  /** A stored-file reference ("sb:…"), or a data URL in the demo. See data/files. */
+  src: string
+  caption?: string
+}
+
+/** A document attached to a maintenance visit — a service sheet, a signed report. */
+export interface VisitFile {
+  name: string
+  /** The file in the bucket ("sb:…"); absent in the demo, which keeps only the name. */
+  file?: string
+  sizeKb: number
+}
+
 export interface MaintenanceVisit {
   id: ID
   date: string
   teamIds: ID[]
   notes: string
   issues: string[]
+  /** Photos from before they were stored on the visit; `photos` replaces it. */
   photoCount: number
+  photos?: VisitPhoto[]
+  files?: VisitFile[]
   done: boolean
   /** The repeat-schedule date this visit fulfils, when it was moved to another day. */
   plannedFor?: string
@@ -590,6 +631,11 @@ export interface MaintenanceRecord {
   /** Remind this many days before the renewal date. */
   renewalReminderDays?: number
   value?: number
+  /**
+   * The secret in the client's report link (/portal/amc/…). Anyone holding the
+   * link sees the visit reports and photos, without signing in. Cleared to switch it off.
+   */
+  shareToken?: string
 }
 
 // ---------------------------------------------------------------- project remarks

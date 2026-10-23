@@ -39,6 +39,7 @@ function fromSeed(seed: Seed): DbShape {
     reminders: seed.reminders,
     projectLog: seed.projectLog,
     chatReads: {},
+    clientBriefs: seed.clientBriefs,
     settings: seed.settings,
   })
 }

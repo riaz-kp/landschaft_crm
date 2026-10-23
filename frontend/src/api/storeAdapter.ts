@@ -2,12 +2,14 @@ import { nextId, nowTime, store, type DbShape } from '../data/store'
 import { addDays, formatCurrency, formatDate, today } from '../domain/format'
 import type {
   ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, Employee, ID,
-  Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, Project, ProjectLogEntry, ProjectMessage, Quotation, Settings, SiteVisit,
+  Lead, MaintenanceRecord, MaintenanceVisit, PayRecord, PaymentFollowUp, Project, ProjectLogEntry, ProjectMessage, Quotation, Settings, SiteVisit,
   Task, TaskStatus, Worker, Reminder,
 } from '../domain/types'
-import type { Api, NewProjectInput } from './client'
+import type { Api, NewProjectInput, VisitReport } from './client'
 import { workerSkills } from '../domain/workers'
 import { formatArea, normaliseCode, suggestProjectCode } from '../domain/projectInfo'
+import { applyScope, describePhases } from '../domain/projectScope'
+import { projectType } from '../domain/progress'
 
 type WithId = { id: ID }
 
@@ -54,6 +56,8 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
     { label: 'Start', value: (p) => (p.startDate ? formatDate(p.startDate) : '') },
     { label: 'Due', value: (p) => (p.expectedCompletion ? formatDate(p.expectedCompletion) : '') },
     { label: 'Value', value: (p) => (p.value !== undefined ? formatCurrency(p.value) : '') },
+    { label: 'Services', value: (p) => (p.services ? projectType(p as Project) : '') },
+    { label: 'Phases', value: (p) => (p.design && p.execution ? describePhases(p as Project) : '') },
   ]
   const after = { ...before, ...patch }
   return shown
@@ -61,6 +65,17 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
     .filter(([, from, to]) => from !== to)
     .map(([label, from, to]) => `${label}: ${from || '—'} → ${to || '—'}`)
     .join(' · ')
+}
+
+/** A visit report as stored on the visit. */
+function reportFields(report: VisitReport): Pick<MaintenanceVisit, 'notes' | 'issues' | 'photos' | 'files' | 'photoCount'> {
+  return {
+    notes: report.notes,
+    issues: report.issues.filter((i) => i.trim()),
+    photos: report.photos,
+    files: report.files,
+    photoCount: report.photos.length,
+  }
 }
 
 /** Moves a task to a new status, keeping its completion details and the project history in step. */
@@ -106,28 +121,7 @@ export const adapter: Api = {
         startDate: input.startDate,
         expectedCompletion: input.expectedCompletion,
         status: 'Planning',
-        services: input.services,
-        design: {
-          concept: { enabled: input.services.design && input.designPhases.concept, progress: 0 },
-          threeD: { enabled: input.services.design && input.designPhases.threeD, progress: 0 },
-          civilWork: { enabled: input.services.design && input.designPhases.civilWork, progress: 0 },
-          boq: { enabled: input.services.design && input.designPhases.boq, progress: 0 },
-        },
-        execution: {
-          hardscape: { enabled: input.services.execution && input.executionPhases.hardscape, progress: 0 },
-          softscape: { enabled: input.services.execution && input.executionPhases.softscape, progress: 0 },
-          mep: {
-            enabled: input.services.execution && input.executionPhases.mep,
-            progress: 0,
-            services: {
-              irrigation: input.executionPhases.irrigation,
-              electrical: input.executionPhases.electrical,
-              drainage: input.executionPhases.drainage,
-            },
-          },
-          // Maintenance follows execution automatically — the free month.
-          maintenance: { enabled: input.services.execution, progress: 0 },
-        },
+        ...applyScope(input),
         value: input.value,
         delayed: false,
         siteCoords: input.siteCoords,
@@ -622,13 +616,12 @@ export const adapter: Api = {
         visit.teamIds = teamIds
       })
     },
-    completeVisit(recordId, visitId, notes, issues) {
+    completeVisit(recordId, visitId, report) {
       store.update((db) => {
         const visit = db.maintenance.find((m) => m.id === recordId)?.visits.find((v) => v.id === visitId)
         if (!visit) return
         visit.done = true
-        visit.notes = notes
-        visit.issues = issues.filter((i) => i.trim())
+        Object.assign(visit, reportFields(report))
       })
     },
     recordVisit(recordId, input) {
@@ -636,7 +629,7 @@ export const adapter: Api = {
         const record = db.maintenance.find((m) => m.id === recordId)
         record?.visits.push({
           id: nextId('mv'), date: input.date, plannedFor: input.plannedFor, teamIds: input.teamIds,
-          notes: input.notes, issues: input.issues.filter((i) => i.trim()), photoCount: 0, done: true,
+          done: true, ...reportFields(input),
         })
       })
     },

@@ -10,7 +10,7 @@ import type {
   AttendanceEntry, ChatMessage, Clarification, Client, Consultation, ConsultationStatus,
   DailyWorkReport, DocumentRecord, Employee, ID, Issue, LatLng, Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, PersonKind,
   ProjectMessage, Reminder, AreaUnit, ClientDocKey, ClientDocTick, ProjectCategory,
-  Project, Quotation, Settings, SiteVisit, Task, Worker,
+  Project, Quotation, Settings, SiteVisit, Task, Worker, VisitFile, VisitPhoto,
 } from '../domain/types'
 import { adapter } from './storeAdapter'
 
@@ -42,6 +42,14 @@ export interface NewProjectInput {
     electrical: boolean
     drainage: boolean
   }
+}
+
+/** A maintenance visit's report: the work done, issues found, and the photos and documents the client sees on their link. */
+export interface VisitReport {
+  notes: string
+  issues: string[]
+  photos: VisitPhoto[]
+  files: VisitFile[]
 }
 
 /** Basic create / update / delete for a record type. */
@@ -121,9 +129,10 @@ export interface Api {
     scheduleVisit(recordId: ID, date: string, teamIds: ID[], plannedFor?: string): void
     /** Moves a booked visit to another day, keeping the schedule date it fulfils. */
     moveVisit(recordId: ID, visitId: ID, date: string, teamIds: ID[]): void
-    completeVisit(recordId: ID, visitId: ID, notes: string, issues: string[]): void
+    /** Marks a booked visit done — or, on a visit already done, updates its report. */
+    completeVisit(recordId: ID, visitId: ID, report: VisitReport): void
     /** Records a visit that was done straight off the schedule, with no visit booked first. */
-    recordVisit(recordId: ID, input: { date: string; plannedFor?: string; teamIds: ID[]; notes: string; issues: string[] }): void
+    recordVisit(recordId: ID, input: { date: string; plannedFor?: string; teamIds: ID[] } & VisitReport): void
   }
   projectChat: {
     post(input: Omit<ProjectMessage, 'id' | 'at'>): ProjectMessage

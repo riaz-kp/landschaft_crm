@@ -78,6 +78,8 @@ export const COLLECTIONS: CollectionSpec[] = [
   list('payRecords', 'pay_records'),
   list('reminders', 'reminders'),
   list('projectLog', 'project_log'),
+  // One row per project, written by the client-portal function.
+  list('clientBriefs', 'client_briefs'),
   {
     key: 'chatReads',
     table: 'chat_reads',

@@ -19,6 +19,12 @@ const cors = {
 const TOP_ROLES = ['super_admin', 'ceo']
 const MIN_PASSWORD = 8
 
+// Staff sign in with a username. Auth keys logins by email, so a username
+// stands for an address on a domain reserved never to receive mail (RFC 2606).
+// Keep in step with LOGIN_DOMAIN in frontend/src/lib/supabase.ts.
+const LOGIN_DOMAIN = 'users.landschaft.invalid'
+const USERNAME_RULE = /^[a-z0-9][a-z0-9._-]{2,31}$/
+
 class Refusal extends Error {
   constructor(message: string, readonly status = 400) {
     super(message)
@@ -86,6 +92,34 @@ function cleanEmail(value: unknown): string {
   return email
 }
 
+function cleanUsername(value: unknown): string {
+  const username = String(value ?? '').trim().toLowerCase()
+  if (!USERNAME_RULE.test(username)) {
+    throw new Refusal('Use 3–32 lowercase letters or digits for the username; dots, dashes and underscores after the first. No spaces.')
+  }
+  return username
+}
+
+/**
+ * The login a request asks for: a username (and the address behind it), or —
+ * from an app built before usernames — an email on its own.
+ */
+function requestedLogin(body: Record<string, unknown>): { email: string; username: string | null } {
+  if (typeof body.username === 'string') {
+    const username = cleanUsername(body.username)
+    return { email: `${username}@${LOGIN_DOMAIN}`, username }
+  }
+  return { email: cleanEmail(body.email), username: null }
+}
+
+async function usernameTaken(username: string, exceptUserId?: string): Promise<boolean> {
+  let query = admin.from('app_users').select('user_id').eq('username', username)
+  if (exceptUserId) query = query.neq('user_id', exceptUserId)
+  const { data, error } = await query.limit(1)
+  if (error) throw error
+  return (data ?? []).length > 0
+}
+
 function checkPassword(value: unknown): string {
   const password = String(value ?? '')
   if (password.length < MIN_PASSWORD) throw new Refusal(`Use at least ${MIN_PASSWORD} characters for the password.`)
@@ -98,15 +132,18 @@ async function noLoginsYet(): Promise<boolean> {
   return (count ?? 0) === 0
 }
 
-async function createLogin(email: string, password: string, employeeId: string) {
+async function createLogin(login: { email: string; username: string | null }, password: string, employeeId: string) {
+  const { email, username } = login
+  if (username && (await usernameTaken(username))) throw new Refusal('That username is taken. Choose another.', 409)
   const { data, error } = await admin.auth.admin.createUser({
     email, password, email_confirm: true, app_metadata: { employee_id: employeeId },
   })
   if (error || !data.user) {
     const taken = error?.message.toLowerCase().includes('already')
-    throw new Refusal(taken ? 'That email already has a login.' : error?.message ?? 'The login could not be created.')
+    const which = username ? 'That username is taken. Choose another.' : 'That email already has a login.'
+    throw new Refusal(taken ? which : error?.message ?? 'The login could not be created.')
   }
-  const { error: linkError } = await admin.from('app_users').insert({ user_id: data.user.id, employee_id: employeeId, email })
+  const { error: linkError } = await admin.from('app_users').insert({ user_id: data.user.id, employee_id: employeeId, email, username })
   if (linkError) {
     await admin.auth.admin.deleteUser(data.user.id)
     throw linkError
@@ -128,16 +165,16 @@ async function handle(req: Request): Promise<unknown> {
       if (!(await noLoginsYet())) throw new Refusal('This CRM is already set up. Sign in instead.', 409)
       const name = String(body.name ?? '').trim()
       if (!name) throw new Refusal('Enter your name.')
-      const email = cleanEmail(body.email)
+      const login = requestedLogin(body)
       const password = checkPassword(body.password)
       const employeeId = `e${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`
       const { error } = await admin.from('employees').insert({
         id: employeeId,
-        data: { id: employeeId, name, role: 'super_admin', department: 'Management', phone: '', email },
+        data: { id: employeeId, name, role: 'super_admin', department: 'Management', phone: '', email: login.username ? '' : login.email },
       })
       if (error) throw error
       try {
-        const userId = await createLogin(email, password, employeeId)
+        const userId = await createLogin(login, password, employeeId)
         // Two set-ups racing each other: keep the first, undo this one.
         const { data: first } = await admin.from('app_users').select('user_id').order('created_at').limit(1).single()
         if (first?.user_id !== userId) {
@@ -156,7 +193,25 @@ async function handle(req: Request): Promise<unknown> {
       if (!(await canManageEmployees(who))) throw new Refusal('You cannot manage logins.', 403)
       const { link } = await target(who, body.employeeId)
       if (link) throw new Refusal('This employee already has a login.', 409)
-      await createLogin(cleanEmail(body.email), checkPassword(body.password), body.employeeId)
+      await createLogin(requestedLogin(body), checkPassword(body.password), body.employeeId)
+      return { ok: true }
+    }
+
+    // Gives a login a new username — or its first, moving a pre-username login off its email.
+    case 'set-username': {
+      const who = await caller(req)
+      if (!(await canManageEmployees(who))) throw new Refusal('You cannot manage logins.', 403)
+      const { link } = await target(who, body.employeeId)
+      if (!link) throw new Refusal('This employee has no login yet.', 404)
+      const username = cleanUsername(body.username)
+      if (await usernameTaken(username, link.user_id)) throw new Refusal('That username is taken. Choose another.', 409)
+      const email = `${username}@${LOGIN_DOMAIN}`
+      const { error } = await admin.auth.admin.updateUserById(link.user_id, { email, email_confirm: true })
+      if (error) {
+        throw new Refusal(error.message.toLowerCase().includes('already') ? 'That username is taken. Choose another.' : error.message)
+      }
+      const { error: linkError } = await admin.from('app_users').update({ username, email }).eq('user_id', link.user_id)
+      if (linkError) throw linkError
       return { ok: true }
     }
 

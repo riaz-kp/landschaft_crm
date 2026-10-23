@@ -40,8 +40,8 @@ export function EmployeeFormModal({
   const save = () => {
     if (!form.name.trim()) return setError('Enter the employee’s name.')
     if (!form.phone.trim()) return setError('Enter a mobile number.')
-    if (!form.email.trim()) return setError('Enter an email address — it is their login.')
-    const clash = db.employees.find((e) => e.email.toLowerCase() === form.email.trim().toLowerCase() && e.id !== employee?.id)
+    // Optional: logins use a username, set from the employee's profile.
+    const clash = form.email.trim() && db.employees.find((e) => e.email.toLowerCase() === form.email.trim().toLowerCase() && e.id !== employee?.id)
     if (clash) return setError(`${clash.name} already uses that email.`)
     const values = {
       name: form.name.trim(),
@@ -119,7 +119,7 @@ export function EmployeeFormModal({
           required phone={form.phone} whatsapp={form.whatsapp}
           onChange={(numbers) => set(numbers)}
         />
-        <Field label="Email" required>
+        <Field label="Email" hint="For contact only — they sign in with a username, given from their profile's Login section.">
           <input type="email" className="input" value={form.email} onChange={(e) => set({ email: e.target.value })} />
         </Field>
         <FormError message={error} />
