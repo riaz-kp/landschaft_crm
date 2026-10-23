@@ -1,5 +1,5 @@
 import { addDays, today } from '../domain/format'
-import { defaultPermissions } from '../domain/roles'
+import { defaultSettings } from '../domain/defaults'
 import type {
   AttendanceEntry, CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
   DocumentRecord, Employee, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
@@ -762,32 +762,7 @@ export const calendarEvents: CalendarEvent[] = [
  * payment split shows the 50/20/15/15 example; Settings offers 25/25/25/25 and
  * any other combination totalling 100.
  */
-export const settings: Settings = {
-  designPaymentSplit: { concept: 50, threeD: 20, civilWork: 15, boq: 15 },
-  taEnabled: false,
-  taRatePerKm: 0,
-  photosMandatory: true,
-  photoMaxPx: 1600,
-  photoMaxKb: 300,
-  otAdjustRoles: ['super_admin', 'ceo', 'execution_head', 'execution_pm'],
-  freeMaintenanceMonths: 1,
-  permissions: defaultPermissions(),
-  holidays: HOLIDAYS,
-  workHours: { start: '09:00', end: '18:00', halfDayEnd: '13:30' },
-  workerSkills: [
-    'Carpenter', 'Driver / Helper', 'Electrician', 'Foreman / Hardscape', 'Foreman / Lawn', 'Foreman / Planting',
-    'Gardener', 'Helper', 'Lawn Specialist', 'Mason', 'Painter', 'Plumber / Irrigation', 'Tile & Paver Layer',
-    'Welder / Fabricator',
-  ],
-}
-
-/** Counters shown on the execution dashboard, per the document's example. */
-export const executionDashboardSeed = {
-  activeSites: 8,
-  totalSitesReporting: 8,
-  workersToday: 34,
-  completedTasks: 27,
-}
+export const settings: Settings = { ...defaultSettings(), holidays: HOLIDAYS }
 
 /** A remark posted `daysAgo` days back at `time`. */
 const at = (daysAgo: number, time: string) => `${addDays(today(), -daysAgo)}T${time}`

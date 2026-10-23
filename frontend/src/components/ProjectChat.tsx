@@ -10,6 +10,8 @@ import { Avatar } from './ui'
 import { Icon } from './Icon'
 import { Lightbox } from './Lightbox'
 import { compressImage } from './imageResize'
+import { storePhoto } from '../data/files'
+import { StoredImg } from './StoredImage'
 
 const QUICK_EMOJI = ['👍', '🙏', '✅', '👌', '🌿', '🚧', '⚠️', '📸', '😊', '🔥']
 
@@ -89,7 +91,10 @@ export function ProjectChat({ projectId, height = 'h-[620px]' }: { projectId: ID
     if (!file) return
     setBusy(true)
     try {
-      setPhoto((await compressImage(file, db.settings.photoMaxPx, db.settings.photoMaxKb)).dataUrl)
+      const shot = await compressImage(file, db.settings.photoMaxPx, db.settings.photoMaxKb)
+      setPhoto(await storePhoto(shot.dataUrl, 'remarks'))
+    } catch {
+      window.alert('The photo could not be attached. Check the connection and try again.')
     } finally {
       setBusy(false)
     }
@@ -190,7 +195,7 @@ export function ProjectChat({ projectId, height = 'h-[620px]' }: { projectId: ID
                   )}
                   {m.photo && (
                     <button type="button" onClick={() => setViewing(photos.indexOf(m))} className="mb-1 block overflow-hidden rounded-lg">
-                      <img src={m.photo} alt="Attached" className="max-h-64 w-full object-cover" />
+                      <StoredImg src={m.photo} alt="Attached" className="max-h-64 min-h-24 w-full object-cover" />
                     </button>
                   )}
                   {m.text && (
@@ -229,11 +234,11 @@ export function ProjectChat({ projectId, height = 'h-[620px]' }: { projectId: ID
           <div className="mb-2 flex items-center gap-3 rounded-lg bg-white p-2">
             {busy ? (
               <span className="flex items-center gap-2 px-2 text-xs text-stone-500">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /> Compressing photo…
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /> Preparing photo…
               </span>
             ) : (
               <>
-                <img src={photo!} alt="To send" className="h-14 w-14 rounded-md object-cover" />
+                <StoredImg src={photo!} alt="To send" className="h-14 w-14 rounded-md object-cover" />
                 <span className="flex-1 text-xs text-stone-500">Photo ready — add a caption or just send.</span>
                 <button onClick={() => setPhoto(null)} className="btn-icon h-7 w-7" aria-label="Remove photo"><Icon name="x" className="h-4 w-4" /></button>
               </>

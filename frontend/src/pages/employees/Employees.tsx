@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
@@ -13,6 +12,7 @@ import {
 import { ContactNumbers } from '../../components/ContactFields'
 import { Icon } from '../../components/Icon'
 import { EmployeeFormModal } from './EmployeeForm'
+import { removeEmployee } from './removeEmployee'
 
 /** The organisational structure as supplied by the client. */
 export function Employees() {
@@ -140,7 +140,7 @@ export function Employees() {
         <ConfirmDialog
           title={`Delete ${deleting.name}?`}
           onClose={() => setDeleting(null)}
-          onConfirm={() => api.employees.remove(deleting.id)}
+          onConfirm={() => void removeEmployee(deleting)}
           blocked={
             deleting.id === user.id ? 'You cannot delete your own login.'
               : db.projects.some((p) => p.projectManagerId === deleting.id)

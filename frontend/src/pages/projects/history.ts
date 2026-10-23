@@ -1,4 +1,4 @@
-import type { DbShape } from '../../mock/store'
+import type { DbShape } from '../../data/store'
 import type { ID, ProjectLogEntry, Task } from '../../domain/types'
 import { formatCurrency, today } from '../../domain/format'
 import { projectType } from '../../domain/progress'

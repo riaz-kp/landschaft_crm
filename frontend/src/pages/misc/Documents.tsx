@@ -5,6 +5,7 @@ import type { DocumentRecord } from '../../domain/types'
 import {
   PageHeader, Section, Table, EmptyState, Badge, StatTile, DepartmentBadge,
 } from '../../components/ui'
+import { FileLink } from '../../components/FileLink'
 
 const CATEGORIES: (DocumentRecord['category'] | 'All')[] =
   ['All', 'Drawing', 'BOQ', 'Contract', 'Photo', 'Report', 'Other']
@@ -61,7 +62,7 @@ export function Documents() {
             {documents.map((doc) => (
               <tr key={doc.id} className="row-hover">
                 <td className="td font-medium text-stone-900">
-                  {doc.name}
+                  <FileLink file={doc.file} name={doc.name} />
                   {doc.department && <span className="ml-2"><DepartmentBadge department={doc.department} /></span>}
                 </td>
                 <td className="td">{projectName(doc.projectId)}</td>

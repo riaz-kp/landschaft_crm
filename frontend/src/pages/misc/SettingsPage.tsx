@@ -11,6 +11,8 @@ import { Icon } from '../../components/Icon'
 import { TimeInput } from '../../components/TimeInput'
 import { workerSkills } from '../../domain/workers'
 import { formatDuration, minutesBetween } from '../../domain/format'
+import { DEMO_MODE } from '../../lib/supabase'
+import { resetDemo } from '../../data/demo'
 
 /** Presets the client mentioned by name in the structure document. */
 const SPLIT_PRESETS: { label: string; split: Settings['designPaymentSplit'] }[] = [
@@ -306,20 +308,19 @@ export function SettingsPage() {
         </div>
       )}
 
-      <Section title="Prototype Data" description="Restore the seeded demonstration data." className="mt-8">
-        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-5">
-          <p className="text-sm text-stone-500">
-            Reports you submit and projects you create are kept in this browser.
-            Resetting clears them and restores the original seed.
-          </p>
-          <button
-            onClick={() => { api.reset(); window.location.reload() }}
-            className="btn-danger shrink-0"
-          >
-            Reset prototype data
-          </button>
-        </div>
-      </Section>
+      {DEMO_MODE && (
+        <Section title="Demo Data" description="Restore the sample data." className="mt-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-5">
+            <p className="text-sm text-stone-500">
+              Reports you submit and projects you create in the demo are kept in this browser.
+              Resetting clears them and restores the original sample data.
+            </p>
+            <button onClick={resetDemo} className="btn-danger shrink-0">
+              Reset demo data
+            </button>
+          </div>
+        </Section>
+      )}
     </div>
   )
 }

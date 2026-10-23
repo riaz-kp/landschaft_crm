@@ -1,4 +1,4 @@
-import { nextId, nowTime, store, type DbShape } from '../mock/store'
+import { nextId, nowTime, store, type DbShape } from '../data/store'
 import { addDays, formatCurrency, formatDate, today } from '../domain/format'
 import type {
   ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, Employee, ID,
@@ -27,10 +27,11 @@ function isRealIssue(text: string): boolean {
   return t.length > 0 && t !== 'nothing' && t !== 'nil' && t !== 'none'
 }
 
-/** The project's foreman-facing manager, who reviews their reports. */
-function reviewerFor(projectId: ID): ID {
+/** The project's foreman-facing manager, who reviews their reports — or an execution manager when it has none. */
+function reviewerFor(projectId: ID, foremanId: ID): ID {
   const project = store.db.projects.find((p) => p.id === projectId)
-  return project?.projectManagerId ?? 'e7'
+  const execution = store.db.employees.find((e) => e.role === 'execution_pm' || e.role === 'execution_head')
+  return project?.projectManagerId ?? execution?.id ?? foremanId
 }
 
 /** Writes one line of a project's history, stamped now. */
@@ -245,7 +246,7 @@ export const adapter: Api = {
         report.reviewNote = undefined
 
         // Anything other than "Nothing" becomes an alert for the Execution PM.
-        const assignedTo = reviewerFor(report.projectId)
+        const assignedTo = reviewerFor(report.projectId, foremanId)
         for (const text of report.issues) {
           if (!isRealIssue(text)) continue
           const duplicate = db.issues.some((i) => i.reportId === report.id && i.text === text.trim())
@@ -725,7 +726,12 @@ export const adapter: Api = {
     create(input): Quotation {
       const year = input.date.slice(0, 4)
       const prefix = input.kind === 'BOQ' ? 'BOQ' : 'QT'
-      const seq = store.db.quotations.filter((q) => q.number.startsWith(`${prefix}-${year}`)).length + 31
+      // One past the highest number used that year, so a deleted one is never reissued.
+      const used = store.db.quotations
+        .filter((q) => q.number.startsWith(`${prefix}-${year}-`))
+        .map((q) => Number(q.number.slice(prefix.length + year.length + 2)))
+        .filter((n) => Number.isFinite(n))
+      const seq = Math.max(0, ...used) + 1
       const record: Quotation = { ...input, id: nextId('q'), number: `${prefix}-${year}-${String(seq).padStart(3, '0')}` }
       store.update((db) => {
         db.quotations.unshift(record)
@@ -814,9 +820,6 @@ export const adapter: Api = {
     },
   },
 
-  reset() {
-    store.reset()
-  },
 }
 
 export type { Lead }

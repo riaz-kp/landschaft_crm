@@ -11,11 +11,13 @@ import { Avatar, Badge, Field, FormError, SiteName } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { PhoneWhatsAppFields } from '../../components/ContactFields'
 import { ProjectChat } from '../../components/ProjectChat'
-import { resizeImage } from '../../components/imageResize'
+import { storeProfilePhoto } from '../../components/imageResize'
 import { PersonAttendance } from '../employees/EmployeeAttendance'
 import { monthLabel, useMonthPay } from '../employees/PersonPayments'
 import { FieldCard } from '../../shells/FieldShell'
 import { FieldCrewAttendance } from './FieldCrewAttendance'
+import { ChangePasswordModal } from '../../components/UserMenu'
+import { DEMO_MODE } from '../../lib/supabase'
 
 function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split('-').map(Number)
@@ -152,8 +154,9 @@ export function FieldPay() {
 /** The foreman's own profile — contact details they can keep up to date, and who they report to. */
 export function FieldProfile() {
   const db = useDb()
-  const { user } = useSession()
+  const { user, signOut } = useSession()
   const [editing, setEditing] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
   const photoRef = useRef<HTMLInputElement>(null)
   const manager = db.employees.find((e) => e.id === user.reportsTo)
   const sites = db.siteAssignments
@@ -162,7 +165,7 @@ export function FieldProfile() {
     .filter((p) => p && p.status !== 'Completed')
 
   const choosePhoto = async (file?: File) => {
-    if (file) api.employees.update(user.id, { photo: await resizeImage(file) })
+    if (file) api.employees.update(user.id, { photo: await storeProfilePhoto(file) })
   }
 
   return (
@@ -233,6 +236,21 @@ export function FieldProfile() {
           {sites.length === 0 && <li className="py-2 text-sm text-stone-400">No sites assigned.</li>}
         </ul>
       </FieldCard>
+
+      {!DEMO_MODE && (
+        <FieldCard>
+          <p className="label mb-2">My login</p>
+          <div className="flex gap-2">
+            <button onClick={() => setChangingPassword(true)} className="btn-secondary flex-1 justify-center">
+              <Icon name="shield" className="h-4 w-4" /> Change password
+            </button>
+            <button onClick={() => void signOut()} className="btn-secondary flex-1 justify-center">
+              <Icon name="logout" className="h-4 w-4" /> Sign out
+            </button>
+          </div>
+        </FieldCard>
+      )}
+      {changingPassword && <ChangePasswordModal onClose={() => setChangingPassword(false)} />}
     </div>
   )
 }

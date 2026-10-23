@@ -1,4 +1,4 @@
-import type { DbShape } from '../../../mock/store'
+import type { DbShape } from '../../../data/store'
 import { DESIGN_PHASES, type Department, type ID, type PhaseKey } from '../../../domain/types'
 import { formatCurrency, today } from '../../../domain/format'
 

@@ -13,7 +13,7 @@ import {
 import { ContactNumbers, PhoneWhatsAppFields } from '../../components/ContactFields'
 import { RepeaterList } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
-import { resizeImage } from '../../components/imageResize'
+import { storeProfilePhoto } from '../../components/imageResize'
 import { NoAccess } from '../misc/Fallbacks'
 import { EmployeeWorks } from './EmployeeWorks'
 import { EmployeeAttendance } from './EmployeeAttendance'
@@ -22,8 +22,11 @@ import { PersonPayments } from './PersonPayments'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions } from '../../components/pickerOptions'
 import { ForemanCrew } from './ForemanCrew'
+import { LoginAccess } from './LoginAccess'
+import { removeEmployee } from './removeEmployee'
+import { DEMO_MODE } from '../../lib/supabase'
 
-type Tab = 'profile' | 'works' | 'workers' | 'attendance' | 'payments' | 'role'
+type Tab = 'profile' | 'works' | 'workers' | 'attendance' | 'payments' | 'role' | 'login'
 
 type FieldKey =
   | 'name' | 'dob' | 'address' | 'phone' | 'email' | 'bloodGroup' | 'qualification' | 'joinedOn'
@@ -111,7 +114,7 @@ export function EmployeeDetail() {
         <ConfirmDialog
           title={`Delete ${employee.name}?`}
           onClose={() => setDeleting(false)}
-          onConfirm={() => { api.employees.remove(employee.id); navigate('/employees') }}
+          onConfirm={() => void removeEmployee(employee).then((removed) => removed && navigate('/employees'))}
           blocked={db.projects.some((p) => p.projectManagerId === employee.id)
             ? `${employee.name} manages ${db.projects.filter((p) => p.projectManagerId === employee.id).length} project(s). Reassign them to another manager first.`
             : undefined}
@@ -133,6 +136,7 @@ export function EmployeeDetail() {
           { key: 'attendance', label: 'Attendance' },
           ...(canSeePay ? [{ key: 'payments' as Tab, label: 'Payments' }] : []),
           { key: 'role', label: 'Role in Company' },
+          ...(canEditOrg && !DEMO_MODE ? [{ key: 'login' as Tab, label: 'Login' }] : []),
         ]}
       />
 
@@ -144,6 +148,7 @@ export function EmployeeDetail() {
         <PersonPayments key={employee.id} kind="employee" personId={employee.id} monthlySalary={employee.monthlySalary} canManage={can('Accounts', 'create') || can('Employees', 'edit')} />
       )}
       {tab === 'role' && <RoleInCompany key={employee.id} employee={employee} canEdit={canEditOrg} />}
+      {tab === 'login' && canEditOrg && <LoginAccess key={employee.id} employee={employee} isSelf={isSelf} />}
 
       <Link to="/employees" className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-stone-500 hover:text-stone-800">
         <Icon name="back" className="h-4 w-4" /> All employees
@@ -166,7 +171,7 @@ function ProfileHeader({
     if (!file) return
     try {
       setPhotoError(null)
-      api.employees.update(employee.id, { photo: await resizeImage(file) })
+      api.employees.update(employee.id, { photo: await storeProfilePhoto(file) })
     } catch {
       setPhotoError('That file could not be read as an image.')
     }

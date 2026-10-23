@@ -1,3 +1,5 @@
+import { storePhoto } from '../data/files'
+
 export interface CompressedImage {
   dataUrl: string
   /** Size after compression, in KB. */
@@ -63,13 +65,9 @@ export async function compressImage(file: File, maxPx = 1600, maxKb = 300): Prom
   return { dataUrl: best.url, sizeKb: dataUrlKb(best.url), originalKb, width: best.w, height: best.h }
 }
 
-/**
- * Shrinks an uploaded photo to a small square-ish thumbnail data URL. Profile
- * photos live in browser storage in the prototype, so a phone-camera original
- * (several MB) would exhaust the quota after a handful of uploads.
- */
-export async function resizeImage(file: File, maxSize = 320): Promise<string> {
-  return (await compressImage(file, maxSize, 60)).dataUrl
+/** Shrinks a profile photo to a small thumbnail and stores it; returns what to keep on the record. */
+export async function storeProfilePhoto(file: File, maxSize = 320): Promise<string> {
+  return storePhoto((await compressImage(file, maxSize, 60)).dataUrl, 'profiles')
 }
 
 /** "4.2 MB" / "280 KB". */

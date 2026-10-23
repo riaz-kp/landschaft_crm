@@ -1,4 +1,6 @@
+import { Suspense } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { PageLoading } from '../pages/misc/Fallbacks'
 import { useSession } from '../state/session'
 import { useDb } from '../state/useDb'
 import { Avatar } from '../components/ui'
@@ -6,6 +8,7 @@ import { Icon } from '../components/Icon'
 import { LogoMark } from '../components/Logo'
 import { formatDateLong, today } from '../domain/format'
 import { unreadRemarks } from '../domain/chat'
+import { SyncIndicator } from '../components/SyncIndicator'
 
 const TABS = [
   { to: '/field', label: 'Sites', icon: 'home', end: true },
@@ -21,7 +24,7 @@ const TABS = [
  * that foremen must not see the rest of the CRM, so nothing else is reachable.
  */
 export function FieldShell() {
-  const { user, signInAs } = useSession()
+  const { user, demo, signOut } = useSession()
   const db = useDb()
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -47,6 +50,7 @@ export function FieldShell() {
             </span>
           </div>
           <div className="flex items-center gap-1">
+            <SyncIndicator dark />
             <button
               onClick={() => navigate('/field/profile')}
               className="rounded-full ring-2 ring-white/20"
@@ -55,19 +59,26 @@ export function FieldShell() {
               <Avatar name={user.name} size="sm" src={user.photo} />
             </button>
             <button
-              onClick={() => { signInAs('e1'); navigate('/dashboard') }}
+              onClick={() => {
+                if (demo) {
+                  demo.signInAs('e1')
+                  navigate('/dashboard')
+                } else {
+                  void signOut()
+                }
+              }}
               className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-brand-200 hover:bg-brand-800"
-              title="Prototype: return to the office view"
+              title={demo ? 'Demo: return to the office view' : 'Sign out'}
             >
               <Icon name="logout" className="h-4 w-4" />
-              <span className="hidden sm:inline">Exit</span>
+              <span className="hidden sm:inline">{demo ? 'Exit' : 'Sign out'}</span>
             </button>
           </div>
         </div>
       </header>
 
       <main className={`mx-auto max-w-2xl px-4 pt-5 ${fullScreen ? 'pb-4' : 'pb-28'}`}>
-        <Outlet />
+        <Suspense fallback={<PageLoading />}><Outlet /></Suspense>
       </main>
 
       {!fullScreen && (

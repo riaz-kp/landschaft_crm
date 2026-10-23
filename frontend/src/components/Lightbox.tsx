@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Icon } from './Icon'
+import { StoredImg } from './StoredImage'
 
 export interface LightboxPhoto {
   src: string
@@ -42,7 +43,7 @@ export function Lightbox({
         </div>
       </header>
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-6 sm:px-16" onClick={onClose}>
-        <img
+        <StoredImg
           src={photo.src} alt={photo.title}
           onClick={(e) => e.stopPropagation()}
           className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"

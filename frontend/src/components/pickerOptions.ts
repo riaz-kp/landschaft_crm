@@ -1,4 +1,4 @@
-import type { DbShape } from '../mock/store'
+import type { DbShape } from '../data/store'
 import type { Client, Employee, Lead, Project } from '../domain/types'
 import { titleOf } from '../domain/roles'
 import type { SelectOption } from './SearchSelect'

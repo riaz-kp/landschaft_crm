@@ -7,6 +7,7 @@ import { CLIENT_DOCS, clientDocProgress, type ClientDocItem } from '../../domain
 import type { ClientDocKey, ClientDocTick, Project } from '../../domain/types'
 import { Badge, ProgressBar, Section } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { FileLink, uploadDocument } from '../../components/FileLink'
 
 export type DocState = 'Pending' | ClientDocTick['status']
 const STATES: DocState[] = ['Pending', 'Received', 'Not Needed']
@@ -89,6 +90,8 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
   const { user } = useSession()
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploadFor, setUploadFor] = useState<ClientDocItem | null>(null)
+  const [uploading, setUploading] = useState<ClientDocKey | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const { received, applicable } = clientDocProgress(project)
   const files = db.documents.filter((d) => d.projectId === project.id && d.clientDoc)
 
@@ -97,26 +100,38 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
     else api.projects.setClientDoc(project.id, key, { status: state, note: tick?.note, on: tick?.status === state ? tick.on : today() }, user.id)
   }
 
-  const upload = (list: FileList | null) => {
-    if (!list || !uploadFor) return
-    for (const file of Array.from(list)) {
-      api.documents.create({
-        name: file.name,
-        projectId: project.id,
-        clientId: project.clientId,
-        // Filed on the client's record too, under the department that uses it.
-        department: project.services.design ? 'Design' : 'Execution',
-        clientDoc: uploadFor.key,
-        category: uploadFor.category,
-        uploadedBy: user.id,
-        uploadedAt: today(),
-        sizeKb: Math.max(1, Math.round(file.size / 1024)),
-      })
-    }
-    // A file in hand means the document has been received.
-    const tick = project.clientDocs?.[uploadFor.key]
-    if (tick?.status !== 'Received') setState(uploadFor.key, 'Received', tick)
+  const upload = async (list: FileList | null) => {
+    const item = uploadFor
+    if (!list || !item) return
     setUploadFor(null)
+    setUploading(item.key)
+    setUploadError(null)
+    let stored = 0
+    for (const file of Array.from(list)) {
+      try {
+        const ref = await uploadDocument(file, `projects/${project.id}`)
+        api.documents.create({
+          name: file.name,
+          projectId: project.id,
+          clientId: project.clientId,
+          // Filed on the client's record too, under the department that uses it.
+          department: project.services.design ? 'Design' : 'Execution',
+          clientDoc: item.key,
+          category: item.category,
+          uploadedBy: user.id,
+          uploadedAt: today(),
+          sizeKb: Math.max(1, Math.round(file.size / 1024)),
+          file: ref,
+        })
+        stored += 1
+      } catch (e) {
+        setUploadError((e as Error).message)
+      }
+    }
+    setUploading(null)
+    // A file in hand means the document has been received.
+    const tick = project.clientDocs?.[item.key]
+    if (stored && tick?.status !== 'Received') setState(item.key, 'Received', tick)
   }
 
   return (
@@ -127,8 +142,9 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
     >
       <input
         ref={inputRef} type="file" multiple className="hidden"
-        onChange={(e) => { upload(e.target.files); e.target.value = '' }}
+        onChange={(e) => { void upload(e.target.files); e.target.value = '' }}
       />
+      {uploadError && <p role="alert" className="mx-5 mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{uploadError}</p>}
       <div className="px-5 pt-4"><ProgressBar value={applicable ? (received / applicable) * 100 : 100} tone={received === applicable ? 'green' : 'amber'} /></div>
       <div className="divide-y divide-stone-100 px-5 py-2">
         {groupedDocs().map(({ group, items }) => (
@@ -148,9 +164,12 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
                         <button
                           type="button"
                           onClick={() => { setUploadFor(item); inputRef.current?.click() }}
-                          className="btn-icon h-8 w-8" title={`Attach the ${item.label.toLowerCase()}`} aria-label={`Attach ${item.label}`}
+                          disabled={uploading !== null}
+                          className="btn-icon h-8 w-8 disabled:opacity-50" title={`Attach the ${item.label.toLowerCase()}`} aria-label={`Attach ${item.label}`}
                         >
-                          <Icon name="clip" className="h-4 w-4" />
+                          {uploading === item.key
+                            ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                            : <Icon name="clip" className="h-4 w-4" />}
                         </button>
                       )}
                       <DocStateToggle label={item.label} value={state} disabled={!canEdit} onChange={(s) => setState(item.key, s, tick)} />
@@ -188,7 +207,7 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
                       {attached.map((f) => (
                         <li key={f.id} className="flex items-center gap-1.5 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-600 ring-1 ring-inset ring-stone-200">
                           <Icon name="doc" className="h-3.5 w-3.5 text-stone-400" />
-                          <span className="max-w-[220px] truncate">{f.name}</span>
+                          <FileLink file={f.file} name={f.name} className="max-w-[220px] truncate" />
                           <span className="text-stone-400">{f.sizeKb >= 1024 ? `${(f.sizeKb / 1024).toFixed(1)} MB` : `${f.sizeKb} KB`}</span>
                         </li>
                       ))}

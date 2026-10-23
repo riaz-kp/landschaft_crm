@@ -8,6 +8,7 @@ import { Icon } from '../../components/Icon'
 import { Lightbox } from '../../components/Lightbox'
 import { SearchSelect } from '../../components/SearchSelect'
 import { projectOptions } from '../../components/pickerOptions'
+import { StoredImg } from '../../components/StoredImage'
 
 type DateMode = 'day' | 'week' | 'month' | 'range' | 'all'
 
@@ -211,7 +212,7 @@ export function PhotoGallery({ projectId: fixedProject }: { projectId?: ID }) {
                                       onClick={() => setViewing(items.indexOf(item))}
                                       className="group relative overflow-hidden rounded-xl"
                                     >
-                                      <img src={item.photo.src} alt={item.photo.caption ?? `${s} photo`} className="h-28 w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
+                                      <StoredImg src={item.photo.src} alt={item.photo.caption ?? `${s} photo`} className="h-28 w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
                                       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-5 text-left">
                                         <span className="block truncate text-[11px] font-medium text-white">{item.photo.caption || s}</span>
                                         {item.photo.takenAt && <span className="block text-[10px] text-white/70">{formatTime(item.photo.takenAt)}</span>}

@@ -10,7 +10,7 @@ import {
 } from '../../components/ui'
 import { ContactNumbers } from '../../components/ContactFields'
 import { Icon } from '../../components/Icon'
-import { resizeImage } from '../../components/imageResize'
+import { storeProfilePhoto } from '../../components/imageResize'
 import { PersonAttendance } from './EmployeeAttendance'
 import { WorkerFormModal } from './WorkerForm'
 import { PersonPayments } from './PersonPayments'
@@ -77,7 +77,7 @@ export function WorkerDetail() {
   const foreman = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
 
   const choosePhoto = async (file?: File) => {
-    if (file) api.workers.update(worker.id, { photo: await resizeImage(file) })
+    if (file) api.workers.update(worker.id, { photo: await storeProfilePhoto(file) })
   }
 
   return (

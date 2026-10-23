@@ -149,7 +149,7 @@ function LeadFormModal({ lead, onClose }: { lead?: Lead; onClose: () => void }) 
     location: lead?.location ?? '',
     source: lead?.source ?? ('Instagram' as Lead['source']),
     status: lead?.status ?? ('New' as LeadStatus),
-    ownerId: lead?.ownerId ?? (['marketing', 'ceo'].includes(user.role) ? user.id : 'e10'),
+    ownerId: lead?.ownerId ?? (['marketing', 'ceo'].includes(user.role) ? user.id : db.employees.find((e) => e.role === 'marketing')?.id ?? user.id),
     requirement: lead?.requirement ?? '',
     notes: lead?.notes ?? '',
   })
