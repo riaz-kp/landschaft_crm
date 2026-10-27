@@ -1,5 +1,6 @@
 import { addDays, daysBetween } from './format'
-import type { MaintenanceRecord, MaintenanceVisit, RecurrenceUnit, VisitSchedule } from './types'
+import { titleOf } from './roles'
+import type { Employee, ID, MaintenanceRecord, MaintenanceVisit, RecurrenceUnit, VisitSchedule, Worker } from './types'
 
 /** Adds whole months, holding the day of month where the target month allows it. */
 export function addMonths(iso: string, months: number): string {
@@ -127,4 +128,31 @@ export function amcProgress(record: MaintenanceRecord, today: string): { done: n
   const done = all.filter((o) => o.status === 'Done').length
   const total = all.length
   return { done, total, percent: total ? Math.round((done / total) * 100) : 0 }
+}
+
+export interface TeamCandidate {
+  id: ID
+  name: string
+  /** Designation for staff, skill for site workers. */
+  title: string
+}
+
+/**
+ * Who can go on an AMC team: the AMC department's own staff, such as its
+ * foremen, then the active site workers. A team mixes both kinds of id, which
+ * never clash — employees' start with "e" and workers' with "w".
+ */
+export function amcTeamPool(employees: Employee[], workers: Worker[]): TeamCandidate[] {
+  return [
+    ...employees.filter((e) => e.department === 'AMC').map((e) => ({ id: e.id, name: e.name, title: titleOf(e) })),
+    ...workers.filter((w) => w.active).map((w) => ({ id: w.id, name: w.name, title: w.skill })),
+  ]
+}
+
+/** The names on an AMC team, staff or site workers alike. */
+export function teamNames(ids: ID[], employees: Employee[], workers: Worker[]): string {
+  return ids
+    .map((id) => employees.find((e) => e.id === id)?.name ?? workers.find((w) => w.id === id)?.name)
+    .filter(Boolean)
+    .join(', ')
 }

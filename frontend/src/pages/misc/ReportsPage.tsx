@@ -4,7 +4,7 @@ import { useDb } from '../../state/useDb'
 import { computeProgress, projectType } from '../../domain/progress'
 import { formatCurrency, formatDate, minutesBetween, pad2, today } from '../../domain/format'
 import { PERIOD_LABELS, describeRange, inRange, rangeOf, type PeriodKey } from '../../domain/period'
-import { allOccurrences } from '../../domain/amc'
+import { allOccurrences, teamNames } from '../../domain/amc'
 import { receivable } from '../../domain/finance'
 import { titleOf } from '../../domain/roles'
 import { DESIGN_PHASES, PHASE_LABELS, PROJECT_CATEGORIES, type Lead, type Project, type ProjectCategory, type ProjectStatus } from '../../domain/types'
@@ -257,7 +257,7 @@ export function ReportsPage() {
             { header: 'Project', value: (o) => projectName(o.record.projectId), width: 32 },
             { header: 'Contract', value: (o) => o.record.type, width: 16 },
             { header: 'Status', value: (o) => o.status, width: 11 },
-            { header: 'Team', value: (o) => (o.visit?.teamIds ?? o.record.teamIds).map((id) => db.workers.find((w) => w.id === id)?.name).filter(Boolean).join(', '), width: 26 },
+            { header: 'Team', value: (o) => teamNames(o.visit?.teamIds ?? o.record.teamIds, db.employees, db.workers), width: 26 },
             { header: 'Notes', value: (o) => o.visit?.notes ?? '', width: 44 },
           ],
         }),

@@ -4,7 +4,7 @@ import { useDb } from '../../state/useDb'
 import { formatDate, formatDateLong, today } from '../../domain/format'
 import type { AmcOccurrence } from '../../domain/amc'
 import type { ID, VisitFile, VisitPhoto } from '../../domain/types'
-import { Checkbox, Field, FormError, Modal } from '../../components/ui'
+import { Field, FormError, Modal } from '../../components/ui'
 import { RepeaterList } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
 import { StoredImg } from '../../components/StoredImage'
@@ -12,22 +12,7 @@ import { Lightbox } from '../../components/Lightbox'
 import { FileLink, uploadDocument } from '../../components/FileLink'
 import { compressImage } from '../../components/imageResize'
 import { storePhoto } from '../../data/files'
-
-function TeamPicker({ value, onChange }: { value: ID[]; onChange: (ids: ID[]) => void }) {
-  const db = useDb()
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      {db.workers.filter((w) => w.active).map((w) => (
-        <Checkbox
-          key={w.id}
-          checked={value.includes(w.id)}
-          onChange={(on) => onChange(on ? [...value, w.id] : value.filter((id) => id !== w.id))}
-          label={<>{w.name} <span className="text-xs text-stone-400">{w.skill}</span></>}
-        />
-      ))}
-    </div>
-  )
-}
+import { AmcTeamPicker } from './AmcTeamPicker'
 
 /**
  * Photos and documents on a visit report. Photos are shrunk on the phone like
@@ -208,7 +193,7 @@ export function VisitDoneModal({ occurrence: o, onClose }: { occurrence: AmcOccu
         {!o.visit && (
           <div>
             <p className="label mb-2">Team</p>
-            <TeamPicker value={teamIds} onChange={setTeamIds} />
+            <AmcTeamPicker value={teamIds} onChange={setTeamIds} />
           </div>
         )}
         <Field label="Work done" required>
@@ -256,7 +241,7 @@ export function MoveVisitModal({ occurrence: o, onClose }: { occurrence: AmcOccu
         </Field>
         <div>
           <p className="label mb-2">Team</p>
-          <TeamPicker value={teamIds} onChange={setTeamIds} />
+          <AmcTeamPicker value={teamIds} onChange={setTeamIds} />
         </div>
         <FormError message={error} />
       </div>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { daysBetween, formatCurrency, formatDate, today } from '../../domain/format'
-import { amcProgress, describeSchedule, occurrencesFor, type AmcOccurrence } from '../../domain/amc'
+import { amcProgress, describeSchedule, occurrencesFor, teamNames, type AmcOccurrence } from '../../domain/amc'
 import type { MaintenanceRecord, MaintenanceVisit } from '../../domain/types'
 import { api } from '../../api/client'
 import { Badge, ProgressBar, Section, Table, type Tone } from '../../components/ui'
@@ -52,7 +52,7 @@ export function AmcContractCard({ record, canManage, showProject = true }: { rec
   const next = pending.find((o) => o.date >= today())
   const done = all.filter((o) => o.status === 'Done').reverse()
   const rows = showAll ? all : [...pending.slice(0, 4), ...done.slice(0, 3)].sort((a, b) => a.date.localeCompare(b.date))
-  const workerNames = (ids: string[]) => ids.map((id) => db.workers.find((w) => w.id === id)?.name).filter(Boolean).join(', ') || '—'
+  const team = (ids: string[]) => teamNames(ids, db.employees, db.workers) || '—'
   const renewalLeft = record.renewalDate ? daysBetween(today(), record.renewalDate) : null
 
   return (
@@ -124,7 +124,7 @@ export function AmcContractCard({ record, canManage, showProject = true }: { rec
         </div>
         <div>
           <p className="label">Team</p>
-          <p className="mt-1 text-sm text-stone-700">{workerNames(record.teamIds)}</p>
+          <p className="mt-1 text-sm text-stone-700">{team(record.teamIds)}</p>
           {record.visitSchedule && <p className="mt-1 text-xs text-stone-400">{record.visitSchedule}</p>}
         </div>
       </div>
@@ -139,7 +139,7 @@ export function AmcContractCard({ record, canManage, showProject = true }: { rec
               )}
             </td>
             <td className="td"><OccurrenceBadge occurrence={o} /></td>
-            <td className="td">{workerNames(o.visit?.teamIds ?? record.teamIds)}</td>
+            <td className="td">{team(o.visit?.teamIds ?? record.teamIds)}</td>
             <td className="td max-w-sm">
               {o.visit?.notes || <span className="text-stone-400">{o.status === 'Planned' ? 'From the repeat schedule' : '—'}</span>}
               {o.visit?.issues.length ? <span className="block text-xs text-clay-800">{o.visit.issues.join('; ')}</span> : null}

@@ -132,14 +132,14 @@ view the app as anyone in the org chart.
 
 A good demo path:
 
-1. **Ashiq** (foreman) → My Sites → *Panampilly Nagar, Kochi* → fill the report.
+1. **Shakir** (foreman) → My Sites → *Panampilly Nagar, Kochi* → fill the report.
    Ticking workers sets the headcount; 10:00 and 15:40 gives 5h 40m
    automatically. Enter an issue other than "Nothing", attach a photo, submit.
 2. **Jidhin** (Execution PM) → the dashboard's *Pending Reports* has gone up and
    the issue appears under *Open Issues*. Open the report and **Approve** — the
    Next Day Plan lines become tasks due tomorrow, and the pending count drops.
    Or **Send Back** with a note.
-3. **Ashiq** again → the site card shows *Sent Back* with the reviewer's note,
+3. **Shakir** again → the site card shows *Sent Back* with the reviewer's note,
    and the report is editable once more.
 4. **Ashfaq** (CEO) → *New Project*. Tick Execution, then MEP, and watch
    Irrigation / Electrical / Drainage appear. The project detail then shows only
@@ -151,8 +151,8 @@ Added after the client's first review of the prototype:
 
 - **AMC is its own department.** It has its own sidebar section (Contracts,
   Visit Schedule, Renewals) instead of sitting under Execution. The old
-  `/execution/maintenance` link redirects to `/amc`. Nobody is assigned to the
-  AMC department yet. Move people in from Employee → Role in Company.
+  `/execution/maintenance` link redirects to `/amc`. Its foremen, Manoj and
+  Chandran, sit in it; Thameem heads it alongside Execution.
 - **CEO dashboard** shows Design, Execution and AMC as three separate boxes.
   Below them are money owed, approvals and the CEO's own consultations.
 - **CEO Consultations** (`/consultations`) is visible to every role. Anyone can
@@ -372,6 +372,29 @@ Browser data stays on v4. Seeded projects saved before this round pick up their
 type, area and documents from the seed, so nothing entered earlier is lost. The
 seeded areas, received documents, done notes and hand-overs are invented for the
 demo.
+
+## Company structure v2
+
+The client's revised hierarchy (`landschaft_company_hierarchy_revised_v2.pdf`)
+replaced the seeded people with the confirmed structure:
+
+- **Every employee carries their confirmed designation**, e.g. *Head of
+  Execution & Maintenance*, *Senior Designer* (Musthafa, now spelt as in the
+  document), *Design Intern*, *Accounts Manager*, *Accountant*.
+- **Rohith, the one Site Supervisor**, reports to Jidhin, and all five foremen
+  report to him. Foremen can't have people reporting to them in the app, so he
+  signs in to the office app with the Execution PM's access. Approving daily
+  reports stays with Jidhin by practice.
+- **Execution foremen** are Shakir, Vishnu and Shadil. They replace the names
+  from the CRM document's example report table and keep their sites and history.
+- **AMC foremen** Manoj and Chandran are in the AMC department. An AMC team
+  is picked from the AMC department's staff as well as the site workers, so
+  they go on visits as themselves, with no worker record of their own.
+- **Workers**: the 15 planters, plus one on long leave. Their names are invented
+  for the demo; the document doesn't give them.
+
+The data version moved to v5, so browser data is replaced by the new seed on
+first load.
 
 ## What the document asked to keep configurable
 
