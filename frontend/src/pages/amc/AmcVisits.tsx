@@ -5,13 +5,14 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { can } from '../../domain/roles'
 import { addDays, formatDate, today } from '../../domain/format'
-import { allOccurrences, describeSchedule, type AmcOccurrence } from '../../domain/amc'
+import { allOccurrences, describeSchedule, teamNames, type AmcOccurrence } from '../../domain/amc'
 import {
-  PageHeader, Section, Table, EmptyState, Badge, StatTile, Modal, Field, Checkbox, Pills,
+  PageHeader, Section, Table, EmptyState, Badge, StatTile, Modal, Field, Pills,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { OccurrenceBadge } from './AmcContractCard'
 import { MoveVisitModal, VisitDoneModal } from './AmcVisitModals'
+import { AmcTeamPicker } from './AmcTeamPicker'
 import { SearchSelect } from '../../components/SearchSelect'
 
 type Horizon = 14 | 30 | 60 | 365
@@ -37,8 +38,7 @@ export function AmcVisits() {
   const thisWeek = all.filter((o) => o.status !== 'Done' && o.date >= today() && o.date <= addDays(today(), 7))
 
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? '—'
-  const workerNames = (ids: string[]) =>
-    ids.map((id) => db.workers.find((w) => w.id === id)?.name).filter(Boolean).join(', ') || '—'
+  const team = (ids: string[]) => teamNames(ids, db.employees, db.workers) || '—'
 
   const row = (o: AmcOccurrence, actions: boolean) => (
     <tr key={o.visit?.id ?? `${o.record.id}-${o.date}`} className="row-hover">
@@ -51,7 +51,7 @@ export function AmcVisits() {
         <span className="block text-xs text-stone-400">{o.record.schedule ? describeSchedule(o.record.schedule) : 'No repeat schedule'}</span>
       </td>
       <td className="td"><Badge tone={o.record.type === 'AMC' ? 'clay' : 'green'}>{o.record.type}</Badge></td>
-      <td className="td">{workerNames(o.visit?.teamIds ?? o.record.teamIds)}</td>
+      <td className="td">{team(o.visit?.teamIds ?? o.record.teamIds)}</td>
       <td className="td">
         {o.status === 'Done'
           ? <span className="text-sm text-stone-600">{o.visit?.notes || '—'}{o.visit?.issues.length ? <span className="block text-xs text-clay-800">{o.visit.issues.join('; ')}</span> : null}</span>
@@ -179,16 +179,7 @@ function ScheduleVisitModal({ onClose }: { onClose: () => void }) {
         </Field>
         <div>
           <p className="label">Team<span className="ml-0.5 text-red-500">*</span></p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {db.workers.filter((w) => w.active).map((worker) => (
-              <Checkbox
-                key={worker.id}
-                checked={teamIds.includes(worker.id)}
-                onChange={(on) => setTeamIds(on ? [...teamIds, worker.id] : teamIds.filter((id) => id !== worker.id))}
-                label={<>{worker.name} <span className="text-xs text-stone-400">{worker.skill}</span></>}
-              />
-            ))}
-          </div>
+          <AmcTeamPicker className="mt-2" value={teamIds} onChange={setTeamIds} />
         </div>
         {error && <p className="text-sm font-medium text-red-600">{error}</p>}
       </div>

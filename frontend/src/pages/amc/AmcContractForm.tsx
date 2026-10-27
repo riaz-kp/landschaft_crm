@@ -4,10 +4,11 @@ import { useDb } from '../../state/useDb'
 import { addDays, formatDate, formatDateLong, today } from '../../domain/format'
 import { SCHEDULE_PRESETS, addMonths, describeSchedule, plannedDates } from '../../domain/amc'
 import type { ID, MaintenanceRecord, RecurrenceUnit } from '../../domain/types'
-import { Checkbox, Field, FormError, Modal } from '../../components/ui'
+import { Field, FormError, Modal } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { SearchSelect } from '../../components/SearchSelect'
 import { projectOptions } from '../../components/pickerOptions'
+import { AmcTeamPicker } from './AmcTeamPicker'
 
 /** Everything the AMC form edits, as plain form values. */
 export interface AmcDraft {
@@ -80,7 +81,6 @@ export function validateAmc(d: AmcDraft): string | null {
  * schedule will put on the AMC calendar.
  */
 export function AmcFields({ draft, onChange }: { draft: AmcDraft; onChange: (d: AmcDraft) => void }) {
-  const db = useDb()
   const set = (patch: Partial<AmcDraft>) => onChange({ ...draft, ...patch })
   const preset = SCHEDULE_PRESETS.find((p) => p.every === draft.every && p.unit === draft.unit)
   const preview = plannedDates({
@@ -166,16 +166,7 @@ export function AmcFields({ draft, onChange }: { draft: AmcDraft; onChange: (d: 
 
       <div>
         <p className="label">AMC team<span className="ml-0.5 text-red-500">*</span></p>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {db.workers.filter((w) => w.active).map((w) => (
-            <Checkbox
-              key={w.id}
-              checked={draft.teamIds.includes(w.id)}
-              onChange={(on) => set({ teamIds: on ? [...draft.teamIds, w.id] : draft.teamIds.filter((id) => id !== w.id) })}
-              label={<>{w.name} <span className="text-xs text-stone-400">{w.skill}</span></>}
-            />
-          ))}
-        </div>
+        <AmcTeamPicker className="mt-2 sm:grid-cols-3" value={draft.teamIds} onChange={(teamIds) => set({ teamIds })} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

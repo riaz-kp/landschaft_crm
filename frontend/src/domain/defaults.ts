@@ -16,7 +16,7 @@ export function defaultSettings(): Settings {
     holidays: [],
     workHours: { start: '09:00', end: '18:00', halfDayEnd: '13:30' },
     workerSkills: [
-      'Carpenter', 'Driver / Helper', 'Electrician', 'Foreman / AMC', 'Foreman / Hardscape', 'Foreman / Lawn', 'Foreman / Planting',
+      'Carpenter', 'Driver / Helper', 'Electrician', 'Foreman / Hardscape', 'Foreman / Lawn', 'Foreman / Planting',
       'Gardener', 'Helper', 'Lawn Specialist', 'Mason', 'Painter', 'Plumber / Irrigation', 'Tile & Paver Layer',
       'Welder / Fabricator',
     ],

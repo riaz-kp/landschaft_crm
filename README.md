@@ -387,8 +387,9 @@ replaced the seeded people with the confirmed structure:
   reports stays with Jidhin by practice.
 - **Execution foremen** are Shakir, Vishnu and Shadil. They replace the names
   from the CRM document's example report table and keep their sites and history.
-- **AMC foremen** Manoj and Chandran are in the AMC department. Like the
-  execution foremen, each has a crew record, so they can be put on AMC teams.
+- **AMC foremen** Manoj and Chandran are in the AMC department. An AMC team
+  is picked from the AMC department's staff as well as the site workers, so
+  they go on visits as themselves, with no worker record of their own.
 - **Workers**: the 15 planters, plus one on long leave. Their names are invented
   for the demo; the document doesn't give them.
 

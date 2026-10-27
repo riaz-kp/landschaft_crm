@@ -42,8 +42,8 @@ export const employees: Employee[] = [
 ]
 
 /**
- * Site labour. Workers are recorded by foremen and do not log in. The foremen
- * have a crew record of their own, so they count on reports and AMC teams; the
+ * Site labour. Workers are recorded by foremen and do not log in. The execution
+ * foremen have a crew record of their own, so they count on daily reports; the
  * rest are the 15 planters (and one on long leave).
  */
 export const workers: Worker[] = [
@@ -53,7 +53,6 @@ export const workers: Worker[] = [
   { id: 'w4', name: 'Junaid', skill: 'Mason', phone: '+91 97450 20004', active: true, joinedOn: '2022-08-01', dailyWage: 1100 },
   { id: 'w5', name: 'Rafeeq', skill: 'Mason', phone: '+91 97450 20005', active: true, joinedOn: '2023-01-16', dailyWage: 1100 },
   { id: 'w6', name: 'Sabu', skill: 'Gardener', phone: '+91 97450 20006', active: true, joinedOn: '2021-09-06', dailyWage: 950 },
-  { id: 'w7', name: 'Manoj', skill: 'Foreman / AMC', phone: '+91 97450 20007', active: true, joinedOn: '2023-05-08', dailyWage: 1000 },
   { id: 'w8', name: 'Vinod', skill: 'Helper', phone: '+91 97450 20008', active: true, joinedOn: '2024-02-12', dailyWage: 850 },
   { id: 'w9', name: 'Salim', skill: 'Plumber / Irrigation', phone: '+91 97450 20009', active: true, joinedOn: '2022-10-10', dailyWage: 1200 },
   { id: 'w10', name: 'Faisal', skill: 'Electrician', phone: '+91 97450 20010', active: true, joinedOn: '2023-07-03', dailyWage: 1200 },
@@ -67,7 +66,6 @@ export const workers: Worker[] = [
   { id: 'w18', name: 'Riyas', skill: 'Gardener', phone: '+91 97450 20018', active: true, joinedOn: '2022-06-27', dailyWage: 950 },
   { id: 'w19', name: 'Sunil', skill: 'Helper', phone: '+91 97450 20019', active: true, joinedOn: '2024-08-05', dailyWage: 850 },
   { id: 'w20', name: 'Hamza', skill: 'Lawn Specialist', phone: '+91 97450 20020', active: true, joinedOn: '2021-11-15', dailyWage: 1050 },
-  { id: 'w21', name: 'Chandran', skill: 'Foreman / AMC', phone: '+91 97450 20021', active: true, joinedOn: '2022-09-12', dailyWage: 1000 },
 ]
 
 /** Company holidays on top of the Sunday weekly off. */
@@ -633,35 +631,35 @@ const marineStart = addDays(today(), -45)
 export const maintenance: MaintenanceRecord[] = [
   {
     id: 'm1', projectId: 'p7', type: 'Free Maintenance', startDate: '2026-07-01', endDate: '2026-07-31',
-    teamIds: ['w6', 'w7'], scopeOfWork: 'Weekly plant care, lawn mowing, irrigation checks and snag rectification.',
+    teamIds: ['e15', 'w6'], scopeOfWork: 'Weekly plant care, lawn mowing, irrigation checks and snag rectification.',
     visitSchedule: 'Weekly — every Tuesday',
     schedule: { every: 1, unit: 'week', firstVisit: '2026-07-07', reminderDaysBefore: 1 },
     visits: [
-      { id: 'mv1', date: '2026-07-07', teamIds: ['w6', 'w7'], notes: 'Lawn mowing and first fertiliser round.', issues: [], photoCount: 4, done: true },
+      { id: 'mv1', date: '2026-07-07', teamIds: ['e15', 'w6'], notes: 'Lawn mowing and first fertiliser round.', issues: [], photoCount: 4, done: true },
       { id: 'mv2', date: '2026-07-14', teamIds: ['w6'], notes: 'Pruning and irrigation nozzle check.', issues: ['Two drip emitters blocked, replaced.'], photoCount: 3, done: true },
-      { id: 'mv3', date: '2026-07-21', teamIds: ['w6', 'w7'], notes: 'Lawn mowing, weed removal.', issues: [], photoCount: 5, done: true },
+      { id: 'mv3', date: '2026-07-21', teamIds: ['e15', 'w6'], notes: 'Lawn mowing, weed removal.', issues: [], photoCount: 5, done: true },
       { id: 'mv4', date: '2026-07-28', teamIds: ['w6'], notes: 'Final free-maintenance visit and handover walkthrough.', issues: [], photoCount: 6, done: true },
     ],
   },
   {
     id: 'm2', projectId: 'p7', type: 'AMC', startDate: seaBreezeStart, endDate: addDays(seaBreezeStart, 364),
-    teamIds: ['w6', 'w7'], scopeOfWork: 'Fortnightly plant health care, lawn maintenance, irrigation servicing, seasonal replanting and pest control.',
+    teamIds: ['e15', 'w6'], scopeOfWork: 'Fortnightly plant health care, lawn maintenance, irrigation servicing, seasonal replanting and pest control.',
     visitSchedule: 'Fortnightly — client prefers mornings',
     schedule: { every: 2, unit: 'week', firstVisit: addDays(seaBreezeStart, 3), reminderDaysBefore: 7 },
     renewalDate: addDays(seaBreezeStart, 364), renewalReminderDays: 60, value: 240000,
-    visits: pastVisits('m2v', addDays(seaBreezeStart, 3), 14, ['w6', 'w7'], 'Sea Breeze Villa'),
+    visits: pastVisits('m2v', addDays(seaBreezeStart, 3), 14, ['e15', 'w6'], 'Sea Breeze Villa'),
     // The client's report link is on: /portal/amc/demo-sea-breeze-amc
     shareToken: 'demo-sea-breeze-amc',
   },
   {
     // An AMC sold on its own — monthly visits, reminded three days ahead.
     id: 'm3', projectId: 'p9', type: 'AMC', startDate: marineStart, endDate: addDays(marineStart, 364),
-    teamIds: ['w21', 'w14', 'w18'], scopeOfWork: 'Monthly upkeep of the podium garden, terrace planters and common-area lawns, with quarterly replanting.',
+    teamIds: ['e16', 'w14', 'w18'], scopeOfWork: 'Monthly upkeep of the podium garden, terrace planters and common-area lawns, with quarterly replanting.',
     visitSchedule: 'Monthly — association office opens at 9:30',
     schedule: { every: 1, unit: 'month', firstVisit: addDays(marineStart, 5), reminderDaysBefore: 3 },
     renewalDate: addDays(marineStart, 364), renewalReminderDays: 45, value: 180000,
     visits: [
-      { id: 'm3v1', date: addDays(marineStart, 5), teamIds: ['w21', 'w14', 'w18'], notes: 'First visit — full survey of the podium and terraces.', issues: ['Terrace planter drainage blocked on 7th floor.'], photoCount: 9, done: true },
+      { id: 'm3v1', date: addDays(marineStart, 5), teamIds: ['e16', 'w14', 'w18'], notes: 'First visit — full survey of the podium and terraces.', issues: ['Terrace planter drainage blocked on 7th floor.'], photoCount: 9, done: true },
     ],
   },
 ]
