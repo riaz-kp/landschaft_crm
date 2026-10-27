@@ -3,10 +3,10 @@ import type { Project } from '../domain/types'
 import { store, type DbShape } from './store'
 
 // The offline demo (VITE_DEMO_MODE=true): the seed data, kept in this browser.
-// v4 adds AMC as a project service with repeat visit schedules, project remarks,
-// staff pay records and lead WhatsApp numbers. The key is unchanged from the
-// prototype, so anything entered there is still here.
-const STORAGE_KEY = 'landschaft-crm-prototype-v4'
+// v4 added AMC as a project service with repeat visit schedules, project remarks,
+// staff pay records and lead WhatsApp numbers. v5 is the revised company
+// structure (hierarchy v2): new foremen, the Site Supervisor and the AMC foremen.
+const STORAGE_KEY = 'landschaft-crm-prototype-v5'
 
 type Seed = typeof import('../mock/seed')
 

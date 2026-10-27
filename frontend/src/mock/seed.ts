@@ -13,34 +13,47 @@ import type { ChecklistTick } from '../domain/types'
 
 const phase = (enabled: boolean, progress = 0): Phase => ({ enabled, progress })
 
-/** The organisational structure supplied by the client, reproduced verbatim. */
+/**
+ * The company structure from the client's revised hierarchy (v2): names,
+ * confirmed designations and reporting lines as the document gives them.
+ */
 export const employees: Employee[] = [
   { id: 'e0', name: 'System Administrator', role: 'super_admin', department: 'Management', phone: '+91 90000 00000', email: 'admin@landschaft.in' },
-  { id: 'e1', name: 'Ashfaq', role: 'ceo', department: 'Management', phone: '+91 98470 11001', email: 'ashfaq@landschaft.in' },
+  { id: 'e1', name: 'Ashfaq', role: 'ceo', designation: 'CEO & Founder; Operations Head', department: 'Management', phone: '+91 98470 11001', email: 'ashfaq@landschaft.in' },
   { id: 'e2', name: 'Anees', role: 'design_director', designation: 'Co-Founder & Design Director', department: 'Design', reportsTo: 'e1', phone: '+91 98470 11002', email: 'anees@landschaft.in' },
-  { id: 'e3', name: 'Sai Krishna', role: 'design_pm', department: 'Design', reportsTo: 'e2', phone: '+91 98470 11003', email: 'saikrishna@landschaft.in' },
-  { id: 'e4', name: 'Mustafa', role: 'design_member', department: 'Design', reportsTo: 'e3', phone: '+91 98470 11004', email: 'mustafa@landschaft.in' },
-  { id: 'e5', name: 'Nihal', role: 'design_member', department: 'Design', reportsTo: 'e3', phone: '+91 98470 11005', email: 'nihal@landschaft.in' },
-  { id: 'e6', name: 'Thameem', role: 'execution_head', department: 'Execution', reportsTo: 'e1', phone: '+91 98470 11006', email: 'thameem@landschaft.in' },
-  { id: 'e7', name: 'Jidhin', role: 'execution_pm', department: 'Execution', reportsTo: 'e6', phone: '+91 98470 11007', email: 'jidhin@landschaft.in' },
-  { id: 'e8', name: 'Arshad', role: 'accounts', department: 'Accounts', reportsTo: 'e1', phone: '+91 98470 11008', email: 'arshad@landschaft.in' },
-  { id: 'e9', name: 'Anaswara', role: 'accounts', department: 'Accounts', reportsTo: 'e8', phone: '+91 98470 11009', email: 'anaswara@landschaft.in' },
-  { id: 'e10', name: 'Swalih', role: 'marketing', department: 'Marketing', reportsTo: 'e1', phone: '+91 98470 11010', email: 'swalih@landschaft.in' },
-  // Site work heads / foremen — each gets their own login.
-  { id: 'e11', name: 'Ashiq', role: 'foreman', department: 'Execution', reportsTo: 'e7', phone: '+91 98470 11011', email: 'ashiq@landschaft.in', monthlySalary: 28000, joinedOn: '2021-06-14' },
-  { id: 'e12', name: 'Niyas', role: 'foreman', department: 'Execution', reportsTo: 'e7', phone: '+91 98470 11012', email: 'niyas@landschaft.in', monthlySalary: 30000, joinedOn: '2020-11-02' },
-  { id: 'e13', name: 'Shihab', role: 'foreman', department: 'Execution', reportsTo: 'e7', phone: '+91 98470 11013', email: 'shihab@landschaft.in', monthlySalary: 27000, joinedOn: '2022-03-21' },
+  { id: 'e3', name: 'Sai Krishna', role: 'design_pm', designation: 'Design Project Manager', department: 'Design', reportsTo: 'e2', phone: '+91 98470 11003', email: 'saikrishna@landschaft.in' },
+  { id: 'e4', name: 'Musthafa', role: 'design_member', designation: 'Senior Designer', department: 'Design', reportsTo: 'e3', phone: '+91 98470 11004', email: 'musthafa@landschaft.in' },
+  { id: 'e5', name: 'Nihal', role: 'design_member', designation: 'Design Intern', department: 'Design', reportsTo: 'e3', phone: '+91 98470 11005', email: 'nihal@landschaft.in' },
+  { id: 'e6', name: 'Thameem', role: 'execution_head', designation: 'Head of Execution & Maintenance', department: 'Execution', reportsTo: 'e1', phone: '+91 98470 11006', email: 'thameem@landschaft.in', responsibilities: ['Heads the AMC / Maintenance department as well as Execution'] },
+  { id: 'e7', name: 'Jidhin', role: 'execution_pm', designation: 'Execution Project Manager', department: 'Execution', reportsTo: 'e6', phone: '+91 98470 11007', email: 'jidhin@landschaft.in' },
+  { id: 'e8', name: 'Arshad', role: 'accounts', designation: 'Accounts Manager', department: 'Accounts', reportsTo: 'e1', phone: '+91 98470 11008', email: 'arshad@landschaft.in' },
+  { id: 'e9', name: 'Anaswara', role: 'accounts', designation: 'Accountant', department: 'Accounts', reportsTo: 'e8', phone: '+91 98470 11009', email: 'anaswara@landschaft.in' },
+  { id: 'e10', name: 'Swalih', role: 'marketing', designation: 'Marketing Executive', department: 'Marketing', reportsTo: 'e1', phone: '+91 98470 11010', email: 'swalih@landschaft.in' },
+  // The one Site Supervisor. Every foreman reports to him, so he uses the office
+  // app with the Execution PM's access; Jidhin still approves the daily reports.
+  { id: 'e14', name: 'Rohith', role: 'execution_pm', designation: 'Site Supervisor', department: 'Execution', reportsTo: 'e7', phone: '+91 98470 11014', email: 'rohith@landschaft.in', responsibilities: ['Supervises the execution and AMC foremen on site'] },
+  // Foremen — each gets their own login to the field app.
+  { id: 'e11', name: 'Shakir', role: 'foreman', designation: 'Execution Foreman', department: 'Execution', reportsTo: 'e14', phone: '+91 98470 11011', email: 'shakir@landschaft.in', monthlySalary: 28000, joinedOn: '2021-06-14' },
+  { id: 'e12', name: 'Vishnu', role: 'foreman', designation: 'Execution Foreman', department: 'Execution', reportsTo: 'e14', phone: '+91 98470 11012', email: 'vishnu@landschaft.in', monthlySalary: 30000, joinedOn: '2020-11-02' },
+  { id: 'e13', name: 'Shadil', role: 'foreman', designation: 'Execution Foreman', department: 'Execution', reportsTo: 'e14', phone: '+91 98470 11013', email: 'shadil@landschaft.in', monthlySalary: 27000, joinedOn: '2022-03-21' },
+  // AMC foremen report to Rohith on site; Thameem keeps oversight of the AMC department.
+  { id: 'e15', name: 'Manoj', role: 'foreman', designation: 'AMC Foreman', department: 'AMC', reportsTo: 'e14', phone: '+91 98470 11015', email: 'manoj@landschaft.in', monthlySalary: 26000, joinedOn: '2023-05-08' },
+  { id: 'e16', name: 'Chandran', role: 'foreman', designation: 'AMC Foreman', department: 'AMC', reportsTo: 'e14', phone: '+91 98470 11016', email: 'chandran@landschaft.in', monthlySalary: 26000, joinedOn: '2022-09-12' },
 ]
 
-/** Site labour. Workers are recorded by foremen and do not log in. */
+/**
+ * Site labour. Workers are recorded by foremen and do not log in. The foremen
+ * have a crew record of their own, so they count on reports and AMC teams; the
+ * rest are the 15 planters (and one on long leave).
+ */
 export const workers: Worker[] = [
-  { id: 'w1', name: 'Ashiq', skill: 'Foreman / Planting', phone: '+91 97450 20001', active: true, joinedOn: '2021-06-14', dailyWage: 1400 },
-  { id: 'w2', name: 'Niyas', skill: 'Foreman / Hardscape', phone: '+91 97450 20002', active: true, joinedOn: '2020-11-02', dailyWage: 1400 },
-  { id: 'w3', name: 'Shihab', skill: 'Foreman / Lawn', phone: '+91 97450 20003', active: true, joinedOn: '2022-03-21', dailyWage: 1350 },
+  { id: 'w1', name: 'Shakir', skill: 'Foreman / Planting', phone: '+91 97450 20001', active: true, joinedOn: '2021-06-14', dailyWage: 1400 },
+  { id: 'w2', name: 'Vishnu', skill: 'Foreman / Hardscape', phone: '+91 97450 20002', active: true, joinedOn: '2020-11-02', dailyWage: 1400 },
+  { id: 'w3', name: 'Shadil', skill: 'Foreman / Lawn', phone: '+91 97450 20003', active: true, joinedOn: '2022-03-21', dailyWage: 1350 },
   { id: 'w4', name: 'Junaid', skill: 'Mason', phone: '+91 97450 20004', active: true, joinedOn: '2022-08-01', dailyWage: 1100 },
   { id: 'w5', name: 'Rafeeq', skill: 'Mason', phone: '+91 97450 20005', active: true, joinedOn: '2023-01-16', dailyWage: 1100 },
   { id: 'w6', name: 'Sabu', skill: 'Gardener', phone: '+91 97450 20006', active: true, joinedOn: '2021-09-06', dailyWage: 950 },
-  { id: 'w7', name: 'Manoj', skill: 'Gardener', phone: '+91 97450 20007', active: true, joinedOn: '2023-05-08', dailyWage: 950 },
+  { id: 'w7', name: 'Manoj', skill: 'Foreman / AMC', phone: '+91 97450 20007', active: true, joinedOn: '2023-05-08', dailyWage: 1000 },
   { id: 'w8', name: 'Vinod', skill: 'Helper', phone: '+91 97450 20008', active: true, joinedOn: '2024-02-12', dailyWage: 850 },
   { id: 'w9', name: 'Salim', skill: 'Plumber / Irrigation', phone: '+91 97450 20009', active: true, joinedOn: '2022-10-10', dailyWage: 1200 },
   { id: 'w10', name: 'Faisal', skill: 'Electrician', phone: '+91 97450 20010', active: true, joinedOn: '2023-07-03', dailyWage: 1200 },
@@ -54,6 +67,7 @@ export const workers: Worker[] = [
   { id: 'w18', name: 'Riyas', skill: 'Gardener', phone: '+91 97450 20018', active: true, joinedOn: '2022-06-27', dailyWage: 950 },
   { id: 'w19', name: 'Sunil', skill: 'Helper', phone: '+91 97450 20019', active: true, joinedOn: '2024-08-05', dailyWage: 850 },
   { id: 'w20', name: 'Hamza', skill: 'Lawn Specialist', phone: '+91 97450 20020', active: true, joinedOn: '2021-11-15', dailyWage: 1050 },
+  { id: 'w21', name: 'Chandran', skill: 'Foreman / AMC', phone: '+91 97450 20021', active: true, joinedOn: '2022-09-12', dailyWage: 1000 },
 ]
 
 /** Company holidays on top of the Sunday weekly off. */
@@ -242,8 +256,8 @@ export const projects: Project[] = [
   },
 ]
 
-/** Foreman → site assignments. Ashiq runs Edava, Niyas Kozhikode and Kovalam,
- *  Shihab Kochi — matching the document's example report table. */
+/** Foreman → site assignments. Shakir runs Edava, Vishnu Kozhikode and Kovalam,
+ *  Shadil Kochi — the sites of the document's example report table. */
 export const siteAssignments: SiteAssignment[] = [
   { foremanId: 'e11', projectId: 'p4' },
   { foremanId: 'e11', projectId: 'p2' },
@@ -369,10 +383,10 @@ function sitePhotos(
 }
 
 /**
- * Today's site reports, matching the document's example table:
- * Edava / Ashiq / 1 / Planting / Submitted
- * Kozhikode / Niyas / 6 / Hardscape / Approved
- * Kochi / Shihab / 4 / Lawn work / Pending
+ * Today's site reports, after the document's example table:
+ * Edava / Shakir / 1 / Planting / Submitted
+ * Kozhikode / Vishnu / 6 / Hardscape / Approved
+ * Kochi / Shadil / 3 / Lawn work / Pending
  */
 const recentReports: DailyWorkReport[] = [
   {
@@ -408,7 +422,7 @@ const recentReports: DailyWorkReport[] = [
   {
     // Still a draft: the morning photo is in, the evening one is still to come.
     id: 'r3', projectId: 'p8', siteLocation: 'Kochi', date: today(), foremanId: 'e13',
-    attendance: present(['w3', 'w6', 'w14', 'w7'], ['w3', 'w6', 'w14', 'w7', 'w20'], '09:30', '16:30'),
+    attendance: present(['w3', 'w6', 'w14'], ['w3', 'w6', 'w14', 'w20'], '09:30', '16:30'),
     startTime: '09:30', endTime: '16:30', otHours: 0,
     workDone: ['Lawn work — levelling and grading at the front lawn'],
     issues: [],
@@ -489,9 +503,9 @@ const recentReports: DailyWorkReport[] = [
  * ever in two places on one day.
  */
 const ROTATION: { foremanId: string; even: string; odd: string; crews: Record<string, string[]> }[] = [
-  { foremanId: 'e11', even: 'p4', odd: 'p2', crews: { p4: ['w1', 'w8', 'w11', 'w6'], p2: ['w1', 'w18', 'w19', 'w20', 'w7'] } },
+  { foremanId: 'e11', even: 'p4', odd: 'p2', crews: { p4: ['w1', 'w8', 'w11', 'w6'], p2: ['w1', 'w18', 'w19', 'w20'] } },
   { foremanId: 'e12', even: 'p5', odd: 'p3', crews: { p5: ['w2', 'w4', 'w5', 'w13'], p3: ['w2', 'w9', 'w10', 'w15', 'w16', 'w17'] } },
-  { foremanId: 'e13', even: 'p2', odd: 'p8', crews: { p2: ['w3', 'w18', 'w19', 'w20', 'w7'], p8: ['w3', 'w6', 'w14', 'w8', 'w11'] } },
+  { foremanId: 'e13', even: 'p2', odd: 'p8', crews: { p2: ['w3', 'w18', 'w19', 'w20'], p8: ['w3', 'w6', 'w14', 'w8', 'w11'] } },
 ]
 
 const WORK_LINES: Record<string, string[]> = {
@@ -642,12 +656,12 @@ export const maintenance: MaintenanceRecord[] = [
   {
     // An AMC sold on its own — monthly visits, reminded three days ahead.
     id: 'm3', projectId: 'p9', type: 'AMC', startDate: marineStart, endDate: addDays(marineStart, 364),
-    teamIds: ['w14', 'w18'], scopeOfWork: 'Monthly upkeep of the podium garden, terrace planters and common-area lawns, with quarterly replanting.',
+    teamIds: ['w21', 'w14', 'w18'], scopeOfWork: 'Monthly upkeep of the podium garden, terrace planters and common-area lawns, with quarterly replanting.',
     visitSchedule: 'Monthly — association office opens at 9:30',
     schedule: { every: 1, unit: 'month', firstVisit: addDays(marineStart, 5), reminderDaysBefore: 3 },
     renewalDate: addDays(marineStart, 364), renewalReminderDays: 45, value: 180000,
     visits: [
-      { id: 'm3v1', date: addDays(marineStart, 5), teamIds: ['w14', 'w18'], notes: 'First visit — full survey of the podium and terraces.', issues: ['Terrace planter drainage blocked on 7th floor.'], photoCount: 9, done: true },
+      { id: 'm3v1', date: addDays(marineStart, 5), teamIds: ['w21', 'w14', 'w18'], notes: 'First visit — full survey of the podium and terraces.', issues: ['Terrace planter drainage blocked on 7th floor.'], photoCount: 9, done: true },
     ],
   },
 ]
@@ -778,7 +792,7 @@ const at = (daysAgo: number, time: string) => `${addDays(today(), -daysAgo)}T${t
 
 /** Each project's remarks thread — the team's WhatsApp-style conversation. */
 export const projectMessages: ProjectMessage[] = [
-  { id: 'pm1', projectId: 'p3', authorId: 'e7', text: 'Pool deck paving starts tomorrow. Niyas, please confirm the paver count at the yard today.', at: at(3, '17:42') },
+  { id: 'pm1', projectId: 'p3', authorId: 'e7', text: 'Pool deck paving starts tomorrow. Vishnu, please confirm the paver count at the yard today.', at: at(3, '17:42') },
   { id: 'pm2', projectId: 'p3', authorId: 'e12', text: 'Checked — we are 200 short. Supplier says Thursday.', at: at(3, '18:05') },
   { id: 'pm3', projectId: 'p3', authorId: 'e6', text: 'Start from the shallow end so the gap does not hold up the edge detail.', at: at(3, '18:20') },
   { id: 'pm4', projectId: 'p3', authorId: 'e3', text: 'Edge detail drawing R2 is in Documents — the coping overhang changed to 40 mm.', at: at(2, '10:14') },
@@ -798,7 +812,7 @@ export const projectMessages: ProjectMessage[] = [
   { id: 'pm15', projectId: 'p5', authorId: 'e5', text: 'Revised walkway alignment sent to the association for sign-off.', at: at(2, '12:20') },
   { id: 'pm16', projectId: 'p5', authorId: 'e12', text: 'Holding kerb casting on the north side until they approve.', at: at(2, '12:45') },
 
-  { id: 'pm17', projectId: 'p9', authorId: 'e6', text: 'Next monthly visit coming up — Bijoy and Riyas, carry the planter drainage kit for the 7th floor.', at: at(1, '10:00') },
+  { id: 'pm17', projectId: 'p9', authorId: 'e6', text: 'Next monthly visit coming up — Chandran, have Bijoy and Riyas carry the planter drainage kit for the 7th floor.', at: at(1, '10:00') },
 ]
 
 /**
