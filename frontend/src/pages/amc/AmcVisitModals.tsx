@@ -9,9 +9,9 @@ import { RepeaterList } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
 import { StoredImg } from '../../components/StoredImage'
 import { Lightbox } from '../../components/Lightbox'
-import { FileLink, uploadDocument } from '../../components/FileLink'
+import { FileLink, LinkField, uploadDocument } from '../../components/FileLink'
 import { compressImage } from '../../components/imageResize'
-import { storePhoto } from '../../data/files'
+import { isLink, storePhoto } from '../../data/files'
 import { AmcTeamPicker } from './AmcTeamPicker'
 
 /**
@@ -32,6 +32,7 @@ function VisitAttachments({
   const [busy, setBusy] = useState<'photos' | 'files' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [viewing, setViewing] = useState<number | null>(null)
+  const [linking, setLinking] = useState(false)
 
   const run = async (kind: 'photos' | 'files', list: FileList | null, each: (file: File) => Promise<void>) => {
     if (!list?.length) return
@@ -112,16 +113,29 @@ function VisitAttachments({
       <div>
         <div className="mb-2 flex items-center justify-between gap-2">
           <p className="label">Report documents <span className="font-normal normal-case text-stone-400">· {files.length}</span></p>
-          <button type="button" disabled={busy !== null} onClick={() => fileRef.current?.click()} className="btn-secondary py-1 text-xs disabled:opacity-60">
-            <Icon name="clip" className="h-3.5 w-3.5" /> Attach
-          </button>
+          <div className="flex gap-1.5">
+            <button type="button" onClick={() => setLinking(!linking)} aria-expanded={linking} className="btn-secondary py-1 text-xs">
+              <Icon name="link" className="h-3.5 w-3.5" /> Add link
+            </button>
+            <button type="button" disabled={busy !== null} onClick={() => fileRef.current?.click()} className="btn-secondary py-1 text-xs disabled:opacity-60">
+              <Icon name="clip" className="h-3.5 w-3.5" /> Attach
+            </button>
+          </div>
         </div>
+        {linking && (
+          <div className="mb-2">
+            <LinkField
+              onAdd={(link) => { onFiles([...files, { name: link.name, file: link.url }]); setLinking(false) }}
+              onCancel={() => setLinking(false)}
+            />
+          </div>
+        )}
         {busy === 'files' && <p className="mb-2 text-xs text-stone-500">Uploading…</p>}
         {files.length > 0 ? (
           <ul className="flex flex-wrap gap-1.5">
             {files.map((f, i) => (
               <li key={`${f.name}-${i}`} className="flex items-center gap-1.5 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-600 ring-1 ring-inset ring-stone-200">
-                <Icon name="doc" className="h-3.5 w-3.5 text-stone-400" />
+                <Icon name={isLink(f.file) ? 'link' : 'doc'} className="h-3.5 w-3.5 text-stone-400" />
                 <FileLink file={f.file} name={f.name} className="max-w-[200px] truncate" />
                 <button type="button" onClick={() => onFiles(files.filter((_, j) => j !== i))} className="text-stone-400 hover:text-red-600" aria-label={`Remove ${f.name}`}>
                   <Icon name="x" className="h-3.5 w-3.5" />
@@ -130,7 +144,7 @@ function VisitAttachments({
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-stone-400">A service sheet or signed report, if there is one (PDF, image…).</p>
+          <p className="text-xs text-stone-400">A service sheet or signed report, if there is one: the file (PDF, image…) or a link to it.</p>
         )}
       </div>
       {error && <p className="text-xs font-medium text-red-600">{error}</p>}

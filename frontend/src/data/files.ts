@@ -5,6 +5,8 @@ import { DEMO_MODE, supabase } from '../lib/supabase'
  * reference — "sb:" plus the path in the bucket — and the app shows the file
  * through a short-lived signed URL. Older records, the demo, and a photo taken
  * with no connection hold a data URL instead, which still displays as it is.
+ * A document can also be a link to where it is kept — a Google Drive share
+ * pasted in place of uploading the file — which opens as it is.
  */
 
 const BUCKET = 'files'
@@ -14,6 +16,8 @@ const URL_SECONDS = 3600
 const RENEW_MS = 50 * 60_000
 
 export const isStoredFile = (value?: string): value is string => Boolean(value?.startsWith(PREFIX))
+
+export const isLink = (value?: string): value is string => /^https?:\/\//i.test(value ?? '')
 
 const pathOf = (ref: string) => ref.slice(PREFIX.length)
 

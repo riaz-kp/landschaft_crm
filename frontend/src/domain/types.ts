@@ -577,9 +577,13 @@ export interface VisitPhoto {
 /** A document attached to a maintenance visit — a service sheet, a signed report. */
 export interface VisitFile {
   name: string
-  /** The file in the bucket ("sb:…"); absent in the demo, which keeps only the name. */
+  /**
+   * The file in the bucket ("sb:…"), or a link to where it is kept (a Google
+   * Drive share…). An upload in the demo keeps only the name.
+   */
   file?: string
-  sizeKb: number
+  /** Absent on a link. */
+  sizeKb?: number
 }
 
 export interface MaintenanceVisit {
@@ -683,12 +687,16 @@ export interface DocumentRecord {
   department?: ClientDepartment
   /** Set when the file is one of the documents the client handed over for the project. */
   clientDoc?: ClientDocKey
-  /** The file itself, in the file bucket ("sb:…"). Absent on records from before files were stored. */
+  /**
+   * The file itself, in the file bucket ("sb:…"), or a link to where it is kept
+   * (a Google Drive or Dropbox share). Absent on records from before files were stored.
+   */
   file?: string
   category: 'Drawing' | 'BOQ' | 'Contract' | 'Photo' | 'Report' | 'Other'
   uploadedBy: ID
   uploadedAt: string
-  sizeKb: number
+  /** Absent on a link. */
+  sizeKb?: number
 }
 
 export interface CalendarEvent {
