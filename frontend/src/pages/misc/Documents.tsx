@@ -34,7 +34,7 @@ export function Documents() {
         <StatTile label="Contracts" value={db.documents.filter((d) => d.category === 'Contract').length} />
         <StatTile
           label="Total Size"
-          value={size(db.documents.reduce((s, d) => s + d.sizeKb, 0))}
+          value={size(db.documents.reduce((s, d) => s + (d.sizeKb ?? 0), 0))}
         />
       </div>
 
@@ -69,7 +69,7 @@ export function Documents() {
                 <td className="td"><Badge tone="stone">{doc.category}</Badge></td>
                 <td className="td">{uploaderName(doc.uploadedBy)}</td>
                 <td className="td tabular-nums">{formatDate(doc.uploadedAt)}</td>
-                <td className="td tabular-nums">{size(doc.sizeKb)}</td>
+                <td className="td tabular-nums">{doc.sizeKb === undefined ? 'Link' : size(doc.sizeKb)}</td>
               </tr>
             ))}
           </Table>

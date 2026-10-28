@@ -4,10 +4,12 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatDate, today } from '../../domain/format'
 import { CLIENT_DOCS, clientDocProgress, type ClientDocItem } from '../../domain/clientDocs'
-import type { ClientDocKey, ClientDocTick, Project } from '../../domain/types'
+import type { ClientDocKey, ClientDocTick, DocumentRecord, Project } from '../../domain/types'
 import { Badge, ProgressBar, Section } from '../../components/ui'
 import { Icon } from '../../components/Icon'
-import { FileLink, uploadDocument } from '../../components/FileLink'
+import { FileLink, LinkField, uploadDocument } from '../../components/FileLink'
+import { linkName } from '../../components/docLinks'
+import { isLink } from '../../data/files'
 
 export type DocState = 'Pending' | ClientDocTick['status']
 const STATES: DocState[] = ['Pending', 'Received', 'Not Needed']
@@ -92,12 +94,32 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
   const [uploadFor, setUploadFor] = useState<ClientDocItem | null>(null)
   const [uploading, setUploading] = useState<ClientDocKey | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [linkFor, setLinkFor] = useState<ClientDocKey | null>(null)
   const { received, applicable } = clientDocProgress(project)
   const files = db.documents.filter((d) => d.projectId === project.id && d.clientDoc)
 
   const setState = (key: ClientDocKey, state: DocState, tick?: ClientDocTick) => {
     if (state === 'Pending') api.projects.setClientDoc(project.id, key, null, user.id)
     else api.projects.setClientDoc(project.id, key, { status: state, note: tick?.note, on: tick?.status === state ? tick.on : today() }, user.id)
+  }
+
+  const fileUnder = (item: ClientDocItem, doc: Pick<DocumentRecord, 'name' | 'file' | 'sizeKb'>) =>
+    api.documents.create({
+      ...doc,
+      projectId: project.id,
+      clientId: project.clientId,
+      // Filed on the client's record too, under the department that uses it.
+      department: project.services.design ? 'Design' : 'Execution',
+      clientDoc: item.key,
+      category: item.category,
+      uploadedBy: user.id,
+      uploadedAt: today(),
+    })
+
+  // A file or a link in hand means the document has been received.
+  const markReceived = (item: ClientDocItem) => {
+    const tick = project.clientDocs?.[item.key]
+    if (tick?.status !== 'Received') setState(item.key, 'Received', tick)
   }
 
   const upload = async (list: FileList | null) => {
@@ -110,28 +132,20 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
     for (const file of Array.from(list)) {
       try {
         const ref = await uploadDocument(file, `projects/${project.id}`)
-        api.documents.create({
-          name: file.name,
-          projectId: project.id,
-          clientId: project.clientId,
-          // Filed on the client's record too, under the department that uses it.
-          department: project.services.design ? 'Design' : 'Execution',
-          clientDoc: item.key,
-          category: item.category,
-          uploadedBy: user.id,
-          uploadedAt: today(),
-          sizeKb: Math.max(1, Math.round(file.size / 1024)),
-          file: ref,
-        })
+        fileUnder(item, { name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), file: ref })
         stored += 1
       } catch (e) {
         setUploadError((e as Error).message)
       }
     }
     setUploading(null)
-    // A file in hand means the document has been received.
-    const tick = project.clientDocs?.[item.key]
-    if (stored && tick?.status !== 'Received') setState(item.key, 'Received', tick)
+    if (stored) markReceived(item)
+  }
+
+  const addLink = (item: ClientDocItem, link: { name: string; url: string }) => {
+    fileUnder(item, { name: link.name, file: link.url })
+    setLinkFor(null)
+    markReceived(item)
   }
 
   return (
@@ -172,9 +186,30 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
                             : <Icon name="clip" className="h-4 w-4" />}
                         </button>
                       )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => setLinkFor(linkFor === item.key ? null : item.key)}
+                          className={`btn-icon h-8 w-8 ${linkFor === item.key ? 'bg-stone-100 text-stone-800' : ''}`}
+                          title={`Add a link to the ${item.label.toLowerCase()} — Google Drive, Dropbox…`} aria-label={`Add a link to the ${item.label}`}
+                          aria-expanded={linkFor === item.key}
+                        >
+                          <Icon name="link" className="h-4 w-4" />
+                        </button>
+                      )}
                       <DocStateToggle label={item.label} value={state} disabled={!canEdit} onChange={(s) => setState(item.key, s, tick)} />
                     </div>
                   </div>
+
+                  {linkFor === item.key && (
+                    <div className="mt-2">
+                      <LinkField
+                        onAdd={(link) => addLink(item, link)}
+                        onCancel={() => setLinkFor(null)}
+                        defaultName={(url) => `${item.label} — ${linkName(url)}`}
+                      />
+                    </div>
+                  )}
 
                   {tick?.status === 'Received' && (
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-stone-500">
@@ -206,9 +241,11 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
                     <ul className="mt-2 flex flex-wrap gap-1.5">
                       {attached.map((f) => (
                         <li key={f.id} className="flex items-center gap-1.5 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-600 ring-1 ring-inset ring-stone-200">
-                          <Icon name="doc" className="h-3.5 w-3.5 text-stone-400" />
+                          <Icon name={isLink(f.file) ? 'link' : 'doc'} className="h-3.5 w-3.5 text-stone-400" />
                           <FileLink file={f.file} name={f.name} className="max-w-[220px] truncate" />
-                          <span className="text-stone-400">{f.sizeKb >= 1024 ? `${(f.sizeKb / 1024).toFixed(1)} MB` : `${f.sizeKb} KB`}</span>
+                          {f.sizeKb !== undefined && (
+                            <span className="text-stone-400">{f.sizeKb >= 1024 ? `${(f.sizeKb / 1024).toFixed(1)} MB` : `${f.sizeKb} KB`}</span>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -220,7 +257,7 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
         ))}
       </div>
       <p className="border-t border-stone-100 px-5 py-3 text-xs text-stone-400">
-        Attached files also appear under Documents and on the client's {project.services.design ? 'Design' : 'Execution'} tab. Attaching a file marks the document received.
+        Attached files and links also appear under Documents and on the client's {project.services.design ? 'Design' : 'Execution'} tab. Attaching either marks the document received.
       </p>
     </Section>
   )

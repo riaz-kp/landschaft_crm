@@ -396,6 +396,22 @@ replaced the seeded people with the confirmed structure:
 The data version moved to v5, so browser data is replaced by the new seed on
 first load.
 
+## Document links
+
+Wherever a document can be uploaded, a link can be added instead, for a file
+kept on Google Drive, Dropbox or OneDrive, or one too big to upload:
+
+- a project's *Client Documents* tab, beside each item's attach button
+- a client's department *Attachments*
+- an AMC visit report, which the client sees on their report link
+
+Paste the link and, if you like, a name. Left blank, the name is made from the
+link: *Google Drive folder*, say, or the file name in a Dropbox link. Links
+are listed with the uploaded files and open in a new tab, and on the Client
+Documents tab adding one marks the document received, as a file does. Drive
+decides who may open a link, so share one the client will see as *Anyone with
+the link*.
+
 ## What the document asked to keep configurable
 
 These live in **Settings** rather than being hard-coded:

@@ -10,7 +10,7 @@ import {
 import { Icon } from '../../../components/Icon'
 import { SearchSelect } from '../../../components/SearchSelect'
 import { projectOptions } from '../../../components/pickerOptions'
-import { FileLink, MAX_FILE_MB, uploadDocument } from '../../../components/FileLink'
+import { FileLink, LinkField, MAX_FILE_MB, uploadDocument } from '../../../components/FileLink'
 
 /**
  * One department's desk on a client: the clarifications it is handling, the
@@ -211,10 +211,21 @@ function Attachments({ client, department }: { client: Client; department: Clien
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [linking, setLinking] = useState(false)
 
   const files = db.documents
     .filter((d) => d.clientId === client.id && d.department === department)
     .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
+
+  const fileHere = (doc: Pick<DocumentRecord, 'name' | 'file' | 'sizeKb'>) =>
+    api.documents.create({
+      ...doc,
+      clientId: client.id,
+      department,
+      category: categoryFor(doc.name),
+      uploadedBy: user.id,
+      uploadedAt: today(),
+    })
 
   const upload = async (list: FileList | null) => {
     const chosen = Array.from(list ?? [])
@@ -223,16 +234,7 @@ function Attachments({ client, department }: { client: Client; department: Clien
     for (const file of chosen) {
       try {
         const stored = await uploadDocument(file, `clients/${client.id}`)
-        api.documents.create({
-          name: file.name,
-          clientId: client.id,
-          department,
-          category: categoryFor(file.name),
-          uploadedBy: user.id,
-          uploadedAt: today(),
-          sizeKb: Math.max(1, Math.round(file.size / 1024)),
-          file: stored,
-        })
+        fileHere({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), file: stored })
       } catch (e) {
         setUploadError((e as Error).message)
       }
@@ -243,17 +245,32 @@ function Attachments({ client, department }: { client: Client; department: Clien
   return (
     <Section
       title={<span className="flex items-center gap-2"><Icon name="clip" className="h-4 w-4 text-stone-400" /> {department} Attachments</span>}
-      description={uploadError ? <span className="text-red-600">{uploadError}</span> : `Up to ${MAX_FILE_MB} MB a file. Click a file to open it.`}
-      actions={<>
-        <input
-          ref={inputRef} type="file" multiple className="hidden"
-          onChange={(e) => { void upload(e.target.files); e.target.value = '' }}
-        />
-        <button onClick={() => inputRef.current?.click()} disabled={uploading > 0} className="btn-secondary py-1.5 disabled:opacity-60">
-          <Icon name="upload" className="h-4 w-4" /> {uploading > 0 ? `Uploading ${uploading}…` : 'Upload'}
-        </button>
-      </>}
+      description={uploadError
+        ? <span className="text-red-600">{uploadError}</span>
+        : `Files up to ${MAX_FILE_MB} MB, or a link to one on Google Drive, Dropbox… Click one to open it.`}
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={inputRef} type="file" multiple className="hidden"
+            onChange={(e) => { void upload(e.target.files); e.target.value = '' }}
+          />
+          <button onClick={() => setLinking(!linking)} aria-expanded={linking} className="btn-secondary py-1.5">
+            <Icon name="link" className="h-4 w-4" /> Add link
+          </button>
+          <button onClick={() => inputRef.current?.click()} disabled={uploading > 0} className="btn-secondary py-1.5 disabled:opacity-60">
+            <Icon name="upload" className="h-4 w-4" /> {uploading > 0 ? `Uploading ${uploading}…` : 'Upload'}
+          </button>
+        </div>
+      }
     >
+      {linking && (
+        <div className="border-b border-stone-100 px-5 py-4">
+          <LinkField
+            onAdd={(link) => { fileHere({ name: link.name, file: link.url }); setLinking(false) }}
+            onCancel={() => setLinking(false)}
+          />
+        </div>
+      )}
       {files.length === 0 ? (
         <EmptyState title={`No ${department.toLowerCase()} files yet.`} />
       ) : (
@@ -264,7 +281,7 @@ function Attachments({ client, department }: { client: Client; department: Clien
               <td className="td"><Badge tone="stone">{doc.category}</Badge></td>
               <td className="td">{db.employees.find((e) => e.id === doc.uploadedBy)?.name ?? '—'}</td>
               <td className="td tabular-nums">{formatDate(doc.uploadedAt)}</td>
-              <td className="td tabular-nums">{sizeLabel(doc.sizeKb)}</td>
+              <td className="td tabular-nums">{doc.sizeKb === undefined ? 'Link' : sizeLabel(doc.sizeKb)}</td>
             </tr>
           ))}
         </Table>
