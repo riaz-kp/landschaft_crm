@@ -12,7 +12,7 @@ import { AmcFields, draftToRecord, emptyAmcDraft, endOf, validateAmc, type AmcDr
 import { CHECKLISTS, commercialDocs } from '../../domain/commercial'
 import { AREA_UNITS, PROJECT_CATEGORIES, type AreaUnit, type ClientDocKey, type LatLng, type ProjectCategory, type RoleKey } from '../../domain/types'
 import { codeOwner, normaliseCode, suggestProjectCode } from '../../domain/projectInfo'
-import { ClientDocsPicker, type DocState } from './ClientDocuments'
+import { ClientDocsPicker, type DocState, type DraftDocFile } from './ClientDocuments'
 import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
 import { NoAccess } from '../misc/Fallbacks'
@@ -34,6 +34,8 @@ export function NewProject() {
   const db = useDb()
   const navigate = useNavigate()
   const { can } = usePermissions()
+  // Budget and values are Accounts' to see and set; anyone else opens the project without them.
+  const canSeeMoney = can('Accounts', 'view')
   const { user } = useSession()
   const [error, setError] = useState<string | null>(null)
   const [siteCoords, setSiteCoords] = useState<LatLng | undefined>()
@@ -41,6 +43,7 @@ export function NewProject() {
   const [intake, setIntake] = useState(intakeOf)
   const [money, setMoney] = useState(moneyOf)
   const [links, setLinks] = useState<{ name: string; url: string }[]>([])
+  const [docFiles, setDocFiles] = useState<DraftDocFile[]>([])
 
   const [form, setForm] = useState({
     code: suggestProjectCode(db.projects),
@@ -98,6 +101,7 @@ export function NewProject() {
       siteVisitRequired: design && intake.siteVisitRequired,
       feeBasis: intake.feeBasis || undefined,
       nextAction: intake.nextAction || undefined,
+      clientDocFiles: docFiles,
       documentLinks: links
         .filter((l) => toLink(l.url))
         .map((l) => ({ url: toLink(l.url)!, name: l.name.trim() || linkName(toLink(l.url)!) })),
@@ -286,7 +290,7 @@ export function NewProject() {
         </Section>
       )}
 
-      {(design || execution) && (
+      {canSeeMoney && (design || execution) && (
         <Section
           title="Budget & Project Value"
           description="The budget is what the client mentioned. The project values are fixed by Accounts, can change as the project goes on, and are what the dashboards show. Payment slabs come from Settings."
@@ -314,18 +318,23 @@ export function NewProject() {
 
       <Section
         title="Client Documents Received"
-        description="Mark what the client has already handed over. The rest stays pending on the project's Client Documents tab, where files can be attached."
+        description="Mark what the client has already handed over, and attach the files or paste links to them. Attaching either marks the document received. The rest stays pending on the project's Client Documents tab."
         className="mb-6"
         actions={<Badge tone="stone">{Object.values(clientDocs).filter((s) => s === 'Received').length} received</Badge>}
       >
         <div className="px-5 py-2">
-          <ClientDocsPicker value={clientDocs} onChange={(key, state) => setClientDocs((docs) => ({ ...docs, [key]: state }))} />
+          <ClientDocsPicker
+            value={clientDocs}
+            onChange={(key, state) => setClientDocs((docs) => ({ ...docs, [key]: state }))}
+            files={docFiles}
+            onFilesChange={setDocFiles}
+          />
         </div>
       </Section>
 
       <Section
-        title="Document Links"
-        description="Links to drawings, photos or briefs kept in Google Drive, Dropbox or elsewhere. They are filed under the project's documents."
+        title="Other Document Links"
+        description="Anything that is not one of the client documents above — briefs, references, reports — kept in Google Drive, Dropbox or elsewhere. They are filed under the project's documents."
         className="mb-6"
         actions={<button type="button" onClick={() => setLinks([...links, { name: '', url: '' }])} className="btn-secondary py-1.5"><Icon name="link" className="h-4 w-4" /> Add link</button>}
       >

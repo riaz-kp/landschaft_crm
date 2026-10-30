@@ -61,25 +61,135 @@ function DocLabel({ item }: { item: ClientDocItem }) {
   )
 }
 
-/** On New Project: mark what the client has already handed over. */
+/** A file or link attached on New Project, before the project exists. Filed under its document once it is created. */
+export interface DraftDocFile {
+  key: ClientDocKey
+  name: string
+  file?: string
+  sizeKb?: number
+}
+
+/**
+ * On New Project: mark what the client has already handed over, and attach
+ * the files or paste links to them — as on the project's Client Documents tab.
+ * Attaching either marks the document received.
+ */
 export function ClientDocsPicker({
-  value, onChange,
-}: { value: Partial<Record<ClientDocKey, DocState>>; onChange: (key: ClientDocKey, state: DocState) => void }) {
+  value, onChange, files, onFilesChange,
+}: {
+  value: Partial<Record<ClientDocKey, DocState>>
+  onChange: (key: ClientDocKey, state: DocState) => void
+  files: DraftDocFile[]
+  onFilesChange: (files: DraftDocFile[]) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [uploadFor, setUploadFor] = useState<ClientDocItem | null>(null)
+  const [uploading, setUploading] = useState<ClientDocKey | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [linkFor, setLinkFor] = useState<ClientDocKey | null>(null)
+
+  const add = (added: DraftDocFile[]) => {
+    if (!added.length) return
+    onFilesChange([...files, ...added])
+    onChange(added[0].key, 'Received')
+  }
+
+  // Uploaded straight away, so a file too large or a failed upload shows before the project is created.
+  const upload = async (list: FileList | null) => {
+    const item = uploadFor
+    if (!list || !item) return
+    setUploadFor(null)
+    setUploading(item.key)
+    setUploadError(null)
+    const stored: DraftDocFile[] = []
+    for (const file of Array.from(list)) {
+      try {
+        const ref = await uploadDocument(file, 'projects/new')
+        stored.push({ key: item.key, name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), file: ref })
+      } catch (e) {
+        setUploadError((e as Error).message)
+      }
+    }
+    setUploading(null)
+    add(stored)
+  }
+
   return (
     <div className="divide-y divide-stone-100">
+      <input
+        ref={inputRef} type="file" multiple className="hidden"
+        onChange={(e) => { void upload(e.target.files); e.target.value = '' }}
+      />
+      {uploadError && <p role="alert" className="my-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{uploadError}</p>}
       {groupedDocs().map(({ group, items }) => (
         <div key={group ?? items[0].key} className="py-2">
           {group && <p className="px-1 pb-1 pt-1 text-xs font-bold uppercase tracking-wider text-stone-400">{group}</p>}
-          {items.map((item) => (
-            <div key={item.key} className={`flex flex-wrap items-center justify-between gap-2 py-1.5 ${group ? 'pl-3' : ''}`}>
-              <DocLabel item={item} />
-              <DocStateToggle
-                label={item.label}
-                value={value[item.key] ?? 'Pending'}
-                onChange={(s) => onChange(item.key, s)}
-              />
-            </div>
-          ))}
+          {items.map((item) => {
+            const attached = files.filter((f) => f.key === item.key)
+            return (
+              <div key={item.key} className={`py-1.5 ${group ? 'pl-3' : ''}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <DocLabel item={item} />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setUploadFor(item); inputRef.current?.click() }}
+                      disabled={uploading !== null}
+                      className="btn-icon h-8 w-8 disabled:opacity-50" title={`Attach the ${item.label.toLowerCase()}`} aria-label={`Attach ${item.label}`}
+                    >
+                      {uploading === item.key
+                        ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                        : <Icon name="clip" className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLinkFor(linkFor === item.key ? null : item.key)}
+                      className={`btn-icon h-8 w-8 ${linkFor === item.key ? 'bg-stone-100 text-stone-800' : ''}`}
+                      title={`Add a link to the ${item.label.toLowerCase()} — Google Drive, Dropbox…`} aria-label={`Add a link to the ${item.label}`}
+                      aria-expanded={linkFor === item.key}
+                    >
+                      <Icon name="link" className="h-4 w-4" />
+                    </button>
+                    <DocStateToggle
+                      label={item.label}
+                      value={value[item.key] ?? 'Pending'}
+                      onChange={(s) => onChange(item.key, s)}
+                    />
+                  </div>
+                </div>
+
+                {linkFor === item.key && (
+                  <div className="mt-2">
+                    <LinkField
+                      onAdd={(link) => { add([{ key: item.key, name: link.name, file: link.url }]); setLinkFor(null) }}
+                      onCancel={() => setLinkFor(null)}
+                      defaultName={(url) => `${item.label} — ${linkName(url)}`}
+                    />
+                  </div>
+                )}
+
+                {attached.length > 0 && (
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {attached.map((f) => (
+                      <li key={files.indexOf(f)} className="flex items-center gap-1.5 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-600 ring-1 ring-inset ring-stone-200">
+                        <Icon name={isLink(f.file) ? 'link' : 'doc'} className="h-3.5 w-3.5 text-stone-400" />
+                        <FileLink file={f.file} name={f.name} className="max-w-[220px] truncate" />
+                        {f.sizeKb !== undefined && (
+                          <span className="text-stone-400">{f.sizeKb >= 1024 ? `${(f.sizeKb / 1024).toFixed(1)} MB` : `${f.sizeKb} KB`}</span>
+                        )}
+                        <button
+                          type="button" onClick={() => onFilesChange(files.filter((x) => x !== f))}
+                          className="text-stone-400 hover:text-red-600" aria-label={`Remove ${f.name}`}
+                        >
+                          <Icon name="x" className="h-3.5 w-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
         </div>
       ))}
     </div>

@@ -39,6 +39,8 @@ export interface NewProjectInput {
   nextAction?: NextAction
   /** Links to documents kept elsewhere (Google Drive…), filed on the project as it is opened. */
   documentLinks?: { name: string; url: string }[]
+  /** Files and links attached to the client documents as the project is opened. */
+  clientDocFiles?: { key: ClientDocKey; name: string; file?: string; sizeKb?: number }[]
   services: { design: boolean; execution: boolean; amc: boolean }
   /** The AMC contract created alongside the project when AMC is sold. */
   amc?: Omit<MaintenanceRecord, 'id' | 'projectId' | 'type' | 'visits'>

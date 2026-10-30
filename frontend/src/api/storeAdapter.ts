@@ -11,6 +11,8 @@ import { formatArea, normaliseCode, suggestProjectCode } from '../domain/project
 import { applyScope, describePhases } from '../domain/projectScope'
 import { projectType } from '../domain/progress'
 import { holders, stepFor } from '../domain/workflow'
+import { CLIENT_DOCS } from '../domain/clientDocs'
+import { hasPermission } from '../domain/roles'
 
 type WithId = { id: ID }
 
@@ -149,6 +151,14 @@ export const adapter: Api = {
             category: 'Other', uploadedBy: by, uploadedAt: today(),
           })
         }
+        for (const doc of input.clientDocFiles ?? []) {
+          db.documents.push({
+            id: nextId('d'), name: doc.name, file: doc.file, sizeKb: doc.sizeKb, projectId: id, clientId: input.clientId,
+            // Filed on the client's record too, under the department that uses it — as from the Client Documents tab.
+            department: input.services.design ? 'Design' : 'Execution', clientDoc: doc.key,
+            category: CLIENT_DOCS.find((d) => d.key === doc.key)?.category ?? 'Other', uploadedBy: by, uploadedAt: today(),
+          })
+        }
         // The design wing's first job is the scope proposal — given to the Design Director straight away.
         const designHead = db.employees.find((e) => e.role === 'design_director') ?? db.employees.find((e) => e.role === 'design_pm')
         if (input.services.design && designHead) {
@@ -216,10 +226,17 @@ export const adapter: Api = {
           projectId, kind: 'workflow-step', byId: by, title: step.label,
           detail: told.length ? `${notice} · told ${told.map((e) => e.name).join(', ')}` : undefined,
         })
-        if (told.length) {
+        // The amount goes only to those who can see Accounts; the rest, and the history, get the notice alone.
+        const amount = step.amount?.(project, db.settings)
+        const seesMoney = (e: Employee) => hasPermission(db.settings.permissions, e.role, 'Accounts', 'view')
+        const groups = amount
+          ? [{ people: told.filter(seesMoney), text: `${notice}, ${amount}` }, { people: told.filter((e) => !seesMoney(e)), text: notice }]
+          : [{ people: told, text: notice }]
+        for (const { people, text } of groups) {
+          if (!people.length) continue
           db.reminders.push({
-            id: nextId('rm'), title: `${project.code} · ${notice}`, date: today(), repeat: 'none',
-            notes: project.name, projectId, createdBy: by, forIds: told.map((e) => e.id), doneDates: [], notice: true,
+            id: nextId('rm'), title: `${project.code} · ${text}`, date: today(), repeat: 'none',
+            notes: project.name, projectId, createdBy: by, forIds: people.map((e) => e.id), doneDates: [], notice: true,
           })
         }
       })

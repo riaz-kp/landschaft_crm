@@ -15,6 +15,8 @@ export interface WorkflowStep {
   /** Roles told once it is ticked, and what they are asked to do. */
   notify: RoleKey[]
   notice: (project: Project, settings: Settings) => string
+  /** The payment it brings due, e.g. "₹60,000 (30%)" — shown only to people who can see Accounts. */
+  amount?: (project: Project, settings: Settings) => string
   applies: (project: Project) => boolean
 }
 
@@ -56,7 +58,8 @@ export const WORKFLOW: WorkflowStep[] = [
   {
     key: 'scopeConfirmed', stage: 'Design', label: 'Scope confirmed',
     owners: ['ceo', 'design_director'], notify: ['accounts', 'design_pm'],
-    notice: (p, s) => `Scope confirmed — collect the design advance, ${share(p.designValue, s.designPaymentSplit.concept)}`,
+    notice: () => 'Scope confirmed — collect the design advance',
+    amount: (p, s) => share(p.designValue, s.designPaymentSplit.concept),
     applies: designed,
   },
   {
@@ -68,7 +71,8 @@ export const WORKFLOW: WorkflowStep[] = [
   {
     key: 'conceptDone', stage: 'Design', label: 'Concept finished',
     owners: DESIGN_ROLES, notify: ['accounts'],
-    notice: (p, s) => `Concept finished — collect the 3D payment, ${share(p.designValue, s.designPaymentSplit.threeD)}`,
+    notice: () => 'Concept finished — collect the 3D payment',
+    amount: (p, s) => share(p.designValue, s.designPaymentSplit.threeD),
     applies: designed,
   },
   {
@@ -86,10 +90,8 @@ export const WORKFLOW: WorkflowStep[] = [
   {
     key: 'workStarted', stage: 'Execution', label: 'Work started on site',
     owners: EXECUTION_ROLES, notify: ['accounts'],
-    notice: (p, s) => {
-      const first = s.executionPaymentSlabs[0]
-      return first ? `Work started — collect ${first.label.toLowerCase()} payment, ${share(p.executionValue, first.percent)}` : 'Work started on site'
-    },
+    notice: (_, s) => (s.executionPaymentSlabs[0] ? `Work started — collect the ${s.executionPaymentSlabs[0].label.toLowerCase()} payment` : 'Work started on site'),
+    amount: (p, s) => (s.executionPaymentSlabs[0] ? share(p.executionValue, s.executionPaymentSlabs[0].percent) : ''),
     applies: executed,
   },
 ]

@@ -34,6 +34,8 @@ const COPY = {
 export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' | 'amc' }) {
   const db = useDb()
   const { can } = usePermissions()
+  // Values are Accounts' business; other roles see the projects without them.
+  const canSeeMoney = can('Accounts', 'view')
   const [category, setCategory] = useState<ProjectCategory | 'all'>('all')
 
   const inSection = db.projects.filter((p) => {
@@ -77,7 +79,7 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
         {projects.length === 0 ? (
           <EmptyState title="No projects here yet." />
         ) : (
-          <Table head={['Project', 'Client', 'Site', 'Project Type', 'Manager', 'Value', 'Progress', 'Status']}>
+          <Table head={['Project', 'Client', 'Site', 'Project Type', 'Manager', ...(canSeeMoney ? ['Value'] : []), 'Progress', 'Status']}>
             {projects.map((project) => (
               <tr key={project.id} className="row-hover">
                 <td className="td">
@@ -98,7 +100,7 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
                   <span className="mt-0.5 inline-block"><Badge tone="stone">{projectType(project)}</Badge></span>
                 </td>
                 <td className="td">{managerName(project.projectManagerId)}</td>
-                <td className="td tabular-nums">{formatCurrency(project.value, true)}</td>
+                {canSeeMoney && <td className="td tabular-nums">{formatCurrency(project.value, true)}</td>}
                 <td className="td"><ProgressSummary project={project} /></td>
                 <td className="td">
                   <div className="flex flex-wrap items-center gap-1">
@@ -119,6 +121,7 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
 /** AMC projects with the contract details that matter day to day: frequency, next visit, renewal. */
 function AmcProjectsTable({ projects }: { projects: Project[] }) {
   const db = useDb()
+  const canSeeMoney = usePermissions().can('Accounts', 'view')
   const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
 
   return (
@@ -126,7 +129,7 @@ function AmcProjectsTable({ projects }: { projects: Project[] }) {
       {projects.length === 0 ? (
         <EmptyState title="No AMC projects yet." hint="Tick AMC when creating a project, or start one from AMC → Contracts." icon="leaf" />
       ) : (
-        <Table head={['Project', 'Client', 'Type', 'Visits', 'Next Visit', 'Contract', 'Value', 'Renewal']}>
+        <Table head={['Project', 'Client', 'Type', 'Visits', 'Next Visit', 'Contract', ...(canSeeMoney ? ['Value'] : []), 'Renewal']}>
           {projects.map((project) => {
             const record = db.maintenance.find((m) => m.projectId === project.id && m.type === 'AMC')
             const next = record && occurrencesFor(record, today()).find((o) => o.status !== 'Done' && o.date >= today())
@@ -154,7 +157,7 @@ function AmcProjectsTable({ projects }: { projects: Project[] }) {
                 <td className="td whitespace-nowrap tabular-nums text-xs">
                   {record ? `${formatDate(record.startDate)} – ${formatDate(record.endDate)}` : '—'}
                 </td>
-                <td className="td tabular-nums">{record?.value ? formatCurrency(record.value, true) : formatCurrency(project.value, true)}</td>
+                {canSeeMoney && <td className="td tabular-nums">{record?.value ? formatCurrency(record.value, true) : formatCurrency(project.value, true)}</td>}
                 <td className="td">
                   {daysLeft === null ? '—' : daysLeft < 0
                     ? <Badge tone="red">Lapsed</Badge>

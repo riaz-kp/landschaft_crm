@@ -81,6 +81,8 @@ export function ProjectDetail() {
   const brief = briefFor(db.clientBriefs, project.id)
   const canEditTask = (t: Task) => can('Tasks', 'edit') || t.assigneeId === user.id
   const steps = workflowFor(project)
+  // Budget, values and payments are Accounts' business.
+  const canSeeMoney = can('Accounts', 'view')
   const next = nextStep(project)
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
@@ -98,7 +100,7 @@ export function ProjectDetail() {
         ]
       : []),
     { key: 'commercial', label: docs.join(' & '), count: docs.reduce((s, d) => s + checklistProgress(project, d).done, 0) },
-    { key: 'accounts', label: 'Accounts' },
+    ...(canSeeMoney ? [{ key: 'accounts' as Tab, label: 'Accounts' }] : []),
     ...(maintenance.length || project.services.amc ? [{ key: 'maintenance' as Tab, label: 'AMC', count: maintenance.length || undefined }] : []),
     { key: 'history', label: 'History' },
   ]
@@ -169,9 +171,13 @@ export function ProjectDetail() {
                 )],
                 ['Start Date', formatDate(project.startDate)],
                 ['Expected Completion', formatDate(project.expectedCompletion)],
-                ['Project Value', formatCurrency(project.value)],
-                ['Received', formatCurrency(received)],
-                ['Client Budget', project.budget ? formatCurrency(project.budget) : <span key="b" className="text-stone-400">Not recorded</span>],
+                ...(canSeeMoney
+                  ? [
+                      ['Project Value', formatCurrency(project.value)],
+                      ['Received', formatCurrency(received)],
+                      ['Client Budget', project.budget ? formatCurrency(project.budget) : <span key="b" className="text-stone-400">Not recorded</span>],
+                    ]
+                  : []),
                 ['Proposed Fee Basis', project.feeBasis ?? <span key="f" className="text-stone-400">Not set</span>],
                 ['Next Action', project.nextAction ?? <span key="n" className="text-stone-400">Not set</span>],
                 ...(project.services.design
@@ -498,7 +504,7 @@ export function ProjectDetail() {
         </Section>
       )}
 
-      {tab === 'accounts' && (
+      {tab === 'accounts' && canSeeMoney && (
         <div className="grid gap-6 lg:grid-cols-3">
           <Section title="Financial Summary">
             <dl className="space-y-3 px-5 py-5">
@@ -536,7 +542,7 @@ export function ProjectDetail() {
           </Section>
 
           {(project.services.design || project.services.execution) && (
-            <PaymentSchedule project={project} received={received} canEdit={editable || can('Accounts', 'edit')} />
+            <PaymentSchedule project={project} received={received} canEdit={can('Accounts', 'edit')} />
           )}
         </div>
       )}
