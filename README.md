@@ -54,8 +54,8 @@ a "Not configured" screen rather than running against nothing.
 Staff sign in with a **username** and password. Supabase Auth keys every login
 by email, so each username stands for `<username>@users.landschaft.invalid` —
 a domain reserved never to receive mail. There is no "forgot password": an
-admin sets a new one from the person's Login section, and anyone signed in can
-change their own from the account menu. Logins made before usernames still sign
+admin sets a new one from the person's Login section. Only people who can edit
+Employees can change a password, their own included (from the account menu). Logins made before usernames still sign
 in with their email until an admin gives them a username from the same place.
 
 ### Client links

@@ -30,7 +30,7 @@ export function reminderDates(r: Reminder, from: string, to: string): string[] {
 
 /** The reminders a person sees: their own, ones addressed to them, and ones for everyone. */
 export function visibleTo(reminders: Reminder[], personId: ID): Reminder[] {
-  return reminders.filter((r) => r.createdBy === personId || r.forIds.length === 0 || r.forIds.includes(personId))
+  return reminders.filter((r) => (r.createdBy === personId && !r.notice) || r.forIds.length === 0 || r.forIds.includes(personId))
 }
 
 export interface ReminderOccurrence {

@@ -30,8 +30,10 @@ import { PhaseStrip, ProgressCell, ProjectProgressPanel } from '../../components
 import { RepeaterView } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
 import { PeoplePicker } from '../../components/PeoplePicker'
+import { PaymentSchedule, WorkflowTab } from './WorkflowTab'
+import { nextStep, workflowFor } from '../../domain/workflow'
 
-type Tab = 'overview' | 'remarks' | 'phases' | 'tasks' | 'documents' | 'brief' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance' | 'history'
+type Tab = 'overview' | 'workflow' | 'remarks' | 'phases' | 'tasks' | 'documents' | 'brief' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance' | 'history'
 
 export function ProjectDetail() {
   const { projectId = '' } = useParams()
@@ -78,9 +80,14 @@ export function ProjectDetail() {
   const docProgress = clientDocProgress(project)
   const brief = briefFor(db.clientBriefs, project.id)
   const canEditTask = (t: Task) => can('Tasks', 'edit') || t.assigneeId === user.id
+  const steps = workflowFor(project)
+  // Budget, values and payments are Accounts' business.
+  const canSeeMoney = can('Accounts', 'view')
+  const next = nextStep(project)
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
+    ...(steps.length ? [{ key: 'workflow' as Tab, label: 'Workflow', count: steps.filter((s) => project.workflow?.[s.key]?.done).length }] : []),
     { key: 'remarks', label: 'Remarks', count: unread || undefined },
     { key: 'phases', label: 'Phases', count: phaseRows.length },
     { key: 'tasks', label: 'Tasks', count: tasks.length },
@@ -93,7 +100,7 @@ export function ProjectDetail() {
         ]
       : []),
     { key: 'commercial', label: docs.join(' & '), count: docs.reduce((s, d) => s + checklistProgress(project, d).done, 0) },
-    { key: 'accounts', label: 'Accounts' },
+    ...(canSeeMoney ? [{ key: 'accounts' as Tab, label: 'Accounts' }] : []),
     ...(maintenance.length || project.services.amc ? [{ key: 'maintenance' as Tab, label: 'AMC', count: maintenance.length || undefined }] : []),
     { key: 'history', label: 'History' },
   ]
@@ -164,8 +171,18 @@ export function ProjectDetail() {
                 )],
                 ['Start Date', formatDate(project.startDate)],
                 ['Expected Completion', formatDate(project.expectedCompletion)],
-                ['Contract Value', formatCurrency(project.value)],
-                ['Received', formatCurrency(received)],
+                ...(canSeeMoney
+                  ? [
+                      ['Project Value', formatCurrency(project.value)],
+                      ['Received', formatCurrency(received)],
+                      ['Client Budget', project.budget ? formatCurrency(project.budget) : <span key="b" className="text-stone-400">Not recorded</span>],
+                    ]
+                  : []),
+                ['Proposed Fee Basis', project.feeBasis ?? <span key="f" className="text-stone-400">Not set</span>],
+                ['Next Action', project.nextAction ?? <span key="n" className="text-stone-400">Not set</span>],
+                ...(project.services.design
+                  ? [['Site Visit Before Proposal', project.siteVisitRequired ? <Badge key="v" tone="amber">Required</Badge> : 'Not required']]
+                  : []),
               ].map(([label, value], i) => (
                 <div key={i}>
                   <dt className="label">{label}</dt>
@@ -173,6 +190,13 @@ export function ProjectDetail() {
                 </div>
               ))}
             </dl>
+
+            {project.requirement && (
+              <div className="border-t border-stone-200 px-5 py-5">
+                <p className="label mb-1">Preliminary Requirement</p>
+                <p className="whitespace-pre-line text-sm text-stone-800">{project.requirement}</p>
+              </div>
+            )}
 
             <div className="border-t border-stone-200 px-5 py-5">
               <p className="label mb-2">Services</p>
@@ -188,11 +212,28 @@ export function ProjectDetail() {
             </div>
           </Section>
 
-          <Section title="Progress">
-            <div className="px-5 py-5">
-              <ProjectProgressPanel project={project} />
-            </div>
-          </Section>
+          <div className="space-y-6">
+            {steps.length > 0 && (
+              <Section title="Workflow" actions={<button onClick={() => setTab('workflow')} className="text-xs font-semibold text-brand-700">Open</button>}>
+                <div className="px-5 py-4">
+                  {next ? (
+                    <>
+                      <p className="label">Next step</p>
+                      <p className="mt-1 text-sm font-medium text-stone-900">{next.label}</p>
+                    </>
+                  ) : (
+                    <p className="flex items-center gap-1.5 text-sm font-medium text-brand-700"><Icon name="check" className="h-4 w-4" /> Every hand-off done</p>
+                  )}
+                  <p className="mt-2 text-xs text-stone-500">{steps.filter((s) => project.workflow?.[s.key]?.done).length} of {steps.length} steps done</p>
+                </div>
+              </Section>
+            )}
+            <Section title="Progress">
+              <div className="px-5 py-5">
+                <ProjectProgressPanel project={project} />
+              </div>
+            </Section>
+          </div>
 
           {project.services.execution && (
             <Section
@@ -257,6 +298,8 @@ export function ProjectDetail() {
           </Section>
         </div>
       )}
+
+      {tab === 'workflow' && <WorkflowTab project={project} />}
 
       {tab === 'photos' && <PhotoGallery projectId={project.id} />}
 
@@ -461,12 +504,12 @@ export function ProjectDetail() {
         </Section>
       )}
 
-      {tab === 'accounts' && (
+      {tab === 'accounts' && canSeeMoney && (
         <div className="grid gap-6 lg:grid-cols-3">
           <Section title="Financial Summary">
             <dl className="space-y-3 px-5 py-5">
               {[
-                ['Contract Value', formatCurrency(project.value)],
+                ['Project Value', formatCurrency(project.value)],
                 ['Received', formatCurrency(received)],
                 ['Outstanding', formatCurrency(project.value - received)],
               ].map(([label, value]) => (
@@ -497,6 +540,10 @@ export function ProjectDetail() {
               </Table>
             )}
           </Section>
+
+          {(project.services.design || project.services.execution) && (
+            <PaymentSchedule project={project} received={received} canEdit={can('Accounts', 'edit')} />
+          )}
         </div>
       )}
 

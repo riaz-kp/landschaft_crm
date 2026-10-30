@@ -16,6 +16,7 @@ import { resetDemo } from '../../data/demo'
 
 /** Presets the client mentioned by name in the structure document. */
 const SPLIT_PRESETS: { label: string; split: Settings['designPaymentSplit'] }[] = [
+  { label: '30 / 30 / 30 / 10', split: { concept: 30, threeD: 30, civilWork: 30, boq: 10 } },
   { label: '50 / 20 / 15 / 15', split: { concept: 50, threeD: 20, civilWork: 15, boq: 15 } },
   { label: '25 / 25 / 25 / 25', split: { concept: 25, threeD: 25, civilWork: 25, boq: 25 } },
   { label: '40 / 30 / 15 / 15', split: { concept: 40, threeD: 30, civilWork: 15, boq: 15 } },
@@ -34,13 +35,20 @@ export function SettingsPage() {
 
   const splitTotal = DESIGN_PHASES.reduce((sum, key) => sum + draft.designPaymentSplit[key], 0)
   const splitOk = splitTotal === 100
+  const slabs = draft.executionPaymentSlabs
+  const slabTotal = slabs.reduce((sum, s) => sum + s.percent, 0)
+  const slabsOk = slabTotal === 100 && slabs.every((s) => s.label.trim())
+  const setSlab = (i: number, change: Partial<Settings['executionPaymentSlabs'][number]>) =>
+    patch({ executionPaymentSlabs: slabs.map((s, j) => (j === i ? { ...s, ...change } : s)) })
   const hours = draft.workHours
   const hoursError = hours.end <= hours.start
     ? 'The working day must end after it starts'
     : hours.halfDayEnd <= hours.start || hours.halfDayEnd >= hours.end
       ? 'A half day must end between the start and end of the working day'
       : null
-  const problem = !splitOk ? 'the payment split must total 100%' : hoursError ? hoursError.toLowerCase() : null
+  const problem = !splitOk ? 'the payment split must total 100%'
+    : !slabsOk ? 'the execution slabs must each have a name and total 100%'
+    : hoursError ? hoursError.toLowerCase() : null
   const valid = !problem
 
   const patch = (changes: Partial<Settings>) => {
@@ -122,7 +130,7 @@ export function SettingsPage() {
 
       <Section
         title="Design Payment Structure"
-        description="How the design fee is split across the four phases. Must total 100%."
+        description="How the design value is split across the four phases. Each phase is collected up front: the concept as the advance once the scope is confirmed, the 3D once the concept is finished, and so on. Must total 100%."
         className="mb-6"
       >
         <div className="px-5 py-5">
@@ -180,6 +188,57 @@ export function SettingsPage() {
             <p className="mt-2 text-sm text-red-700">
               The split must total exactly 100% before it can be saved.
             </p>
+          )}
+        </div>
+      </Section>
+
+      <Section
+        title="Execution Payment Slabs"
+        description="The stages Accounts collects an execution project's value in, in order. The first falls due when work starts on site and the last at handover. Must total 100%."
+        className="mb-6"
+      >
+        <div className="px-5 py-5">
+          <div className="space-y-3">
+            {slabs.map((slab, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="w-6 shrink-0 text-right text-sm tabular-nums text-stone-400">{i + 1}</span>
+                <input
+                  className="input min-w-0 flex-1" value={slab.label} disabled={!editable}
+                  onChange={(e) => setSlab(i, { label: e.target.value })} aria-label={`Slab ${i + 1} name`}
+                />
+                <div className="flex w-24 shrink-0 items-center gap-1.5">
+                  <input
+                    type="number" min={0} max={100} disabled={!editable} value={slab.percent}
+                    onChange={(e) => setSlab(i, { percent: Math.max(0, Math.min(100, Number(e.target.value))) })}
+                    className="input py-1 text-right" aria-label={`Slab ${i + 1} percentage`}
+                  />
+                  <span className="text-sm text-stone-500">%</span>
+                </div>
+                {editable && (
+                  <button
+                    type="button" className="btn-icon" disabled={slabs.length <= 1} aria-label={`Remove slab ${i + 1}`}
+                    onClick={() => patch({ executionPaymentSlabs: slabs.filter((_, j) => j !== i) })}
+                  >
+                    <Icon name="trash" className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {editable && (
+            <button
+              type="button" className="btn-secondary mt-4 py-1.5 text-xs"
+              onClick={() => patch({ executionPaymentSlabs: [...slabs, { label: '', percent: 0 }] })}
+            >
+              <Icon name="plus" className="h-4 w-4" /> Add slab
+            </button>
+          )}
+          <div className={`mt-4 flex items-center justify-between rounded-lg px-3 py-2.5 ${slabsOk ? 'bg-brand-50' : 'bg-red-50'}`}>
+            <span className={`text-sm font-medium ${slabsOk ? 'text-brand-900' : 'text-red-900'}`}>Total</span>
+            <span className={`text-sm font-bold tabular-nums ${slabsOk ? 'text-brand-700' : 'text-red-700'}`}>{slabTotal}%</span>
+          </div>
+          {!slabsOk && (
+            <p className="mt-2 text-sm text-red-700">Every slab needs a name, and the slabs must total exactly 100% before they can be saved.</p>
           )}
         </div>
       </Section>

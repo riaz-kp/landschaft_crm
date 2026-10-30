@@ -9,8 +9,8 @@ import { remindLabel, visitPeople, visitSubject } from '../../domain/siteVisits'
 import { clientSite, consultationPlace, visitPlace } from '../../domain/places'
 import { addDays, formatDate, formatDateLong, formatTime, timeRange, today } from '../../domain/format'
 import {
-  DAY_END, DAY_START, DURATIONS, SLOT_MINUTES, endOf, findClash, firstFreeSlot, layoutLanes, partyName, slotTimes,
-  toMinutes,
+  DAY_END, DAY_START, DURATIONS, SLOT_MINUTES, consultants, endOf, findClash, firstFreeSlot, hostOf, layoutLanes, onDiary,
+  partyName, slotTimes, toMinutes,
 } from '../../domain/consultations'
 import type { Consultation, LatLng, SiteVisit } from '../../domain/types'
 import {
@@ -40,7 +40,7 @@ function currentWeekStart(): string {
   return isSunday(today()) ? addDays(today(), 1) : mondayOf(today())
 }
 
-type Draft = { date: string; start: string }
+type Draft = { date: string; start: string; hostId?: string }
 
 /** A site visit takes up an hour on the diary; the visit itself has no set length. */
 const VISIT_MINS = 60
@@ -49,9 +49,10 @@ const VISIT_MINS = 60
 const onGrid = (v: SiteVisit) => Boolean(v.time) && toMinutes(v.time!) >= DAY_START && toMinutes(v.time!) < DAY_END
 
 /**
- * The CEO's consultation diary, with the team's site visits alongside. Every
- * role can see it and book a slot; the CEO's office marks consultations done
- * or cancels them. Tick boxes choose what shows, and the map shows where
+ * The consultation diaries — the CEO's, the Design Director's and the Head of
+ * Execution's — with the team's site visits alongside. Every role can see
+ * them and book a slot; the person whose diary it is, or the CEO's office,
+ * marks consultations done or cancels them. Tick boxes choose what shows, and the map shows where
  * everything is.
  */
 export function Consultations() {
@@ -67,17 +68,21 @@ export function Consultations() {
   const [show, setShow] = useState({ consultations: true, visits: true })
   const showVisits = show.visits && canSeeVisits
 
-  const ceo = db.employees.find((e) => e.role === 'ceo')
+  const hosts = consultants(db.employees)
+  // Someone who keeps a diary opens on their own; everyone else sees all of them.
+  const [hostId, setHostId] = useState<string>(() => (hosts.some((h) => h.id === user.id) ? user.id : 'all'))
+  const diary = hostId === 'all' ? db.consultations : onDiary(db.consultations, hostId, db.employees)
+  const hostName = (c: Consultation) => db.employees.find((e) => e.id === hostOf(c, db.employees))?.name ?? '—'
   // Monday to Saturday — Sunday is the weekly off.
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
   // A phone shows one day of the week at a time rather than a grid to scroll sideways.
   const [phoneDay, setPhoneDay] = useState(today)
   const focusDay = days.includes(phoneDay) ? phoneDay : days[0]
-  const scheduled = db.consultations.filter((c) => c.status === 'Scheduled')
+  const scheduled = diary.filter((c) => c.status === 'Scheduled')
   const upcoming = scheduled
     .filter((c) => c.date >= today())
     .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
-  const past = db.consultations
+  const past = diary
     .filter((c) => c.status !== 'Scheduled')
     .sort((a, b) => (b.date + b.start).localeCompare(a.date + a.start))
   const todays = upcoming.filter((c) => c.date === today())
@@ -99,7 +104,7 @@ export function Consultations() {
 
   // Everything the map can show, before its own date range is applied.
   const mapItems: DiaryItem[] = [
-    ...(show.consultations ? db.consultations.filter((c) => c.status !== 'Cancelled') : []).map((c): DiaryItem => {
+    ...(show.consultations ? diary.filter((c) => c.status !== 'Cancelled') : []).map((c): DiaryItem => {
       const place = consultationPlace(c, db.projects)
       return {
         id: c.id, kind: 'consultation', date: c.date, time: c.start, title: c.purpose, done: c.status === 'Completed',
@@ -122,11 +127,12 @@ export function Consultations() {
     <div>
       <PageHeader
         title="Consultations"
-        subtitle={`${ceo?.name ?? 'The CEO'}'s consultation diary. Everyone can see it and book a slot.`}
+        subtitle={`Consultation diaries for ${hosts.map((h) => h.name).join(', ') || 'the team'}. Everyone can see them and book a slot.`}
         actions={<button onClick={() => {
           const base = today() < days[0] ? days[0] : today()
           const date = isSunday(base) ? addDays(base, 1) : base
-          setBooking({ date, start: firstFreeSlot(db.consultations, date, 60) ?? '10:00' })
+          const host = hostId === 'all' ? hosts.find((h) => h.role === 'ceo')?.id : hostId
+          setBooking({ date, start: firstFreeSlot(onDiary(db.consultations, host, db.employees), date, 60) ?? '10:00', hostId: host })
         }} className="btn-primary">
           <Icon name="plus" className="h-4 w-4" /> Book consultation
         </button>}
@@ -138,6 +144,19 @@ export function Consultations() {
         <StatTile label="Week Booked" value={`${Math.round((bookedMinutes / capacity) * 100)}%`} sub={`${Math.round(bookedMinutes / 60)}h of consultation hours`} />
         <StatTile label="Upcoming" value={upcoming.length} tone="blue" sub={`${upcoming.filter((c) => c.postponements?.length).length} postponed`} />
       </div>
+
+      {hosts.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Whose diary">
+          {[{ id: 'all', name: 'All diaries' }, ...hosts].map((h) => (
+            <button
+              key={h.id} type="button" onClick={() => setHostId(h.id)} aria-pressed={hostId === h.id}
+              className={`chip py-1.5 text-sm ${hostId === h.id ? 'chip-on' : ''}`}
+            >
+              {h.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-xl bg-stone-200/60 p-1" role="group" aria-label="View">
@@ -269,7 +288,7 @@ export function Consultations() {
                             key={start}
                             type="button"
                             disabled={pastSlot}
-                            onClick={() => setBooking({ date, start })}
+                            onClick={() => setBooking({ date, start, hostId: hostId === 'all' ? undefined : hostId })}
                             style={{ height: SLOT_MINUTES * PX_PER_MIN }}
                             className={`block w-full border-b border-dashed border-stone-100 ${pastSlot ? 'cursor-default bg-stone-50/60' : 'hover:bg-brand-50'}`}
                             aria-label={`Book ${formatDate(date)} at ${start}`}
@@ -347,7 +366,9 @@ export function Consultations() {
                         {c.date === today() ? 'Today' : formatDateLong(c.date)} · {formatTime(c.start)}
                       </p>
                       <p className="mt-0.5 text-sm font-medium text-stone-800">{c.purpose}</p>
-                      <p className="text-xs text-stone-400">{name(c)} · {c.mode} · booked by {staffName(c.bookedBy)}</p>
+                      <p className="text-xs text-stone-400">
+                        {hostId === 'all' && <>With {hostName(c)} · </>}{name(c)} · {c.mode} · booked by {staffName(c.bookedBy)}
+                      </p>
                       {c.postponements?.length ? <span className="mt-1 inline-block"><Badge tone="violet">Postponed from {formatDate(c.postponements[0].fromDate)}</Badge></span> : null}
                     </button>
                   </li>
@@ -417,7 +438,7 @@ export function Consultations() {
       {opened && (
         <DetailsModal
           consultation={opened}
-          canManage={can.manageConsultations(roleKey)}
+          canManage={can.manageConsultations(roleKey) || hostOf(opened, db.employees) === user.id}
           isBooker={opened.bookedBy === user.id}
           onClose={() => setOpenId(null)}
         />
@@ -477,7 +498,9 @@ function VisitDetailsModal({ visit: v, onClose }: { visit: SiteVisit; onClose: (
 function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void }) {
   const db = useDb()
   const { user } = useSession()
+  const hosts = consultants(db.employees)
   const [form, setForm] = useState({
+    hostId: draft.hostId ?? hosts[0]?.id ?? '',
     date: draft.date,
     start: draft.start,
     durationMins: 60,
@@ -497,7 +520,7 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
   const projectSite = form.party === 'Client' ? clientSite(form.clientId, db.projects) : undefined
   const suggestedPlace = projectSite?.label ?? (form.party === 'Lead' ? db.leads.find((l) => l.id === form.leadId)?.location : undefined) ?? ''
 
-  const clash = findClash(db.consultations, form.date, form.start, form.durationMins)
+  const clash = findClash(onDiary(db.consultations, form.hostId, db.employees), form.date, form.start, form.durationMins)
   const overruns = toMinutes(form.start) + form.durationMins > DAY_END
 
   const save = () => {
@@ -508,6 +531,7 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
     if (clash) return setError(`Clashes with "${clash.purpose}" (${timeRange(clash.start, endOf(clash))}).`)
     if (form.party === 'Other' && !form.attendee.trim()) return setError('Enter who the meeting is with.')
     api.consultations.create({
+      hostId: form.hostId || undefined,
       date: form.date,
       start: form.start,
       durationMins: form.durationMins,
@@ -526,7 +550,7 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
 
   return (
     <Modal
-      title="Book a consultation with the CEO"
+      title="Book a consultation"
       onClose={onClose}
       footer={<>
         <button onClick={onClose} className="btn-secondary">Cancel</button>
@@ -534,6 +558,21 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
       </>}
     >
       <div className="space-y-4">
+        {hosts.length > 1 && (
+          <div>
+            <p className="label">Consultation with</p>
+            <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Consultation with">
+              {hosts.map((h) => (
+                <button
+                  key={h.id} type="button" role="radio" aria-checked={form.hostId === h.id} onClick={() => set({ hostId: h.id })}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium ${form.hostId === h.id ? 'bg-brand-600 text-white' : 'border border-stone-300 bg-white text-stone-600 hover:bg-stone-50'}`}
+                >
+                  {h.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Date" required>
             <input type="date" min={today()} className="input" value={form.date} onChange={(e) => set({ date: e.target.value })} />
@@ -597,7 +636,7 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
         </div>
 
         <Field label="Purpose" required>
-          <input className="input" value={form.purpose} onChange={(e) => set({ purpose: e.target.value })} placeholder="What needs the CEO's time" />
+          <input className="input" value={form.purpose} onChange={(e) => set({ purpose: e.target.value })} placeholder="What the consultation is about" />
         </Field>
         <Field label="Where">
           <select className="input" value={form.mode} onChange={(e) => set({ mode: e.target.value as Consultation['mode'] })}>
@@ -617,7 +656,7 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
             />
           </div>
         )}
-        <Field label="Notes for the CEO">
+        <Field label="Notes">
           <textarea rows={2} className="input" value={form.notes} onChange={(e) => set({ notes: e.target.value })} />
         </Field>
         {error && <p className="text-sm font-medium text-red-600">{error}</p>}
@@ -665,6 +704,7 @@ function DetailsModal({
       <dl className="grid gap-4 sm:grid-cols-2">
         {[
           ['When', `${formatDateLong(c.date)} · ${timeRange(c.start, endOf(c))}`],
+          ['Diary', staffName(hostOf(c, db.employees) ?? '')],
           ['With', partyName(c, db.clients, db.leads)],
           ['Where', c.mode === 'Site' && (c.location || place) ? `Site · ${c.location || place!.label}` : c.mode],
           ['Booked by', staffName(c.bookedBy)],
@@ -732,7 +772,7 @@ function DetailsModal({
         ) : null}
       </div>
       {scheduled && !canManage && !isBooker && (
-        <p className="mt-4"><Badge tone="stone">Only the CEO's office or the person who booked can change this.</Badge></p>
+        <p className="mt-4"><Badge tone="stone">Only the person whose diary it is, the CEO's office or the person who booked can change this.</Badge></p>
       )}
     </Modal>
   )
@@ -749,13 +789,14 @@ function PostponeModal({
     return d
   })()
   const [date, setDate] = useState(firstDay)
-  const [start, setStart] = useState(() => firstFreeSlot(db.consultations.filter((x) => x.id !== c.id), firstDay, c.durationMins) ?? c.start)
+  const sameDiary = onDiary(db.consultations, hostOf(c, db.employees), db.employees)
+  const [start, setStart] = useState(() => firstFreeSlot(sameDiary.filter((x) => x.id !== c.id), firstDay, c.durationMins) ?? c.start)
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const clash = findClash(db.consultations, date, start, c.durationMins, c.id)
+  const clash = findClash(sameDiary, date, start, c.durationMins, c.id)
   const overruns = toMinutes(start) + c.durationMins > DAY_END
-  const free = slotTimes().filter((t) => toMinutes(t) + c.durationMins <= DAY_END && !findClash(db.consultations, date, t, c.durationMins, c.id))
+  const free = slotTimes().filter((t) => toMinutes(t) + c.durationMins <= DAY_END && !findClash(sameDiary, date, t, c.durationMins, c.id))
 
   const save = () => {
     if (date < today()) return setError('Pick today or a later date.')
@@ -792,7 +833,7 @@ function PostponeModal({
                 const d = e.target.value
                 setDate(d)
                 setError(null)
-                const slot = firstFreeSlot(db.consultations.filter((x) => x.id !== c.id), d, c.durationMins)
+                const slot = firstFreeSlot(sameDiary.filter((x) => x.id !== c.id), d, c.durationMins)
                 if (slot) setStart(slot)
               }}
             />

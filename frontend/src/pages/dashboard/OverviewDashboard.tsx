@@ -4,7 +4,7 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { computeProgress } from '../../domain/progress'
 import { receivable } from '../../domain/finance'
-import { partyName } from '../../domain/consultations'
+import { CONSULTANT_ROLES, onDiary, partyName } from '../../domain/consultations'
 import { inRange, periodPhrase } from '../../domain/period'
 import { PeriodSwitch, useDashboardPeriod } from '../../components/PeriodSwitch'
 import { allOccurrences, renewalReminders } from '../../domain/amc'
@@ -135,10 +135,13 @@ export function OverviewDashboard() {
   const amcHead = db.employees.find((e) => e.department === 'AMC') ?? headOf('execution_head')
 
   // ------------------------------------------------ CEO diary
-  const consultations = db.consultations
+  // Your own diary when you keep one; the Super Admin sees the CEO's.
+  const diaryOf = CONSULTANT_ROLES.includes(user.role) ? user.id : headOf('ceo')?.id
+  const diary = onDiary(db.consultations, diaryOf, db.employees)
+  const consultations = diary
     .filter((c) => c.status === 'Scheduled' && c.date >= date && inPeriod(c.date))
     .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
-  const consultationsHeld = db.consultations.filter((c) => c.status === 'Completed' && inPeriod(c.date)).length
+  const consultationsHeld = diary.filter((c) => c.status === 'Completed' && inPeriod(c.date)).length
 
   return (
     <div>

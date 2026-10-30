@@ -53,6 +53,8 @@ function fromLog(db: DbShape, entry: ProjectLogEntry): ProjectHistoryItem {
       return { ...base, kind: 'tasks', icon: 'trash', title: `Task deleted — ${entry.title}`, detail: entry.fromId && `Was with ${nameOf(db, entry.fromId)}` }
     case 'project-edited':
       return { ...base, kind: 'project', icon: 'edit', title: entry.title, detail: entry.detail }
+    case 'workflow-step':
+      return { ...base, kind: 'project', icon: 'check', title: `Workflow — ${entry.title}`, detail: entry.detail }
   }
 }
 

@@ -18,6 +18,7 @@ import { FieldCard } from '../../shells/FieldShell'
 import { FieldCrewAttendance } from './FieldCrewAttendance'
 import { ChangePasswordModal } from '../../components/UserMenu'
 import { DEMO_MODE } from '../../lib/supabase'
+import { usePermissions } from '../../state/permissions'
 
 function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split('-').map(Number)
@@ -157,6 +158,8 @@ export function FieldProfile() {
   const { user, signOut } = useSession()
   const [editing, setEditing] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
+  // Passwords are an Employees manager's to set — which a foreman never is.
+  const canChangePassword = usePermissions().can('Employees', 'edit')
   const photoRef = useRef<HTMLInputElement>(null)
   const manager = db.employees.find((e) => e.id === user.reportsTo)
   const sites = db.siteAssignments
@@ -241,9 +244,11 @@ export function FieldProfile() {
         <FieldCard>
           <p className="label mb-2">My login</p>
           <div className="flex gap-2">
-            <button onClick={() => setChangingPassword(true)} className="btn-secondary flex-1 justify-center">
-              <Icon name="shield" className="h-4 w-4" /> Change password
-            </button>
+            {canChangePassword && (
+              <button onClick={() => setChangingPassword(true)} className="btn-secondary flex-1 justify-center">
+                <Icon name="shield" className="h-4 w-4" /> Change password
+              </button>
+            )}
             <button onClick={() => void signOut()} className="btn-secondary flex-1 justify-center">
               <Icon name="logout" className="h-4 w-4" /> Sign out
             </button>

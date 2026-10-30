@@ -12,11 +12,14 @@ import { employeeOptions } from '../../components/pickerOptions'
 import { Icon } from '../../components/Icon'
 import { applyScope, scopeOf, scopeProblem, type ProjectScope } from '../../domain/projectScope'
 import { DesignPhasePicker, ExecutionPhasePicker, ServicePicker } from './ProjectScope'
+import { IntakeFields, MoneyFields, intakeOf, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
+import { usePermissions } from '../../state/permissions'
 
 /** Edits a project's details and scope — its services and phases. Every change is written to the project history. */
 export function ProjectEditModal({ project, onClose }: { project: Project; onClose: () => void }) {
   const db = useDb()
   const { user } = useSession()
+  const canSeeMoney = usePermissions().can('Accounts', 'view')
   const [form, setForm] = useState({
     name: project.name,
     code: project.code,
@@ -31,6 +34,9 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
     value: project.value,
   })
   const [scope, setScopeState] = useState<ProjectScope>(() => scopeOf(project))
+  const [intake, setIntake] = useState(() => intakeOf(project))
+  const [money, setMoney] = useState(() => moneyOf(project))
+  const { design, execution } = scope.services
   const [error, setError] = useState<string | null>(null)
   const set = (patch: Partial<typeof form>) => { setForm({ ...form, ...patch }); setError(null) }
   const setScope = (patch: Partial<ProjectScope>) => { setScopeState({ ...scope, ...patch }); setError(null) }
@@ -52,6 +58,8 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
     if (form.expectedCompletion < form.startDate) return setError('Expected completion cannot be before the start date.')
     const problem = scopeProblem(scope)
     if (problem) return setError(problem)
+    const moneyIssue = moneyProblem(money)
+    if (moneyIssue) return setError(moneyIssue)
     if (hasAmcContract && !scope.services.amc) {
       return setError('This project has an AMC contract. Delete it from the AMC tab before taking AMC off the services.')
     }
@@ -67,7 +75,14 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
       projectManagerId: form.projectManagerId,
       startDate: form.startDate,
       expectedCompletion: form.expectedCompletion,
-      value: Number(form.value) || 0,
+      // Without Accounts access the values are not on the form, so they are left as they are.
+      ...(canSeeMoney
+        ? moneyFields({ ...money, designValue: design ? money.designValue : '', executionValue: execution ? money.executionValue : '' }, Number(form.value) || 0)
+        : {}),
+      requirement: intake.requirement.trim() || undefined,
+      siteVisitRequired: design && intake.siteVisitRequired ? true : undefined,
+      feeBasis: intake.feeBasis || undefined,
+      nextAction: intake.nextAction || undefined,
     }, user.id)
     onClose()
   }
@@ -137,9 +152,11 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
             title="Project manager"
           />
         </Field>
-        <Field label="Contract Value" hint="In rupees.">
-          <input type="number" min={0} className="input" value={form.value || ''} onChange={(e) => set({ value: Number(e.target.value) })} />
-        </Field>
+        {canSeeMoney && !design && !execution && (
+          <Field label="Contract Value" hint="In rupees.">
+            <input type="number" min={0} className="input" value={form.value || ''} onChange={(e) => set({ value: Number(e.target.value) })} />
+          </Field>
+        )}
         <Field label="Start Date">
           <input type="date" className="input" value={form.startDate} onChange={(e) => set({ startDate: e.target.value })} />
         </Field>
@@ -180,6 +197,15 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
             <p className="text-xs text-stone-500">Set up the AMC contract — visit schedule, reminders and renewal — from the project's AMC tab once saved.</p>
           )}
         </div>
+
+        <div className="space-y-4 border-t border-stone-100 pt-4 sm:col-span-2">
+          <IntakeFields value={intake} onChange={(v) => { setIntake(v); setError(null) }} />
+        </div>
+        {canSeeMoney && (design || execution) && (
+          <div className="border-t border-stone-100 pt-4 sm:col-span-2">
+            <MoneyFields value={money} onChange={(v) => { setMoney(v); setError(null) }} services={{ design, execution }} fallbackValue={Number(form.value) || 0} />
+          </div>
+        )}
 
         <div className="sm:col-span-2"><FormError message={error} /></div>
       </div>

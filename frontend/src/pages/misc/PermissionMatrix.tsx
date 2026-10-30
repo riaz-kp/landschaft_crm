@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { LOCKED_ROLES, NAV, ROLES, defaultPermissions } from '../../domain/roles'
 import {
@@ -75,6 +76,14 @@ export function PermissionMatrixEditor({
           ))}
         </select>
       </div>
+      {LOCKED_ROLES.some((r) => people(r).length) && (
+        <p className="pb-3 text-xs text-stone-500">
+          Fixed roles, not edited here:{' '}
+          {LOCKED_ROLES.filter((r) => people(r).length)
+            .map((r) => `${ROLES[r].title} (${r === 'super_admin' ? 'full access' : 'field app only'}) — ${people(r).map((p) => p.name).join(', ')}`)
+            .join(' · ')}
+        </p>
+      )}
       <div className="no-scrollbar -mx-5 hidden gap-2 overflow-x-auto border-b border-stone-100 px-5 pb-4 sm:flex">
         {EDITABLE_ROLES.map((r) => (
           <button
@@ -88,6 +97,9 @@ export function PermissionMatrixEditor({
             <span className="block text-[11px] text-stone-500">
               {visibleCount(r)} modules · {people(r).length} {people(r).length === 1 ? 'person' : 'people'}
             </span>
+            <span className="block max-w-[11rem] truncate text-[11px] font-medium text-stone-600" title={people(r).map((p) => p.name).join(', ')}>
+              {people(r).length ? people(r).map((p) => p.name).join(', ') : <span className="font-normal text-stone-400">No one yet</span>}
+            </span>
           </button>
         ))}
       </div>
@@ -96,9 +108,18 @@ export function PermissionMatrixEditor({
         <div className="min-w-0">
           <p className="font-semibold text-stone-900">{ROLES[role].title}</p>
           <p className="text-sm text-stone-500">{ROLES[role].remit}</p>
-          {people(role).length > 0 && (
-            <p className="mt-1 text-xs text-stone-400">Applies to {people(role).map((p) => p.name).join(', ')}</p>
-          )}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-stone-400">{people(role).length ? 'Members:' : 'No one has this role yet.'}</span>
+            {people(role).map((p) => (
+              <Link
+                key={p.id} to={`/employees/${p.id}`}
+                className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-700 hover:bg-brand-50 hover:text-brand-800"
+                title={p.designation ?? ROLES[role].title}
+              >
+                {p.name}
+              </Link>
+            ))}
+          </div>
         </div>
         {!disabled && (
           <button

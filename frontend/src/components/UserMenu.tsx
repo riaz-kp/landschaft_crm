@@ -6,12 +6,15 @@ import { DEMO_MODE, supabase } from '../lib/supabase'
 import { Avatar, Field, Modal } from './ui'
 import { Icon } from './Icon'
 import { useClickOutside } from './useClickOutside'
+import { usePermissions } from '../state/permissions'
 
 /** The signed-in person: their profile, password and sign out. The demo adds a switcher to view as anyone. */
 export function UserMenu() {
   const { user, demo, signOut } = useSession()
   const [open, setOpen] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
+  // Passwords are an Employees manager's to set; everyone else asks them.
+  const canChangePassword = usePermissions().can('Employees', 'edit')
   const root = useRef<HTMLDivElement>(null)
   useClickOutside(root, () => setOpen(false), open)
 
@@ -46,7 +49,7 @@ export function UserMenu() {
                 <Icon name="user" className="h-4 w-4 text-stone-400" /> My profile
               </Link>
             )}
-            {!DEMO_MODE && (
+            {!DEMO_MODE && canChangePassword && (
               <button
                 onClick={() => { setChangingPassword(true); setOpen(false) }}
                 className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm font-medium text-stone-700 hover:bg-stone-50"

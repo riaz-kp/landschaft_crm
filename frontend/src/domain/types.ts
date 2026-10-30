@@ -197,9 +197,14 @@ export interface Postponement {
   at: string
 }
 
-/** A slot on the CEO's consultation schedule. Anyone may book one. */
+/**
+ * A slot on a consultation diary — the CEO's, or another senior person who
+ * takes consultations (the Design Director, the Head of Execution). Anyone may book one.
+ */
 export interface Consultation {
   id: ID
+  /** Whose diary it is on. Older bookings have none and belong to the CEO. */
+  hostId?: ID
   date: string
   start: string
   durationMins: number
@@ -328,6 +333,21 @@ export interface ClientDocTick {
   note?: string
 }
 
+/** How the design fee is to be worked out, chosen when the project is opened. */
+export const FEE_BASES = ['Lump Sum', 'Area Based', 'Scope Based', 'To Be Decided'] as const
+export type FeeBasis = (typeof FEE_BASES)[number]
+
+/** What has to happen next on a new enquiry, chosen when the project is opened and updated as it moves. */
+export const NEXT_ACTIONS = [
+  'Prepare scope proposal', 'Client follow-up', 'Collect information', 'Site visit', 'Design team review',
+] as const
+export type NextAction = (typeof NEXT_ACTIONS)[number]
+
+/** The hand-offs a project moves through, from enquiry to work starting on site. See domain/workflow. */
+export type WorkflowStepKey =
+  | 'siteVisit' | 'scopePrepared' | 'scopeToCeo' | 'scopeToClient' | 'clientApproved' | 'scopeConfirmed'
+  | 'teamAllocated' | 'conceptDone' | 'civilDone' | 'quotationSent' | 'workStarted'
+
 export interface Project {
   id: ID
   code: string
@@ -350,7 +370,25 @@ export interface Project {
     mep: MepPhase
     maintenance: Phase
   }
+  /**
+   * The project value the dashboards and receivables count. Fixed by Accounts
+   * and may change as the project goes on. When the design and execution
+   * values are set it is their sum.
+   */
   value: number
+  /** Accounts' value for the design work and for the execution work. Each one's payment slabs come from Settings. */
+  designValue?: number
+  executionValue?: number
+  /** What the client said they could spend, from the first discussion. Kept apart from the project value. */
+  budget?: number
+  /** The client's preliminary requirement, noted when the project is opened. */
+  requirement?: string
+  /** The site must be visited before the scope proposal goes out. */
+  siteVisitRequired?: boolean
+  feeBasis?: FeeBasis
+  nextAction?: NextAction
+  /** Hand-offs ticked off so far, keyed by step. See domain/workflow. */
+  workflow?: Partial<Record<WorkflowStepKey, ChecklistTick>>
   /** Flagged when the expected completion has passed and work is unfinished. */
   delayed: boolean
   /** Pin dropped on the map at creation. */
@@ -425,7 +463,7 @@ export interface Task {
 
 export type ProjectLogKind =
   | 'task-created' | 'task-reassigned' | 'task-done' | 'task-reopened' | 'task-deleted'
-  | 'project-edited'
+  | 'project-edited' | 'workflow-step'
 
 /**
  * One entry in a project's history. Task hand-overs, completions and edits are
@@ -717,6 +755,8 @@ export interface CalendarEvent {
 export interface Settings {
   /** Design payment split by phase. Must total 100. */
   designPaymentSplit: Record<DesignPhaseKey, number>
+  /** The stages an execution project's value is collected in, in order. Must total 100. */
+  executionPaymentSlabs: PaymentSlab[]
   /** The document deliberately leaves TA undefined, so it is off by default. */
   taEnabled: boolean
   taRatePerKm: number
@@ -742,6 +782,12 @@ export interface Settings {
    * ends at `halfDayEnd` — and any day can still be changed by hand.
    */
   workHours: WorkHours
+}
+
+/** One stage of collecting an execution project's value, e.g. 50% when work starts. */
+export interface PaymentSlab {
+  label: string
+  percent: number
 }
 
 export interface WorkHours {
@@ -787,6 +833,8 @@ export interface Reminder {
   createdBy: ID
   /** Who sees it. Empty means everyone. */
   forIds: ID[]
+  /** A workflow hand-off sent to others: it shows only on their bells, not the sender's. */
+  notice?: boolean
   /** Dates ticked off — one entry per occurrence of a repeating reminder. */
   doneDates: string[]
 }

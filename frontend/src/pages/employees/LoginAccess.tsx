@@ -83,7 +83,7 @@ export function LoginAccess({ employee, isSelf }: { employee: Employee; isSelf: 
     if (password.length < MIN_PASSWORD) return setError(`Use at least ${MIN_PASSWORD} characters for the password.`)
     if (password !== confirm) return setError('The two passwords do not match.')
     if (mode === 'create') {
-      void run({ action: 'create', username: name, password }, `Login created. Give ${employee.name} the username “${name}” and the password in person; they can change the password from their account menu.`)
+      void run({ action: 'create', username: name, password }, `Login created. Give ${employee.name} the username “${name}” and the password in person. Only an Employees manager can change it later.`)
     } else {
       void run({ action: 'set-password', password }, `New password set. Let ${employee.name} know it in person.`)
     }

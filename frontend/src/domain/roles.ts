@@ -91,7 +91,7 @@ export interface NavSection {
 export const NAV: NavSection[] = [
   { label: 'Dashboard', path: '/dashboard', icon: 'grid' },
   {
-    // The CEO's consultation diary and the team's site visits, side by side.
+    // The consultation diaries and the team's site visits, side by side.
     label: 'Consultations',
     path: '/consultations',
     icon: 'clock',
@@ -354,7 +354,7 @@ export const can = {
     ['super_admin', 'ceo', 'execution_head', 'execution_pm'].includes(role),
   adjustOt: (role: RoleKey) =>
     ['super_admin', 'ceo', 'execution_head', 'execution_pm'].includes(role),
-  /** Everyone can book; only the CEO's office can mark a consultation done or cancel others' bookings. */
+  /** Everyone can book; the CEO's office can mark any consultation done or cancel others' bookings (so can the diary's owner). */
   manageConsultations: (role: RoleKey) => ['super_admin', 'ceo'].includes(role),
   manageAmc: (role: RoleKey) => ['super_admin', 'ceo', 'execution_head', 'execution_pm'].includes(role),
 }

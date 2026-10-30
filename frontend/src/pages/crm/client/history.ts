@@ -132,7 +132,7 @@ export function clientHistory(db: DbShape, clientId: ID): HistoryItem[] {
   for (const c of db.consultations.filter((c) => c.clientId === clientId && c.status === 'Completed')) {
     items.push({
       id: `cs-${c.id}`, date: c.date, department: 'Management', icon: 'clock',
-      title: `CEO consultation — ${c.purpose}`, detail: c.notes,
+      title: `Consultation — ${c.purpose}`, detail: c.notes,
     })
   }
 
