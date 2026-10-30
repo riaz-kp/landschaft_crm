@@ -1,6 +1,23 @@
-import type { Client, Consultation, Lead } from './types'
+import type { Client, Consultation, Employee, ID, Lead, RoleKey } from './types'
 
-/** The CEO's consultation hours. */
+/** Who keeps a consultation diary: the CEO, the Design Director and the Head of Execution. */
+export const CONSULTANT_ROLES: RoleKey[] = ['ceo', 'design_director', 'execution_head']
+
+export function consultants(employees: Employee[]): Employee[] {
+  return employees.filter((e) => CONSULTANT_ROLES.includes(e.role))
+}
+
+/** Whose diary a consultation is on. Bookings from before there were several diaries are the CEO's. */
+export function hostOf(c: Consultation, employees: Employee[]): ID | undefined {
+  return c.hostId ?? employees.find((e) => e.role === 'ceo')?.id
+}
+
+/** The consultations on one person's diary — what a new booking must not clash with. */
+export function onDiary(list: Consultation[], hostId: ID | undefined, employees: Employee[]): Consultation[] {
+  return list.filter((c) => hostOf(c, employees) === hostId)
+}
+
+/** Consultation hours. */
 export const DAY_START = 9 * 60
 export const DAY_END = 18 * 60
 export const SLOT_MINUTES = 30

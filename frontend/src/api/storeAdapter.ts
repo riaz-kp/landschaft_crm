@@ -10,6 +10,7 @@ import { workerSkills } from '../domain/workers'
 import { formatArea, normaliseCode, suggestProjectCode } from '../domain/projectInfo'
 import { applyScope, describePhases } from '../domain/projectScope'
 import { projectType } from '../domain/progress'
+import { holders, stepFor } from '../domain/workflow'
 
 type WithId = { id: ID }
 
@@ -56,6 +57,12 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
     { label: 'Start', value: (p) => (p.startDate ? formatDate(p.startDate) : '') },
     { label: 'Due', value: (p) => (p.expectedCompletion ? formatDate(p.expectedCompletion) : '') },
     { label: 'Value', value: (p) => (p.value !== undefined ? formatCurrency(p.value) : '') },
+    { label: 'Design value', value: (p) => (p.designValue ? formatCurrency(p.designValue) : '') },
+    { label: 'Execution value', value: (p) => (p.executionValue ? formatCurrency(p.executionValue) : '') },
+    { label: 'Budget', value: (p) => (p.budget ? formatCurrency(p.budget) : '') },
+    { label: 'Fee basis', value: (p) => p.feeBasis ?? '' },
+    { label: 'Next action', value: (p) => p.nextAction ?? '' },
+    { label: 'Site visit before proposal', value: (p) => (p.siteVisitRequired ? 'Required' : '') },
     { label: 'Services', value: (p) => (p.services ? projectType(p as Project) : '') },
     { label: 'Phases', value: (p) => (p.design && p.execution ? describePhases(p as Project) : '') },
   ]
@@ -105,7 +112,7 @@ function changeStatus(db: DbShape, task: Task, status: TaskStatus, by: ID, note?
 
 export const adapter: Api = {
   projects: {
-    create(input: NewProjectInput): Project {
+    create(input: NewProjectInput, by): Project {
       const id = nextId('p')
       const project: Project = {
         id,
@@ -123,12 +130,36 @@ export const adapter: Api = {
         status: 'Planning',
         ...applyScope(input),
         value: input.value,
+        designValue: input.designValue || undefined,
+        executionValue: input.executionValue || undefined,
+        budget: input.budget || undefined,
+        requirement: input.requirement?.trim() || undefined,
+        siteVisitRequired: input.siteVisitRequired || undefined,
+        feeBasis: input.feeBasis,
+        nextAction: input.nextAction,
         delayed: false,
         siteCoords: input.siteCoords,
         checklist: {},
       }
       store.update((db) => {
         db.projects.push(project)
+        for (const link of input.documentLinks ?? []) {
+          db.documents.push({
+            id: nextId('d'), name: link.name, projectId: id, clientId: input.clientId, file: link.url,
+            category: 'Other', uploadedBy: by, uploadedAt: today(),
+          })
+        }
+        // The design wing's first job is the scope proposal — given to the Design Director straight away.
+        const designHead = db.employees.find((e) => e.role === 'design_director') ?? db.employees.find((e) => e.role === 'design_pm')
+        if (input.services.design && designHead) {
+          const task: Task = {
+            id: nextId('t'), projectId: id, title: input.siteVisitRequired ? 'Prepare scope proposal (after the site visit)' : 'Prepare scope proposal',
+            description: input.requirement?.trim() || undefined, assigneeId: designHead.id, status: 'To Do', priority: 'High',
+            dueDate: addDays(today(), 3),
+          }
+          db.tasks.push(task)
+          log(db, { projectId: id, taskId: task.id, kind: 'task-created', byId: by, title: task.title, toId: task.assigneeId, detail: 'Assigned automatically when the project was opened' })
+        }
         // Selling AMC with the project opens its maintenance contract straight away.
         if (input.services.amc && input.amc) {
           db.maintenance.push({ ...input.amc, id: nextId('m'), projectId: id, type: 'AMC', visits: [] })
@@ -163,6 +194,34 @@ export const adapter: Api = {
         const project = db.projects.find((p) => p.id === projectId)
         if (!project) return
         project.checklist = { ...project.checklist, [itemId]: done ? { done, by, on: today() } : { done } }
+      })
+    },
+
+    setWorkflowStep(projectId, key, done, by) {
+      store.update((db) => {
+        const project = db.projects.find((p) => p.id === projectId)
+        if (!project) return
+        const step = stepFor(key)
+        project.workflow = { ...project.workflow, [key]: done ? { done, by, on: today() } : { done } }
+        if (!done) {
+          log(db, { projectId, kind: 'workflow-step', byId: by, title: `Reopened — ${step.label}` })
+          return
+        }
+        const notice = step.notice(project, db.settings)
+        // Not the person ticking it — unless the next move is theirs alone, like planning the site visit.
+        const notified = holders(db.employees, step.notify)
+        const others = notified.filter((e) => e.id !== by)
+        const told = others.length ? others : notified
+        log(db, {
+          projectId, kind: 'workflow-step', byId: by, title: step.label,
+          detail: told.length ? `${notice} · told ${told.map((e) => e.name).join(', ')}` : undefined,
+        })
+        if (told.length) {
+          db.reminders.push({
+            id: nextId('rm'), title: `${project.code} · ${notice}`, date: today(), repeat: 'none',
+            notes: project.name, projectId, createdBy: by, forIds: told.map((e) => e.id), doneDates: [], notice: true,
+          })
+        }
       })
     },
 

@@ -9,7 +9,7 @@
 import type {
   AttendanceEntry, ChatMessage, Clarification, Client, Consultation, ConsultationStatus,
   DailyWorkReport, DocumentRecord, Employee, ID, Issue, LatLng, Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, PersonKind,
-  ProjectMessage, Reminder, AreaUnit, ClientDocKey, ClientDocTick, ProjectCategory,
+  ProjectMessage, Reminder, AreaUnit, ClientDocKey, ClientDocTick, ProjectCategory, FeeBasis, NextAction, WorkflowStepKey,
   Project, Quotation, Settings, SiteVisit, Task, Worker, VisitFile, VisitPhoto,
 } from '../domain/types'
 import { adapter } from './storeAdapter'
@@ -30,6 +30,15 @@ export interface NewProjectInput {
   startDate: string
   expectedCompletion: string
   value: number
+  designValue?: number
+  executionValue?: number
+  budget?: number
+  requirement?: string
+  siteVisitRequired?: boolean
+  feeBasis?: FeeBasis
+  nextAction?: NextAction
+  /** Links to documents kept elsewhere (Google Drive…), filed on the project as it is opened. */
+  documentLinks?: { name: string; url: string }[]
   services: { design: boolean; execution: boolean; amc: boolean }
   /** The AMC contract created alongside the project when AMC is sold. */
   amc?: Omit<MaintenanceRecord, 'id' | 'projectId' | 'type' | 'visits'>
@@ -72,6 +81,11 @@ export interface Api {
     setPhaseProgress(projectId: ID, phase: string, progress: number): void
     /** Ticks or clears one BOQ / quotation checklist item. */
     setChecklist(projectId: ID, itemId: string, done: boolean, by: ID): void
+    /**
+     * Ticks or clears a workflow hand-off. Ticking it writes the project history
+     * and puts a reminder on the bell of everyone who acts next.
+     */
+    setWorkflowStep(projectId: ID, step: WorkflowStepKey, done: boolean, by: ID): void
     /** Puts these foremen on the site — it appears under My Sites on their phones — and takes the rest off. */
     setForemen(projectId: ID, foremanIds: ID[]): void
   }

@@ -19,6 +19,8 @@ import { NoAccess } from '../misc/Fallbacks'
 import { Icon } from '../../components/Icon'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions } from '../../components/pickerOptions'
+import { IntakeFields, MoneyFields, intakeOf, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
+import { linkName, toLink } from '../../components/docLinks'
 
 /** Roles that manage projects — who a new project is given to by default. */
 const MANAGER_ROLES: RoleKey[] = ['design_pm', 'execution_pm', 'design_director', 'execution_head']
@@ -36,6 +38,9 @@ export function NewProject() {
   const [error, setError] = useState<string | null>(null)
   const [siteCoords, setSiteCoords] = useState<LatLng | undefined>()
   const [clientDocs, setClientDocs] = useState<Partial<Record<ClientDocKey, DocState>>>({})
+  const [intake, setIntake] = useState(intakeOf)
+  const [money, setMoney] = useState(moneyOf)
+  const [links, setLinks] = useState<{ name: string; url: string }[]>([])
 
   const [form, setForm] = useState({
     code: suggestProjectCode(db.projects),
@@ -49,7 +54,6 @@ export function NewProject() {
     projectManagerId: MANAGER_ROLES.includes(user.role) ? user.id : db.employees.find((e) => MANAGER_ROLES.includes(e.role))?.id ?? user.id,
     startDate: today(),
     expectedCompletion: addDays(today(), 90),
-    value: 0,
   })
   const [scope, setScope] = useState<ProjectScope>(newScope)
   const { design, execution, amc } = scope.services
@@ -79,11 +83,24 @@ export function NewProject() {
       const problem = validateAmc(amcDraft)
       if (problem) return setError(`AMC: ${problem}`)
     }
+    const moneyIssue = moneyProblem(money)
+    if (moneyIssue) return setError(moneyIssue)
+    const badLink = links.find((l) => l.url.trim() && !toLink(l.url))
+    if (badLink) return setError(`“${badLink.url}” is not a link. Paste the full address, e.g. a Google Drive share link.`)
 
     setError(null)
     const { category, area, areaUnit, ...basics } = form
+    const values = moneyFields({ ...money, designValue: design ? money.designValue : '', executionValue: execution ? money.executionValue : '' }, 0)
     const project = api.projects.create({
       ...basics,
+      ...values,
+      requirement: intake.requirement,
+      siteVisitRequired: design && intake.siteVisitRequired,
+      feeBasis: intake.feeBasis || undefined,
+      nextAction: intake.nextAction || undefined,
+      documentLinks: links
+        .filter((l) => toLink(l.url))
+        .map((l) => ({ url: toLink(l.url)!, name: l.name.trim() || linkName(toLink(l.url)!) })),
       code: normaliseCode(form.code),
       category,
       area: area ? Number(area) : undefined,
@@ -98,7 +115,7 @@ export function NewProject() {
       amc: amc ? draftToRecord(amcDraft) : undefined,
       // An AMC-only project runs for the contract term and is worth the contract value.
       ...(amc && !design && !execution
-        ? { expectedCompletion: endOf(amcDraft), value: form.value || amcDraft.value }
+        ? { expectedCompletion: endOf(amcDraft), value: amcDraft.value }
         : {}),
     }, user.id)
     navigate(`/projects/${project.id}`)
@@ -193,13 +210,6 @@ export function NewProject() {
               title="Project manager"
             />
           </Field>
-          <Field label="Contract Value" hint="In rupees. Can be set later.">
-            <input
-              type="number" min={0} value={form.value || ''} placeholder="0"
-              onChange={(e) => setForm({ ...form, value: Number(e.target.value) })}
-              className="input"
-            />
-          </Field>
           <Field label="Start Date">
             <input
               type="date" value={form.startDate}
@@ -214,6 +224,16 @@ export function NewProject() {
               className="input"
             />
           </Field>
+        </div>
+      </Section>
+
+      <Section
+        title="Enquiry"
+        description="The client's preliminary requirement and what happens next. Opening a design project gives the Design Director the scope proposal as a task."
+        className="mb-6"
+      >
+        <div className="px-5 py-5">
+          <IntakeFields value={intake} onChange={setIntake} />
         </div>
       </Section>
 
@@ -266,6 +286,18 @@ export function NewProject() {
         </Section>
       )}
 
+      {(design || execution) && (
+        <Section
+          title="Budget & Project Value"
+          description="The budget is what the client mentioned. The project values are fixed by Accounts, can change as the project goes on, and are what the dashboards show. Payment slabs come from Settings."
+          className="mb-6"
+        >
+          <div className="px-5 py-5">
+            <MoneyFields value={money} onChange={setMoney} services={{ design, execution }} fallbackValue={0} />
+          </div>
+        </Section>
+      )}
+
       {amc && (
         <Section
           title="AMC — Annual Maintenance Contract"
@@ -288,6 +320,32 @@ export function NewProject() {
       >
         <div className="px-5 py-2">
           <ClientDocsPicker value={clientDocs} onChange={(key, state) => setClientDocs((docs) => ({ ...docs, [key]: state }))} />
+        </div>
+      </Section>
+
+      <Section
+        title="Document Links"
+        description="Links to drawings, photos or briefs kept in Google Drive, Dropbox or elsewhere. They are filed under the project's documents."
+        className="mb-6"
+        actions={<button type="button" onClick={() => setLinks([...links, { name: '', url: '' }])} className="btn-secondary py-1.5"><Icon name="link" className="h-4 w-4" /> Add link</button>}
+      >
+        <div className="space-y-3 px-5 py-4">
+          {links.length === 0 && <p className="text-sm text-stone-400">No links yet.</p>}
+          {links.map((link, i) => (
+            <div key={i} className="flex flex-col gap-2 sm:flex-row">
+              <input
+                className="input sm:w-56" value={link.name} placeholder="Name (optional)" aria-label="Link name"
+                onChange={(e) => setLinks(links.map((l, j) => (j === i ? { ...l, name: e.target.value } : l)))}
+              />
+              <input
+                className="input min-w-0 flex-1" value={link.url} placeholder="https://drive.google.com/…" aria-label="Link address"
+                onChange={(e) => setLinks(links.map((l, j) => (j === i ? { ...l, url: e.target.value } : l)))}
+              />
+              <button type="button" onClick={() => setLinks(links.filter((_, j) => j !== i))} className="btn-icon self-end sm:self-auto" aria-label="Remove link">
+                <Icon name="trash" className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
         </div>
       </Section>
 

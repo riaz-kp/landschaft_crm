@@ -4,7 +4,13 @@ import type { Settings } from './types'
 /** Settings a new company starts with, before anyone changes them in Settings. */
 export function defaultSettings(): Settings {
   return {
-    designPaymentSplit: { concept: 50, threeD: 20, civilWork: 15, boq: 15 },
+    designPaymentSplit: { concept: 30, threeD: 30, civilWork: 30, boq: 10 },
+    executionPaymentSlabs: [
+      { label: 'Work start', percent: 50 },
+      { label: 'Hardscape complete', percent: 25 },
+      { label: 'Softscape complete', percent: 20 },
+      { label: 'Handover', percent: 5 },
+    ],
     taEnabled: false,
     taRatePerKm: 0,
     photosMandatory: true,
