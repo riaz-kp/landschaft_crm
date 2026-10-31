@@ -79,11 +79,21 @@ returns only what that one link is for — no staff, money or other projects.
 - On sign-in every collection the person may see is loaded into memory, so
   screens read it instantly, exactly as the prototype did.
 - Each change is saved in the background. A change waiting to go out is kept on
-  the device, so a foreman with no signal loses nothing: it sends when the
-  connection returns, even after the app was closed. The header shows
+  the device (IndexedDB), so a foreman with no signal loses nothing: it sends
+  when the connection returns, even after the app was closed. The header shows
   *Saving…*, *Offline · n waiting*, or the reason a change was refused.
+- Only the fields a person changed are sent, and the database lays them on its
+  current copy (`save_records`), so two people changing different fields of the
+  same record both keep their change. The same field: the last save wins. A
+  record someone deleted meanwhile stays deleted, and the person whose changes
+  to it were waiting is told.
+- A copy of the data is kept on the device, so the installed app opens with no
+  connection on what it last loaded (the header says *Offline · from …*) for up
+  to a week, then catches up once the server answers. It is the signed-in
+  person's own copy and is removed on signing out or when their access ends.
+- Photos taken with no signal stay on the record until it is sent, and are
+  uploaded to the files bucket just before.
 - Other people's changes arrive live (Supabase Realtime).
-- Two people editing the same record at the same moment: the last save wins.
 
 ### Who can reach what
 

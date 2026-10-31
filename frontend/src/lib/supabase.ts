@@ -49,14 +49,56 @@ export function suggestUsername(name: string): string {
 
 let client: SupabaseClient | null = null
 
+/**
+ * Where Supabase keeps the login in this browser. Its own default, named here
+ * so the app can tell a login is still stored while the server is out of reach.
+ */
+const AUTH_STORAGE_KEY = (() => {
+  try {
+    return `sb-${new URL(url ?? '').hostname.split('.')[0]}-auth-token`
+  } catch {
+    return '' // No valid URL: the client is never created, so there is no login to find.
+  }
+})()
+
 export function supabase(): SupabaseClient {
   if (!client) {
     if (!url || !key) throw new Error('Supabase is not configured: set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.')
     client = createClient(url, key, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: AUTH_STORAGE_KEY },
     })
   }
   return client
+}
+
+/**
+ * The user whose login this browser still holds, without asking the server.
+ * With no connection an expired sign-in cannot be renewed, so Supabase reports
+ * no session even though nobody signed out; this tells the two apart.
+ */
+export function storedLoginUserId(): string | null {
+  try {
+    const stored = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) ?? 'null') as { user?: { id?: string } } | null
+    return stored?.user?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Drops the login kept in this browser, for signing out when the server cannot be reached to do it. */
+export function forgetStoredLogin() {
+  try {
+    localStorage.removeItem(AUTH_STORAGE_KEY)
+  } catch {
+    // Storage blocked: there is nothing stored to forget.
+  }
+}
+
+/** A request that never reached the server (no signal, a dropped connection) rather than one it refused. */
+export function isNetworkError(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return true
+  const message = error instanceof Error ? error.message : String((error as { message?: unknown } | null)?.message ?? error)
+  return /failed to fetch|load failed|networkerror|network request failed|fetch failed/i.test(message)
 }
 
 /**
