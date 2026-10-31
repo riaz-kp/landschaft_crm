@@ -18,6 +18,8 @@ export interface CollectionSpec {
   build(rows: Row[]): DbShape[CollectionKey]
   /** Sets one record, or removes it when `data` is null. */
   put(db: DbShape, id: string, data: unknown): void
+  /** Listed newest first in the app, the reverse of the order `build` takes. */
+  newestFirst?: boolean
 }
 
 type Item = Record<string, unknown>
@@ -32,6 +34,7 @@ function list(key: CollectionKey, table: string, idOf: (record: Item) => string 
   return {
     key,
     table,
+    newestFirst,
     rows: (db) => new Map(items(db).map((record) => [idOf(record), record])),
     build: (rows) => (newestFirst ? [...rows].reverse() : rows).map((row) => row.data) as DbShape[CollectionKey],
     put(db, id, data) {

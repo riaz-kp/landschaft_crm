@@ -2,8 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { User } from '@supabase/supabase-js'
 import { ROLES } from '../domain/roles'
 import type { Employee, Role, RoleKey } from '../domain/types'
-import { DEMO_MODE, staffAccounts, supabase, supabaseConfigured } from '../lib/supabase'
-import { closeSession, flushNow, openSession } from '../data/sync'
+import {
+  DEMO_MODE, forgetStoredLogin, isNetworkError, staffAccounts, storedLoginUserId, supabase, supabaseConfigured,
+} from '../lib/supabase'
+import { closeSession, flushNow, forgetOfflineCopy, offlineCopyFor, openSession } from '../data/sync'
 import { openDemo } from '../data/demo'
 import { useDb } from './useDb'
 import {
@@ -104,24 +106,61 @@ function SupabaseSession({ children }: { children: ReactNode }) {
     if (needsSetup) setPhase((now) => (now.kind === 'signed-out' ? { kind: 'signed-out', needsSetup } : now))
   }, [])
 
+  const open = useCallback(async (userId: string, employeeId: string) => {
+    await openSession(userId, employeeId)
+    if (loadedFor.current === userId) setPhase({ kind: 'ready', employeeId })
+  }, [])
+
   const begin = useCallback(async (user: User) => {
     loadedFor.current = user.id
     setPhase({ kind: 'loading' })
     try {
       const { data: link, error } = await supabase()
         .from('app_users').select('employee_id, active').eq('user_id', user.id).maybeSingle()
-      if (error) throw error
-      if (!link?.active) return setPhase({ kind: 'no-access', email: user.email })
-      await openSession(user.id, link.employee_id)
-      if (loadedFor.current === user.id) setPhase({ kind: 'ready', employeeId: link.employee_id })
+      if (error) {
+        // No connection: open on the copy kept on this device, if there is a recent one.
+        const employeeId = isNetworkError(error) ? await offlineCopyFor(user.id) : null
+        if (!employeeId) throw error
+        return await open(user.id, employeeId)
+      }
+      if (!link?.active) {
+        void forgetOfflineCopy()
+        return setPhase({ kind: 'no-access', email: user.email })
+      }
+      await open(user.id, link.employee_id)
     } catch (e) {
       setPhase({ kind: 'error', message: (e as Error).message })
     }
-  }, [])
+  }, [open])
+
+  /**
+   * Supabase reports no session when an expired sign-in cannot be renewed for
+   * want of a connection, though the login is still stored here. Then the copy
+   * on this device opens; the sign-in renews by itself once the server answers.
+   */
+  const beginOffline = useCallback(async (userId: string): Promise<boolean> => {
+    const employeeId = await offlineCopyFor(userId)
+    if (!employeeId) return false
+    loadedFor.current = userId
+    setPhase({ kind: 'loading' })
+    try {
+      await open(userId, employeeId)
+    } catch (e) {
+      setPhase({ kind: 'error', message: (e as Error).message })
+    }
+    return true
+  }, [open])
 
   const signOut = useCallback(async () => {
     await flushNow()
-    await supabase().auth.signOut()
+    // The copy of the data on this device goes first, whether or not the server can be reached.
+    await forgetOfflineCopy()
+    const { error } = await supabase().auth.signOut()
+    if (error) {
+      // Offline with an expired sign-in Supabase refuses; drop the stored login here all the same.
+      forgetStoredLogin()
+      window.location.reload()
+    }
   }, [])
 
   useEffect(() => {
@@ -129,17 +168,24 @@ function SupabaseSession({ children }: { children: ReactNode }) {
       // Supabase asks that nothing awaits inside this callback, so the work runs just after it.
       setTimeout(() => {
         userRef.current = session?.user ?? null
-        if (!session) {
+        if (session) {
+          if (loadedFor.current !== session.user.id) void begin(session.user)
+          return
+        }
+        const stored = storedLoginUserId()
+        if (stored && loadedFor.current === stored) return
+        void (async () => {
+          if (stored && await beginOffline(stored)) return
           loadedFor.current = null
           void closeSession()
+          // Signed out, or the login was ended: nothing of the CRM stays on this device.
+          if (!stored) void forgetOfflineCopy()
           void showSignIn()
-        } else if (loadedFor.current !== session.user.id) {
-          void begin(session.user)
-        }
+        })()
       }, 0)
     })
     return () => data.subscription.unsubscribe()
-  }, [begin, showSignIn])
+  }, [begin, beginOffline, showSignIn])
 
   switch (phase.kind) {
     case 'starting':

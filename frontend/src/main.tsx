@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, useLocation } from 'react-router-dom'
 import { SessionProvider } from './state/session'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { UpdatePrompt } from './components/UpdatePrompt'
+import { registerServiceWorker } from './lib/pwa'
 import { App } from './App'
 import './styles.css'
 
@@ -25,6 +27,9 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <Root />
       </BrowserRouter>
+      <UpdatePrompt />
     </ErrorBoundary>
   </StrictMode>,
 )
+
+registerServiceWorker()

@@ -1,10 +1,11 @@
-import { DEMO_MODE, supabase } from '../lib/supabase'
+import { DEMO_MODE, isNetworkError, supabase } from '../lib/supabase'
 
 /**
  * Photos and documents live in the private "files" bucket. A record keeps a
  * reference — "sb:" plus the path in the bucket — and the app shows the file
  * through a short-lived signed URL. Older records, the demo, and a photo taken
- * with no connection hold a data URL instead, which still displays as it is.
+ * with no connection hold a data URL instead, which still displays as it is
+ * (data/sync uploads such a photo when it sends the record).
  * A document can also be a link to where it is kept — a Google Drive share
  * pasted in place of uploading the file — which opens as it is.
  */
@@ -42,17 +43,24 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([buffer], { type })
 }
 
+/** Uploads a photo held as a data URL and returns its reference. */
+export function uploadPhoto(dataUrl: string, folder: string): Promise<string> {
+  const blob = dataUrlToBlob(dataUrl)
+  return uploadFile(blob, folder, blob.type === 'image/jpeg' ? 'jpg' : blob.type.split('/')[1] ?? 'jpg')
+}
+
 /**
  * Saves an already-compressed photo (a JPEG data URL) and returns what to keep
- * on the record. With no connection the data URL itself is kept, so a foreman's
- * report is never held up; it is saved with the report when the line is back.
+ * on the record. With no connection, or one too weak to finish the upload, the
+ * data URL itself is kept so a foreman's report is never held up; it is
+ * uploaded when the record is sent.
  */
 export async function storePhoto(dataUrl: string, folder: string): Promise<string> {
   if (DEMO_MODE) return dataUrl
   try {
-    return await uploadFile(dataUrlToBlob(dataUrl), folder, 'jpg')
+    return await uploadPhoto(dataUrl, folder)
   } catch (e) {
-    if (!navigator.onLine) return dataUrl
+    if (isNetworkError(e)) return dataUrl
     throw e
   }
 }
