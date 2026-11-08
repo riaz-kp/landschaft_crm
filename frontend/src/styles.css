@@ -206,6 +206,11 @@
   }
 }
 
+/* A table's rounded frame draws its outline, so the last row on the page needs no rule of its own. */
+.quote-frame > :last-child > :last-child {
+  border-bottom-width: 0;
+}
+
 @media print {
   @page {
     size: A4;
