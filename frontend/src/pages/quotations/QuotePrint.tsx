@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
 import { Icon } from '../../components/Icon'
@@ -13,7 +13,7 @@ import {
 } from '../../domain/quotation'
 import type { Client, CommercialDoc, DocumentSettings, PlantLine, Project, Quotation } from '../../domain/types'
 import { layOut, usePages, type Block } from './paginate'
-import { quotePath } from './access'
+import { quotePath, useQuoteAccess } from './access'
 
 // The page, in CSS pixels: A4 at 96 dpi.
 const PAGE_W = 794
@@ -39,7 +39,9 @@ const RADIUS = 14
  * A BOQ or quotation as printed pages, after the company's own quotation:
  * a cover with the letter, the Bill of Quantities section by section, the
  * summary, terms, work procedure, payment schedule, work schedule, bank
- * details and the client's acceptance. Print it, or save it as a PDF, from here.
+ * details and the client's acceptance. Opening a document lands here; Edit
+ * goes to its editor, for those who may change it. Print it, or save it as a
+ * PDF, from here.
  */
 export function QuotePrint() {
   const { quoteId = '' } = useParams()
@@ -71,6 +73,9 @@ function PrintView({ quote, project, client, settings }: { quote: Quotation; pro
   const blocks = useMemo(() => buildBlocks(quote, project, settings), [quote, project, settings])
   const { measure, pages, ready } = usePages(blocks, CONTENT_W, CAPACITY)
   const sheet = useRef<HTMLDivElement>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { canEdit } = useQuoteAccess()
   const [printing, setPrinting] = useState(false)
   const [zoom, setZoom] = useState(1)
   const total = pages.length + 1
@@ -94,6 +99,12 @@ function PrintView({ quote, project, client, settings }: { quote: Quotation; pro
     return () => window.removeEventListener('resize', fit)
   }, [])
 
+  // Back to wherever the document was opened from; straight from a link, to the project's documents.
+  const back = () => {
+    if (location.key !== 'default') navigate(-1)
+    else navigate(`/projects/${quote.projectId}?tab=commercial`)
+  }
+
   const print = async () => {
     setPrinting(true)
     await imagesLoaded(sheet.current)
@@ -104,11 +115,20 @@ function PrintView({ quote, project, client, settings }: { quote: Quotation; pro
   return (
     <div className="quote-print min-h-screen bg-stone-200/70">
       <div className="print-hidden sticky top-0 z-10 border-b border-stone-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[820px] flex-wrap items-center justify-between gap-3 px-3 py-2.5">
-          <Link to={quotePath(quote)} className="btn-ghost py-1.5"><Icon name="back" className="h-4 w-4" /> Back to {quote.number}</Link>
-          <span className="hidden text-sm text-stone-500 sm:inline">{ready ? `${total} pages · A4` : 'Laying out pages…'}</span>
-          <button type="button" className="btn-primary py-1.5" onClick={() => void print()} disabled={!ready || printing}>
-            <Icon name="doc" className="h-4 w-4" /> {printing ? 'Loading images…' : 'Print / Save as PDF'}
+        <div className="mx-auto flex max-w-[820px] items-center gap-2 px-3 py-2.5">
+          <button type="button" className="btn-icon shrink-0" onClick={back} title="Back" aria-label="Back">
+            <Icon name="back" className="h-4 w-4" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-stone-900">{quote.number} <span className="font-normal text-stone-500">· {KIND_TITLE[quote.kind]}</span></p>
+            <p className="truncate text-xs text-stone-500">{ready ? `${quote.status} · ${total} pages · A4` : 'Laying out pages…'}</p>
+          </div>
+          {canEdit(quote.kind) && (
+            <Link to={quotePath(quote)} className="btn-secondary shrink-0 py-1.5"><Icon name="edit" className="h-4 w-4" /> Edit</Link>
+          )}
+          <button type="button" className="btn-primary shrink-0 py-1.5" onClick={() => void print()} disabled={!ready || printing}>
+            <Icon name="doc" className="h-4 w-4" />
+            {printing ? 'Loading images…' : <><span className="hidden sm:inline">Print / Save as PDF</span><span className="sm:hidden">Print</span></>}
           </button>
         </div>
       </div>
@@ -216,26 +236,24 @@ function Footer({ settings }: { settings: DocumentSettings }) {
   )
 }
 
-/** Contour lines, as on the company's stationery. Drawn, not an image, so they print crisp. */
+/**
+ * A few contour lines in the cover's top corner, after the company's stationery,
+ * kept sparse and faint. Drawn, not an image, so they print crisp.
+ */
 function Contours({ left, top }: { left: number; top: number }) {
-  const rings = Array.from({ length: 16 }, (_, k) => {
-    const base = 26 + k * 21
+  const rings = Array.from({ length: 6 }, (_, k) => {
+    const base = 34 + k * 30
     const points = Array.from({ length: 73 }, (_, i) => {
       const t = (i / 72) * Math.PI * 2
-      const r = base * (1 + 0.07 * Math.sin(3 * t + k * 0.35) + 0.045 * Math.sin(5 * t + 1.2 + k * 0.1) + 0.03 * Math.cos(2 * t - k * 0.2))
-      return `${(640 + r * Math.cos(t) * 1.25).toFixed(1)},${(118 + r * Math.sin(t) * 0.92).toFixed(1)}`
+      const r = base * (1 + 0.06 * Math.sin(3 * t + k * 0.35) + 0.035 * Math.sin(5 * t + 1.2 + k * 0.1))
+      return `${(690 + r * Math.cos(t) * 1.2).toFixed(1)},${(96 + r * Math.sin(t) * 0.9).toFixed(1)}`
     })
     return `M${points.join(' L')}Z`
   })
-  const flows = Array.from({ length: 7 }, (_, k) => {
-    const y = 300 + k * 26
-    return `M330 ${y} C 470 ${y - 60 - k * 8}, 560 ${y + 40}, 700 ${y - 30 - k * 4} S 820 ${y - 120}, 860 ${y - 200 - k * 6}`
-  })
   return (
     <svg className="absolute" style={{ left, top }} width={PAGE_W} height={492} viewBox={`0 0 ${PAGE_W} 492`} aria-hidden="true">
-      <g fill="none" stroke="#c9bfae" strokeWidth={0.8} opacity={0.75}>
+      <g fill="none" stroke="#cdc3b2" strokeWidth={0.75} opacity={0.7}>
         {rings.map((d, i) => <path key={i} d={d} />)}
-        {flows.map((d, i) => <path key={`f${i}`} d={d} />)}
       </g>
     </svg>
   )

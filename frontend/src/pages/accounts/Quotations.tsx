@@ -11,7 +11,7 @@ import {
   PageHeader, Section, Table, EmptyState, StatTile, Pills, SearchInput, Toolbar, RowActions, ConfirmDialog, Badge,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
-import { printPath, quotePath, useQuoteAccess } from '../quotations/access'
+import { quotePath, useQuoteAccess, viewPath } from '../quotations/access'
 import { NewQuoteModal } from '../quotations/NewQuoteModal'
 
 type KindFilter = 'All' | CommercialDoc
@@ -19,7 +19,7 @@ type KindFilter = 'All' | CommercialDoc
 /**
  * Every BOQ and quotation. Which one a project gets follows its services:
  * Design only → BOQ, Execution only → Quotation, Design + Execution → both.
- * Each opens in its own editor on the project.
+ * Each opens as its printed pages, with an Edit button for those who may change it.
  */
 export function Quotations() {
   const db = useDb()
@@ -95,7 +95,7 @@ export function Quotations() {
               return (
                 <tr key={quote.id} className="row-hover">
                   <td className="td whitespace-nowrap">
-                    <Link to={quotePath(quote)} className="font-medium text-stone-900 hover:text-brand-700">{quote.number}</Link>
+                    <Link to={viewPath(quote)} className="font-medium text-stone-900 hover:text-brand-700">{quote.number}</Link>
                   </td>
                   <td className="td"><Badge tone={quote.kind === 'BOQ' ? 'blue' : 'green'}>{quote.kind}</Badge></td>
                   <td className="td">
@@ -118,11 +118,11 @@ export function Quotations() {
                   <td className="td">
                     <RowActions
                       extra={
-                        <Link to={printPath(quote)} className="btn-icon" title="Preview & print" aria-label={`Print ${quote.number}`}>
+                        <Link to={viewPath(quote)} className="btn-icon" title="View" aria-label={`View ${quote.number}`}>
                           <Icon name="eye" className="h-4 w-4" />
                         </Link>
                       }
-                      onEdit={() => navigate(quotePath(quote))}
+                      onEdit={access.canEdit(quote.kind) ? () => navigate(quotePath(quote)) : undefined}
                       onDelete={access.canDelete(quote.kind) ? () => setDeleting(quote) : undefined}
                     />
                   </td>

@@ -22,8 +22,10 @@ export function useQuoteAccess() {
   }
 }
 
+/** The document's editor. */
 export const quotePath = (quote: Pick<Quotation, 'id' | 'projectId'>) => `/projects/${quote.projectId}/commercial/${quote.id}`
-export const printPath = (quote: Pick<Quotation, 'id'>) => `/print/commercial/${quote.id}`
+/** The document as its printed pages, with Edit and Print: where opening a document lands. */
+export const viewPath = (quote: Pick<Quotation, 'id'>) => `/print/commercial/${quote.id}`
 
 /** Makes a document from the company defaults (or from another document) and opens it. */
 export function useCreateQuote() {

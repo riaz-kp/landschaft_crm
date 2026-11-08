@@ -10,7 +10,7 @@ import { formatDate } from '../../domain/format'
 import { KIND_TITLE, formatRupees, kindRule, quoteValue, shows } from '../../domain/quotation'
 import { plantsProjectUrl } from '../../data/plants'
 import type { CommercialDoc, Project } from '../../domain/types'
-import { printPath, quotePath, useCreateQuote, useQuoteAccess } from './access'
+import { quotePath, useCreateQuote, useQuoteAccess, viewPath } from './access'
 import { NewQuoteModal } from './NewQuoteModal'
 
 /**
@@ -73,7 +73,7 @@ export function CommercialTab({ project, canTick }: { project: Project; canTick:
                       return (
                         <li key={q.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
                           <div className="min-w-0">
-                            <Link to={quotePath(q)} className="font-semibold text-stone-900 hover:text-brand-700">{q.number}</Link>
+                            <Link to={viewPath(q)} className="font-semibold text-stone-900 hover:text-brand-700">{q.number}</Link>
                             <p className="text-xs text-stone-500">
                               {[
                                 formatDate(q.date),
@@ -85,8 +85,10 @@ export function CommercialTab({ project, canTick }: { project: Project; canTick:
                           <div className="flex items-center gap-2">
                             {value !== undefined && <span className="text-sm font-semibold tabular-nums text-stone-800">{formatRupees(value)}</span>}
                             <StatusBadge status={q.status} />
-                            <Link to={printPath(q)} className="btn-icon" title="Preview & print" aria-label={`Print ${q.number}`}><Icon name="eye" className="h-4 w-4" /></Link>
-                            <Link to={quotePath(q)} className="btn-secondary py-1 text-xs">Open</Link>
+                            {access.canEdit(q.kind) && (
+                              <Link to={quotePath(q)} className="btn-icon" title="Edit" aria-label={`Edit ${q.number}`}><Icon name="edit" className="h-4 w-4" /></Link>
+                            )}
+                            <Link to={viewPath(q)} className="btn-secondary py-1 text-xs">Open</Link>
                           </div>
                         </li>
                       )
