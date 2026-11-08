@@ -13,7 +13,7 @@ import {
 } from '../../domain/quotation'
 import type { Client, CommercialDoc, DocumentSettings, PlantLine, Project, Quotation } from '../../domain/types'
 import { layOut, usePages, type Block } from './paginate'
-import { quotePath, useQuoteAccess } from './access'
+import { editPath, useQuoteAccess } from './access'
 
 // The page, in CSS pixels: A4 at 96 dpi.
 const PAGE_W = 794
@@ -124,7 +124,7 @@ function PrintView({ quote, project, client, settings }: { quote: Quotation; pro
             <p className="truncate text-xs text-stone-500">{ready ? `${quote.status} · ${total} pages · A4` : 'Laying out pages…'}</p>
           </div>
           {canEdit(quote.kind) && (
-            <Link to={quotePath(quote)} className="btn-secondary shrink-0 py-1.5"><Icon name="edit" className="h-4 w-4" /> Edit</Link>
+            <Link to={editPath(quote)} className="btn-secondary shrink-0 py-1.5"><Icon name="edit" className="h-4 w-4" /> Edit</Link>
           )}
           <button type="button" className="btn-primary shrink-0 py-1.5" onClick={() => void print()} disabled={!ready || printing}>
             <Icon name="doc" className="h-4 w-4" />
@@ -685,7 +685,7 @@ function buildBlocks(quote: Quotation, project: Project, settings: DocumentSetti
         {cells(th('Stage'), th('Milestone'), th('Share'), th('Amount'))}
       </div>
     )
-    blocks.push({ key: 'pay-title', node: <div className={showSteps ? 'pt-6' : ''}><PageTitle title="Payment Schedule" /></div>, breakBefore: !showSteps, keepWithNext: true })
+    blocks.push({ key: 'pay-title', node: <PageTitle title="Payment Schedule" />, breakBefore: true, keepWithNext: true })
     blocks.push({
       key: 'pay-bar', keepWithNext: true,
       node: (
