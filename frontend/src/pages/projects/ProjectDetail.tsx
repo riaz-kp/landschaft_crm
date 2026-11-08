@@ -4,7 +4,8 @@ import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
-import { CHECKLISTS, checklistProgress, commercialDocs } from '../../domain/commercial'
+import { commercialDocs } from '../../domain/commercial'
+import { CommercialTab } from '../quotations/CommercialTab'
 import { MapPicker, mapsUrl } from '../../components/MapPicker'
 import { PhotoGallery } from '../gallery/Gallery'
 import { AmcContractCard } from '../amc/AmcContractCard'
@@ -18,7 +19,7 @@ import { MEP_LABELS, MEP_SERVICES, PHASE_LABELS, type PhaseKey, type Task, type 
 import { clientDocProgress } from '../../domain/clientDocs'
 import { formatArea } from '../../domain/projectInfo'
 import {
-  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, ProgressBar, Tabs, Checkbox, RowActions,
+  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, ProgressBar, Tabs, RowActions,
 } from '../../components/ui'
 import { ProjectEditModal } from './ProjectEditModal'
 import { ClientDocumentsTab } from './ClientDocuments'
@@ -84,7 +85,7 @@ export function ProjectDetail() {
   const unread = unreadRemarks(db.projectMessages, db.chatReads, user.id, project.id)
   const photoCount = reports.reduce((s, r) => s + r.photos.length, 0)
   // BOQ is design's to tick, the quotation accounts' or execution's; project editors can do either.
-  const canTick = (doc: string) => editable || (doc === 'BOQ' ? can('Design', 'edit') : can('Accounts', 'edit') || can('Execution', 'edit'))
+  const canTick = (doc: string) => editable || (doc === 'BOQ' ? can('Design', 'edit') || can('Accounts', 'edit') : can('Accounts', 'edit') || can('Execution', 'edit'))
   const canEditDocs = editable || can('Design', 'edit') || can('Execution', 'edit')
   const docProgress = clientDocProgress(project)
   const brief = briefFor(db.clientBriefs, project.id)
@@ -108,7 +109,7 @@ export function ProjectDetail() {
           { key: 'photos' as Tab, label: 'Site Photos', count: photoCount },
         ]
       : []),
-    { key: 'commercial', label: docs.join(' & '), count: docs.reduce((s, d) => s + checklistProgress(project, d).done, 0) },
+    { key: 'commercial', label: docs.join(' & '), count: db.quotations.filter((q) => q.projectId === project.id).length },
     ...(canSeeMoney ? [{ key: 'accounts' as Tab, label: 'Accounts' }] : []),
     ...(maintenance.length || project.services.amc ? [{ key: 'maintenance' as Tab, label: 'AMC', count: maintenance.length || undefined }] : []),
     { key: 'history', label: 'History' },
@@ -314,69 +315,7 @@ export function ProjectDetail() {
 
       {tab === 'remarks' && <ProjectChat projectId={project.id} />}
 
-      {tab === 'commercial' && (
-        <div className={`grid gap-6 ${docs.length === 2 ? 'xl:grid-cols-2' : 'max-w-3xl'}`}>
-          {docs.map((doc) => {
-            const { done, total } = checklistProgress(project, doc)
-            const records = db.quotations.filter((q) => q.projectId === project.id && q.kind === doc)
-            return (
-              <Section
-                key={doc}
-                title={`${doc} Checklist`}
-                description={doc === 'BOQ' ? 'Bill of quantities for the design work.' : 'Priced quotation for the execution work.'}
-                actions={<Badge tone={done === total ? 'green' : done ? 'amber' : 'stone'}>{done} / {total}</Badge>}
-              >
-                <div className="px-5 pt-4"><ProgressBar value={(done / total) * 100} tone={done === total ? 'green' : 'amber'} /></div>
-                <ul className="divide-y divide-stone-100 px-2 py-2">
-                  {CHECKLISTS[doc].map((item) => {
-                    const tick = project.checklist?.[item.id]
-                    return (
-                      <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
-                        <Checkbox
-                          checked={Boolean(tick?.done)}
-                          disabled={!canTick(doc)}
-                          onChange={(v) => api.projects.setChecklist(project.id, item.id, v, user.id)}
-                          label={<span className={tick?.done ? 'text-stone-400 line-through' : ''}>{item.label}</span>}
-                        />
-                        {tick?.done && tick.on && (
-                          <span className="text-xs text-stone-400">
-                            {db.employees.find((e) => e.id === tick.by)?.name ?? '—'} · {formatDate(tick.on)}
-                          </span>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-                <div className="border-t border-stone-100 px-5 py-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="label">{doc} documents</p>
-                    {can('Accounts', 'view') && (
-                      <Link to={`/accounts/quotations?project=${project.id}&kind=${doc}`} className="text-xs font-semibold text-brand-700">
-                        {can('Accounts', 'create') ? `New ${doc}` : 'View all'}
-                      </Link>
-                    )}
-                  </div>
-                  {records.length === 0 ? (
-                    <p className="text-sm text-stone-400">No {doc} issued yet.</p>
-                  ) : (
-                    <ul className="space-y-1.5">
-                      {records.map((q) => (
-                        <li key={q.id} className="flex items-center justify-between gap-2 text-sm">
-                          <span className="font-medium text-stone-800">{q.number}</span>
-                          <span className="flex items-center gap-2">
-                            <span className="tabular-nums text-stone-600">{formatCurrency(q.items.reduce((s, i) => s + i.quantity * i.rate, 0))}</span>
-                            <StatusBadge status={q.status} />
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </Section>
-            )
-          })}
-        </div>
-      )}
+      {tab === 'commercial' && <CommercialTab project={project} canTick={canTick} />}
 
       {tab === 'phases' && (
         <Section

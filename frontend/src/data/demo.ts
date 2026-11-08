@@ -1,4 +1,5 @@
 import { normalizeSettings } from '../domain/defaults'
+import { normalizeQuotation } from '../domain/quotation'
 import type { Project } from '../domain/types'
 import { store, type DbShape } from './store'
 
@@ -6,7 +7,9 @@ import { store, type DbShape } from './store'
 // v4 added AMC as a project service with repeat visit schedules, project remarks,
 // staff pay records and lead WhatsApp numbers. v5 is the revised company
 // structure (hierarchy v2): new foremen, the Site Supervisor and the AMC foremen.
-const STORAGE_KEY = 'landschaft-crm-prototype-v5'
+// v6 is BOQs and quotations with sections: plants from the plants app, hardscape
+// areas with plans, management lines, terms and the payment schedule.
+const STORAGE_KEY = 'landschaft-crm-prototype-v6'
 
 type Seed = typeof import('../mock/seed')
 
@@ -68,6 +71,8 @@ function load(seed: Seed): DbShape {
       ...fresh,
       ...parsed,
       projects: parsed.projects.map((p) => withSeedDetails(p, fresh.projects)),
+      // Documents read in today's shape, whatever shape they were saved in.
+      quotations: (parsed.quotations ?? fresh.quotations).map(normalizeQuotation),
       settings: normalizeSettings({ ...fresh.settings, ...parsed.settings }),
     }
   } catch {

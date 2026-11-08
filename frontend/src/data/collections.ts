@@ -1,5 +1,6 @@
 import { normalizeSettings } from '../domain/defaults'
-import type { Settings } from '../domain/types'
+import { normalizeQuotation } from '../domain/quotation'
+import type { Quotation, Settings } from '../domain/types'
 import type { CollectionKey, DbShape } from './store'
 
 /** One stored record: its id and the record itself. */
@@ -27,31 +28,39 @@ const byId = (record: Item) => String(record.id)
 
 /**
  * A list collection. `newestFirst` lists grow at the top in the app (leads,
- * quotations), so loaded rows are reversed and new ones go in front.
+ * quotations), so loaded rows are reversed and new ones go in front. `tidy`
+ * brings a record stored in an older shape up to date as it is read; the
+ * baseline is taken after it, so tidying alone never counts as a change.
  */
-function list(key: CollectionKey, table: string, idOf: (record: Item) => string = byId, newestFirst = false): CollectionSpec {
+function list(
+  key: CollectionKey, table: string, idOf: (record: Item) => string = byId, newestFirst = false,
+  tidy: (record: Item) => Item = (record) => record,
+): CollectionSpec {
   const items = (db: DbShape) => db[key] as unknown as Item[]
   return {
     key,
     table,
     newestFirst,
     rows: (db) => new Map(items(db).map((record) => [idOf(record), record])),
-    build: (rows) => (newestFirst ? [...rows].reverse() : rows).map((row) => row.data) as DbShape[CollectionKey],
+    build: (rows) => (newestFirst ? [...rows].reverse() : rows).map((row) => tidy(row.data as Item)) as unknown as DbShape[CollectionKey],
     put(db, id, data) {
       const records = items(db)
       const index = records.findIndex((record) => idOf(record) === id)
       if (data === null) {
         if (index >= 0) records.splice(index, 1)
       } else if (index >= 0) {
-        records[index] = data as Item
+        records[index] = tidy(data as Item)
       } else if (newestFirst) {
-        records.unshift(data as Item)
+        records.unshift(tidy(data as Item))
       } else {
-        records.push(data as Item)
+        records.push(tidy(data as Item))
       }
     },
   }
 }
+
+/** BOQs and quotations saved before documents had sections are read in today's shape. */
+const tidyQuotation = (record: Item) => normalizeQuotation(record as unknown as Quotation) as unknown as Item
 
 export const COLLECTIONS: CollectionSpec[] = [
   list('employees', 'employees'),
@@ -65,7 +74,7 @@ export const COLLECTIONS: CollectionSpec[] = [
   list('tasks', 'tasks'),
   list('reports', 'reports'),
   list('issues', 'issues'),
-  list('quotations', 'quotations', byId, true),
+  list('quotations', 'quotations', byId, true, tidyQuotation),
   list('paymentRequests', 'payment_requests'),
   list('payments', 'payments'),
   list('maintenance', 'maintenance'),

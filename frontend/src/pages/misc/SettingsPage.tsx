@@ -3,6 +3,7 @@ import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
 import { PermissionMatrixEditor } from './PermissionMatrix'
+import { DocumentSettingsSection } from './DocumentSettings'
 import { DESIGN_PHASES, PHASE_LABELS, type Settings, type SlabDue } from '../../domain/types'
 import { SLAB_DUE_LABELS } from '../../domain/workflow'
 import {
@@ -47,8 +48,10 @@ export function SettingsPage() {
     : hours.halfDayEnd <= hours.start || hours.halfDayEnd >= hours.end
       ? 'A half day must end between the start and end of the working day'
       : null
+  const stagesOk = draft.documents.paymentStages.reduce((sum, s) => sum + s.percent, 0) === 100
   const problem = !splitOk ? 'the payment split must total 100%'
     : !slabsOk ? 'the execution slabs must each have a name and total 100%'
+    : !stagesOk ? 'the quotation payment stages must total 100%'
     : hoursError ? hoursError.toLowerCase() : null
   const valid = !problem
 
@@ -352,6 +355,8 @@ export function SettingsPage() {
           </Field>
         </div>
       </Section>
+
+      <DocumentSettingsSection value={draft.documents} onChange={(documents) => patch({ documents })} disabled={!editable} />
 
       {editable && (dirty || saved) && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 backdrop-blur lg:left-64">

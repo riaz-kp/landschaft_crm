@@ -2,6 +2,7 @@ import type { DbShape } from '../../data/store'
 import type { ID, ProjectLogEntry, Task } from '../../domain/types'
 import { formatCurrency, today } from '../../domain/format'
 import { projectType } from '../../domain/progress'
+import { quoteValue } from '../../domain/quotation'
 import { CLIENT_DOCS, clientDocLabel } from '../../domain/clientDocs'
 
 export type HistoryKind = 'tasks' | 'handovers' | 'documents' | 'site' | 'money' | 'project'
@@ -126,7 +127,8 @@ export function projectHistory(db: DbShape, projectId: ID): ProjectHistoryItem[]
     items.push({
       id: `q-${quote.id}`, date: quote.date, kind: 'money', icon: 'doc',
       title: `${quote.kind} ${quote.number} — ${quote.status}`,
-      detail: formatCurrency(quote.items.reduce((sum, i) => sum + i.quantity * i.rate, 0)),
+      detail: quoteValue(quote) === undefined ? 'Quantities and plans, no prices' : formatCurrency(quoteValue(quote)!),
+      to: `/projects/${projectId}/commercial/${quote.id}`,
     })
   }
 

@@ -180,7 +180,16 @@ export interface Api {
     /** Hands the task to someone else, with the reason kept in the project history. */
     reassign(taskId: ID, toId: ID, by: ID, reason?: string): void
   }
-  quotations: Crud<Quotation, Omit<Quotation, 'id' | 'number'>>
+  /** BOQs and quotations. The number (BOQ-2026-004, QT-2026-011) is given on creation. */
+  quotations: {
+    create(input: Omit<Quotation, 'id' | 'number'>): Quotation
+    /**
+     * Marking a document Sent or Accepted ticks the matching step of the
+     * project's BOQ / quotation checklist (shared with the client, accepted…), as from `by`.
+     */
+    update(quotationId: ID, patch: Partial<Omit<Quotation, 'id'>>, by?: ID): void
+    remove(quotationId: ID): void
+  }
   issues: { resolve(issueId: ID): void }
   settings: { save(next: Settings): void }
 }

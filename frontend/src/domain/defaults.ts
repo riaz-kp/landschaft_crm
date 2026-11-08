@@ -1,4 +1,5 @@
 import { defaultPermissions, normalizePermissions } from './roles'
+import { defaultDocumentSettings, normalizeDocumentSettings } from './documentDefaults'
 import type { PaymentSlab, Settings, SlabDue } from './types'
 
 /** Settings a new company starts with, before anyone changes them in Settings. */
@@ -26,6 +27,7 @@ export function defaultSettings(): Settings {
       'Gardener', 'Helper', 'Lawn Specialist', 'Mason', 'Painter', 'Plumber / Irrigation', 'Tile & Paver Layer',
       'Welder / Fabricator',
     ],
+    documents: defaultDocumentSettings(),
   }
 }
 
@@ -41,6 +43,7 @@ export function normalizeSettings(stored?: Partial<Settings> | null): Settings {
     ...stored,
     permissions: normalizePermissions(stored.permissions),
     executionPaymentSlabs: normalizeSlabs(stored.executionPaymentSlabs ?? defaults.executionPaymentSlabs),
+    documents: normalizeDocumentSettings(stored.documents),
   }
 }
 

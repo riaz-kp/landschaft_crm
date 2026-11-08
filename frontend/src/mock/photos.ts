@@ -63,3 +63,40 @@ ${palms}${plants}${pavers}
 </svg>`
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
+
+/**
+ * A stand-in plan of one area of a site, drawn as SVG: lawn, paving, planting
+ * beds and trees, with a north arrow and the area's name. Real plans are the
+ * design team's drawings; these only exist so the seeded BOQs have something
+ * to show, and each is labelled as a sample.
+ */
+export function placeholderPlan(key: string, area: string): string {
+  const h = hash(key)
+  const pathY = 150 + (h % 90)
+  const trees = Array.from({ length: 5 + (h % 4) }, (_, i) => {
+    const x = 70 + ((h >>> i) % 640)
+    const y = 60 + ((h >>> (i + 3)) % 90) + (i % 2) * (pathY + 40)
+    const r = 16 + ((h >>> (i + 1)) % 16)
+    return `<circle cx="${x}" cy="${Math.min(y, 440)}" r="${r}" fill="#8fbf8a" stroke="#4f7f4a" stroke-width="2"/>`
+      + `<circle cx="${x}" cy="${Math.min(y, 440)}" r="3" fill="#4f7f4a"/>`
+  }).join('')
+  const stones = Array.from({ length: 11 }, (_, i) => {
+    const x = 40 + i * 66
+    return `<rect x="${x}" y="${pathY + 6}" width="54" height="26" rx="3" fill="#e4ddd0" stroke="#a89f8f"/>`
+  }).join('')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
+<rect width="800" height="500" fill="#fbfaf6"/>
+<g stroke="#e9e4da" stroke-width="1">${Array.from({ length: 21 }, (_, i) => `<line x1="${i * 40}" y1="0" x2="${i * 40}" y2="500"/>`).join('')}${Array.from({ length: 13 }, (_, i) => `<line x1="0" y1="${i * 40}" x2="800" y2="${i * 40}"/>`).join('')}</g>
+<rect x="24" y="24" width="752" height="452" fill="none" stroke="#33463a" stroke-width="3"/>
+<rect x="40" y="40" width="${300 + (h % 200)}" height="${pathY - 50}" fill="#cfe3c4" stroke="#6f9a63" stroke-width="2"/>
+<rect x="${420 + (h % 120)}" y="${pathY + 52}" width="200" height="${370 - pathY}" fill="#d9d4ca" stroke="#8a8172" stroke-width="2"/>
+<text x="${520 + (h % 120)}" y="${pathY + 52 + (370 - pathY) / 2}" font-family="Inter,Arial,sans-serif" font-size="14" fill="#5f574a" text-anchor="middle">BUILDING</text>
+<rect x="24" y="${pathY}" width="752" height="38" fill="#f0ebe1"/>
+${stones}${trees}
+<g transform="translate(720 80)"><circle r="22" fill="#fff" stroke="#33463a" stroke-width="2"/><path d="M0 -16 L7 6 L0 2 L-7 6Z" fill="#33463a"/><text y="-28" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700" fill="#33463a" text-anchor="middle">N</text></g>
+<g transform="translate(48 452)"><rect width="120" height="6" fill="#33463a"/><rect x="60" width="60" height="6" fill="#fff" stroke="#33463a"/><text y="-6" font-family="Inter,Arial,sans-serif" font-size="11" fill="#33463a">0      5      10 m</text></g>
+<rect x="520" y="434" width="240" height="30" fill="#33463a"/>
+<text x="640" y="454" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">${escapeXml(area.toUpperCase())} · SAMPLE PLAN</text>
+</svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}

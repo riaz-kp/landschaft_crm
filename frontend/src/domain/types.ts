@@ -409,6 +409,11 @@ export interface Project {
    * (/portal/checklist/…). Cleared to switch the link off.
    */
   briefToken?: string
+  /**
+   * The project in the plants app (plants.landschaft.in) whose plant list this
+   * project's BOQ and quotation take their plants from. Matched by name.
+   */
+  plantsProject?: { id: string; name: string }
 }
 
 /** Answers on the client's requirement checklist, keyed by question. See domain/clientBrief. */
@@ -561,6 +566,7 @@ export interface Issue {
 
 export type QuotationStatus = 'Draft' | 'Sent' | 'Accepted' | 'Rejected'
 
+/** A line from before documents had sections. Read as a management line; never written now. */
 export interface QuotationItem {
   description: string
   quantity: number
@@ -568,16 +574,165 @@ export interface QuotationItem {
   rate: number
 }
 
+/**
+ * A plant on a BOQ or quotation, copied from a project in the plants app
+ * (plants.landschaft.in). Plants are chosen, sized and priced there, never in
+ * the CRM; the document keeps a copy so what was sent to a client does not
+ * change under it until someone fetches the list again.
+ */
+export interface PlantLine {
+  /** The plant's id in the plants app. */
+  plantId: string
+  name: string
+  botanical?: string
+  /** Climber, Fern, Palm, Shrub, Tree… The document groups plants by it. */
+  category: string
+  /** The plant's photo on the plants app's image host. */
+  image?: string
+  /** Height / size in feet as the plants app records it: "2.5", "3-6". */
+  size?: string
+  quantity?: number
+  unit?: string
+  rate?: number
+  notes?: string
+}
+
+/** The plants-app project a document's plants were copied from, when, and the copy itself. */
+export interface PlantsCopy {
+  projectId: string
+  projectName: string
+  /** ISO date-time the list was fetched. */
+  fetchedAt: string
+  /** When the plants-app project was last changed, as of that fetch. */
+  updatedAt?: string
+  lines: PlantLine[]
+}
+
+/** One stone or item laid in an area: "Bangalore Stone · 1 x 4 · 2283 Sqft". */
+export interface AreaItem {
+  id: ID
+  item: string
+  /** Size of the stone or item, e.g. "1 x 4". */
+  dimension?: string
+  quantity: number
+  unit: string
+  /** Quotations only; a BOQ carries no prices. */
+  rate?: number
+  /** An optional photo of the stone or item: a stored file ("sb:…"), or a data URL until it is uploaded. */
+  image?: string
+}
+
+/**
+ * An area of the site with its own heading, its plan, and the stones and items
+ * laid there. Plans appear on a BOQ, and on a quotation when the project has
+ * design; an execution-only quotation has none.
+ */
+export interface QuoteArea {
+  id: ID
+  name: string
+  /** A stored file ("sb:…"), or a data URL until it is uploaded. */
+  planImage?: string
+  items: AreaItem[]
+}
+
+/** Labour, supervision, soil preparation, transport: a line with the scope it covers. */
+export interface ServiceLine {
+  id: ID
+  title: string
+  description?: string
+  quantity: number
+  unit: string
+  rate: number
+}
+
+/** A titled paragraph: one of the terms, or one step of the work procedure. */
+export interface TitledText {
+  title: string
+  text: string
+}
+
+/** One stage of payment, as a share of the grand total. */
+export interface PaymentStage {
+  label: string
+  percent: number
+}
+
+/** The "Work Schedule / Details" block of a quotation. */
+export interface WorkSchedule {
+  /** Work starts within this many days of the advance and site clearance. */
+  mobilisationDays?: number
+  /** Roughly this many working days on site. */
+  executionDays?: number
+  validity: string
+  maintenance: string
+  billing: string
+}
+
+/** The parts a document can carry, each switched on or off per document. */
+export const QUOTE_SECTIONS = ['plants', 'hardscape', 'services', 'terms', 'procedure', 'payment', 'schedule', 'bank', 'acceptance'] as const
+export type QuoteSection = (typeof QUOTE_SECTIONS)[number]
+
+/** The cover letter on the first page. */
+export interface CoverLetter {
+  greeting: string
+  body: string
+  signOff: string
+}
+
+/**
+ * A BOQ or a quotation. A BOQ holds quantities and specifications only; a
+ * quotation is the same with rates, amounts, a summary and a payment schedule.
+ * Which one a project carries follows its services — see domain/commercial.
+ */
 export interface Quotation {
   id: ID
-  /** BOQ for design work, Quotation for execution work. */
   kind: CommercialDoc
   number: string
   projectId: ID
   clientId: ID
   date: string
-  items: QuotationItem[]
   status: QuotationStatus
+  letter: CoverLetter
+  /** The paragraph under the "Bill of Quantities" heading. */
+  intro: string
+  sections: Record<QuoteSection, boolean>
+  plants?: PlantsCopy
+  /** Hardscape, area by area. */
+  areas: QuoteArea[]
+  /** Heading of the management section, e.g. "Project Management, Planting, Soil Preparation & Logistics". */
+  servicesTitle: string
+  services: ServiceLine[]
+  /** Rupees off the total. Quotations only. */
+  discount: number
+  terms: TitledText[]
+  procedure: TitledText[]
+  procedureNote: string
+  paymentStages: PaymentStage[]
+  schedule: WorkSchedule
+  /** Lines from before documents had sections; see QuotationItem. */
+  items?: QuotationItem[]
+  createdBy?: ID
+}
+
+/**
+ * Company details, wording and starting content for BOQs and quotations.
+ * A new document copies the defaults; each document can then be changed on its own.
+ */
+export interface DocumentSettings {
+  company: { name: string; tagline: string; offices: string; phone: string; email: string }
+  bank: { accountName: string; bankName: string; accountNumber: string; ifsc: string }
+  letters: Record<CommercialDoc, CoverLetter>
+  intros: Record<CommercialDoc, string>
+  servicesTitle: string
+  services: Omit<ServiceLine, 'id'>[]
+  terms: TitledText[]
+  procedure: TitledText[]
+  procedureNote: string
+  paymentStages: PaymentStage[]
+  schedule: WorkSchedule
+  acceptance: Record<CommercialDoc, string>
+  /** Where the plants app is opened, for links to a project's plant list. */
+  plantsAppUrl: string
 }
 
 export type PaymentRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Paid'
@@ -784,6 +939,8 @@ export interface Settings {
    * ends at `halfDayEnd` — and any day can still be changed by hand.
    */
   workHours: WorkHours
+  /** Company details and default wording for BOQ and quotation documents. */
+  documents: DocumentSettings
 }
 
 /** One stage of collecting an execution project's value, e.g. 50% when work starts. */

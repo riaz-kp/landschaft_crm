@@ -195,3 +195,50 @@
   font-family: inherit;
   z-index: 0;
 }
+
+/* ---------------------------------------------------------------- printed BOQs and quotations
+   The document is laid out as A4 pages on screen (pages/quotations/QuotePrint).
+   On screen the sheet is scaled to fit a phone; printing uses the real size,
+   one page per sheet, with the background colours of the bands kept. */
+@media screen {
+  .quote-sheet {
+    zoom: var(--zoom, 1);
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  .print-hidden {
+    display: none !important;
+  }
+  .quote-print {
+    background: #fff !important;
+    min-height: 0 !important;
+  }
+  .quote-sheet {
+    zoom: 1 !important;
+    padding: 0 !important;
+    width: auto !important;
+  }
+  .quote-page {
+    /* A hair under A4, so rounding never spills a page onto a blank sheet. */
+    width: 210mm !important;
+    height: 296.6mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    break-after: page;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .quote-page:last-child {
+    break-after: auto;
+  }
+}
