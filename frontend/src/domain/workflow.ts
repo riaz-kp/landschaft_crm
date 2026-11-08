@@ -1,10 +1,13 @@
-import { formatCurrency } from './format'
 import { DESIGN_PHASES, PHASE_LABELS } from './types'
-import type { Employee, Project, RoleKey, Settings, WorkflowStepKey } from './types'
+import type { Employee, Project, RoleKey, Settings, SlabDue, WorkflowStepKey } from './types'
+
+const SITE_PHASES = ['hardscape', 'softscape', 'mep'] as const
 
 /**
  * One hand-off on the way from an enquiry to work starting on site. Ticking a
  * step tells the people who act next, through a reminder on their bell.
+ * Accounts hears about the payments a step brings due from the payment
+ * schedule below, once for each payment, rather than from the step.
  */
 export interface WorkflowStep {
   key: WorkflowStepKey
@@ -15,8 +18,6 @@ export interface WorkflowStep {
   /** Roles told once it is ticked, and what they are asked to do. */
   notify: RoleKey[]
   notice: (project: Project, settings: Settings) => string
-  /** The payment it brings due, e.g. "₹60,000 (30%)" — shown only to people who can see Accounts. */
-  amount?: (project: Project, settings: Settings) => string
   applies: (project: Project) => boolean
 }
 
@@ -24,11 +25,6 @@ const DESIGN_ROLES: RoleKey[] = ['design_director', 'design_pm', 'design_member'
 const EXECUTION_ROLES: RoleKey[] = ['execution_head', 'execution_pm']
 const designed = (p: Project) => p.services.design
 const executed = (p: Project) => p.services.execution
-
-/** "₹1,20,000 (30%)" when the value is known, else just "30%". */
-function share(value: number | undefined, percent: number): string {
-  return value ? `${formatCurrency((value * percent) / 100)} (${percent}%)` : `${percent}%`
-}
 
 export const WORKFLOW: WorkflowStep[] = [
   {
@@ -57,9 +53,8 @@ export const WORKFLOW: WorkflowStep[] = [
   },
   {
     key: 'scopeConfirmed', stage: 'Design', label: 'Scope confirmed',
-    owners: ['ceo', 'design_director'], notify: ['accounts', 'design_pm'],
-    notice: () => 'Scope confirmed — collect the design advance',
-    amount: (p, s) => share(p.designValue, s.designPaymentSplit.concept),
+    owners: ['ceo', 'design_director'], notify: ['design_pm'],
+    notice: () => 'Scope confirmed — allocate the design work',
     applies: designed,
   },
   {
@@ -70,9 +65,8 @@ export const WORKFLOW: WorkflowStep[] = [
   },
   {
     key: 'conceptDone', stage: 'Design', label: 'Concept finished',
-    owners: DESIGN_ROLES, notify: ['accounts'],
-    notice: () => 'Concept finished — collect the 3D payment',
-    amount: (p, s) => share(p.designValue, s.designPaymentSplit.threeD),
+    owners: DESIGN_ROLES, notify: [],
+    notice: () => 'Concept finished',
     applies: designed,
   },
   {
@@ -89,9 +83,8 @@ export const WORKFLOW: WorkflowStep[] = [
   },
   {
     key: 'workStarted', stage: 'Execution', label: 'Work started on site',
-    owners: EXECUTION_ROLES, notify: ['accounts'],
-    notice: (_, s) => (s.executionPaymentSlabs[0] ? `Work started — collect the ${s.executionPaymentSlabs[0].label.toLowerCase()} payment` : 'Work started on site'),
-    amount: (p, s) => (s.executionPaymentSlabs[0] ? share(p.executionValue, s.executionPaymentSlabs[0].percent) : ''),
+    owners: EXECUTION_ROLES, notify: [],
+    notice: () => 'Work started on site',
     applies: executed,
   },
 ]
@@ -117,27 +110,41 @@ export function holders(employees: Employee[], roles: RoleKey[]): Employee[] {
   return employees.filter((e) => roles.includes(e.role))
 }
 
+/** What each choice of "collect when" for an execution slab means, as Settings and the schedule word it. */
+export const SLAB_DUE_LABELS: Record<SlabDue, string> = {
+  workStarted: 'Work starts on site',
+  hardscape: 'Hardscape reaches 100%',
+  softscape: 'Softscape reaches 100%',
+  mep: 'MEP reaches 100%',
+  completed: 'Project marked Completed',
+}
+
 export interface ScheduleRow {
+  /** Stable across edits to the project, e.g. "design:threeD" or "execution:Hardscape complete". */
+  key: string
   stage: 'Design' | 'Execution'
   label: string
   /** The point it is collected at, e.g. "Scope confirmed". */
   dueWhen: string
   percent: number
   amount?: number
-  /** Whether that point has been reached; undefined where the system cannot tell. */
-  reached?: boolean
+  /** Whether that point has been reached. */
+  reached: boolean
 }
 
 /**
  * What the client pays and when: the design value split by phase and the
  * execution value by slab, both from Settings. Each design phase is paid for
  * up front — the concept as the advance once the scope is confirmed, the 3D
- * once the concept is finished, and so on. The first execution slab falls due
- * when work starts and the last at completion.
+ * once the concept is finished, and so on. Each execution slab falls due at
+ * the point Settings gives it: work starting, a phase reaching 100%, or the
+ * project being completed. A slab tied to a phase this project does not have
+ * falls due at completion.
  */
 export function paymentSchedule(project: Project, settings: Settings): ScheduleRow[] {
   const rows: ScheduleRow[] = []
   const wf = project.workflow ?? {}
+  const completed = project.status === 'Completed'
   const finished = (key: (typeof DESIGN_PHASES)[number]) => project.design[key].enabled && project.design[key].progress >= 100
   if (project.services.design) {
     const due: Record<(typeof DESIGN_PHASES)[number], [string, boolean]> = {
@@ -150,24 +157,54 @@ export function paymentSchedule(project: Project, settings: Settings): ScheduleR
       if (!project.design[key].enabled) continue
       const percent = settings.designPaymentSplit[key]
       rows.push({
-        stage: 'Design', label: PHASE_LABELS[key], dueWhen: due[key][0], reached: due[key][1], percent,
+        key: `design:${key}`, stage: 'Design', label: PHASE_LABELS[key], dueWhen: due[key][0], reached: due[key][1], percent,
         amount: project.designValue ? (project.designValue * percent) / 100 : undefined,
       })
     }
   }
   if (project.services.execution) {
-    const slabs = settings.executionPaymentSlabs
-    slabs.forEach((slab, i) => {
-      const done = project.status === 'Completed'
-      // In between, only Accounts knows how far the site has got.
-      const reached = i === 0 ? Boolean(wf.workStarted?.done) || done : done || (i === slabs.length - 1 ? false : undefined)
+    // Ticked on the Workflow tab, or progress recorded on site work (maintenance only follows handover).
+    const started = Boolean(wf.workStarted?.done)
+      || SITE_PHASES.some((phase) => project.execution[phase].enabled && project.execution[phase].progress > 0)
+    for (const slab of settings.executionPaymentSlabs) {
+      let reached = completed
+      let dueWhen = SLAB_DUE_LABELS[slab.dueAt]
+      if (slab.dueAt === 'workStarted') {
+        reached ||= started
+      } else if (slab.dueAt !== 'completed') {
+        const phase = project.execution[slab.dueAt]
+        if (phase.enabled) reached ||= phase.progress >= 100
+        else dueWhen = `${SLAB_DUE_LABELS.completed} (no ${PHASE_LABELS[slab.dueAt]} on this project)`
+      }
       rows.push({
-        stage: 'Execution', label: slab.label, dueWhen: slab.label, percent: slab.percent, reached,
+        key: `execution:${slab.label}`, stage: 'Execution', label: slab.label, dueWhen, percent: slab.percent, reached,
         amount: project.executionValue ? (project.executionValue * slab.percent) / 100 : undefined,
       })
-    })
+    }
   }
   return rows
+}
+
+export interface CollectionRow extends ScheduleRow {
+  /** What is still to come in for this row, once what was received is set against the rows in order. */
+  outstanding?: number
+  collected: boolean
+}
+
+/**
+ * Sets what the client has paid against the schedule, earliest row first, so
+ * each row says whether it is collected and how much of it is still owed. A row
+ * with no value set cannot be counted, and is never shown as collected.
+ */
+export function withCollection(rows: ScheduleRow[], received: number): CollectionRow[] {
+  let left = received
+  return rows.map((row) => {
+    if (row.amount === undefined) return { ...row, collected: false }
+    const paid = Math.max(0, Math.min(row.amount, left))
+    left -= paid
+    const outstanding = row.amount - paid
+    return { ...row, outstanding, collected: outstanding < 0.5 }
+  })
 }
 
 /** The dashboard figure: design plus execution when either is set, else the value as entered. */

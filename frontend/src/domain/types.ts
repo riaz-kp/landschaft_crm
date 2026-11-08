@@ -389,6 +389,8 @@ export interface Project {
   nextAction?: NextAction
   /** Hand-offs ticked off so far, keyed by step. See domain/workflow. */
   workflow?: Partial<Record<WorkflowStepKey, ChecklistTick>>
+  /** Payment-schedule rows Accounts has been told are due (ScheduleRow.key), so each is told once. */
+  paymentsFlagged?: string[]
   /** Flagged when the expected completion has passed and work is unfinished. */
   delayed: boolean
   /** Pin dropped on the map at creation. */
@@ -463,7 +465,7 @@ export interface Task {
 
 export type ProjectLogKind =
   | 'task-created' | 'task-reassigned' | 'task-done' | 'task-reopened' | 'task-deleted'
-  | 'project-edited' | 'workflow-step'
+  | 'project-edited' | 'workflow-step' | 'payment-due'
 
 /**
  * One entry in a project's history. Task hand-overs, completions and edits are
@@ -785,9 +787,13 @@ export interface Settings {
 }
 
 /** One stage of collecting an execution project's value, e.g. 50% when work starts. */
+/** When an execution slab falls due: work starting, a phase reaching 100%, or the project completed. */
+export type SlabDue = 'workStarted' | 'hardscape' | 'softscape' | 'mep' | 'completed'
+
 export interface PaymentSlab {
   label: string
   percent: number
+  dueAt: SlabDue
 }
 
 export interface WorkHours {
@@ -835,6 +841,8 @@ export interface Reminder {
   forIds: ID[]
   /** A workflow hand-off sent to others: it shows only on their bells, not the sender's. */
   notice?: boolean
+  /** Where the bell takes them, e.g. "/projects/p1?tab=tasks". */
+  link?: string
   /** Dates ticked off — one entry per occurrence of a repeating reminder. */
   doneDates: string[]
 }

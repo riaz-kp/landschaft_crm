@@ -80,7 +80,8 @@ export interface Api {
     update(projectId: ID, patch: Partial<Omit<Project, 'id'>>, by?: ID): void
     /** Marks a client document received or not needed; null puts it back to pending. */
     setClientDoc(projectId: ID, key: ClientDocKey, tick: ClientDocTick | null, by: ID): void
-    setPhaseProgress(projectId: ID, phase: string, progress: number): void
+    /** Reaching 100% can bring a payment due, which Accounts is told about as from `by`. */
+    setPhaseProgress(projectId: ID, phase: string, progress: number, by: ID): void
     /** Ticks or clears one BOQ / quotation checklist item. */
     setChecklist(projectId: ID, itemId: string, done: boolean, by: ID): void
     /**

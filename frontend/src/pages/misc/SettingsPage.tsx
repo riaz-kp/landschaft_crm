@@ -3,7 +3,8 @@ import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
 import { PermissionMatrixEditor } from './PermissionMatrix'
-import { DESIGN_PHASES, PHASE_LABELS, type Settings } from '../../domain/types'
+import { DESIGN_PHASES, PHASE_LABELS, type Settings, type SlabDue } from '../../domain/types'
+import { SLAB_DUE_LABELS } from '../../domain/workflow'
 import {
   PageHeader, Section, Field, Checkbox, Badge, ProgressBar,
 } from '../../components/ui'
@@ -194,18 +195,27 @@ export function SettingsPage() {
 
       <Section
         title="Execution Payment Slabs"
-        description="The stages Accounts collects an execution project's value in, in order. The first falls due when work starts on site and the last at handover. Must total 100%."
+        description="The stages Accounts collects an execution project's value in, in order: each slab's name, the point it falls due, and its share. Accounts is told on their bell as soon as a project reaches that point. Must total 100%."
         className="mb-6"
       >
         <div className="px-5 py-5">
           <div className="space-y-3">
             {slabs.map((slab, i) => (
-              <div key={i} className="flex items-center gap-3">
+              <div key={i} className="flex flex-wrap items-center gap-3 sm:flex-nowrap">
                 <span className="w-6 shrink-0 text-right text-sm tabular-nums text-stone-400">{i + 1}</span>
                 <input
                   className="input min-w-0 flex-1" value={slab.label} disabled={!editable}
                   onChange={(e) => setSlab(i, { label: e.target.value })} aria-label={`Slab ${i + 1} name`}
                 />
+                <select
+                  className="input order-last ml-9 w-full py-1.5 sm:order-none sm:ml-0 sm:w-60 sm:shrink-0" value={slab.dueAt} disabled={!editable}
+                  onChange={(e) => setSlab(i, { dueAt: e.target.value as SlabDue })} aria-label={`Slab ${i + 1}: due when`}
+                  title="When this slab falls due"
+                >
+                  {(Object.keys(SLAB_DUE_LABELS) as SlabDue[]).map((due) => (
+                    <option key={due} value={due}>{SLAB_DUE_LABELS[due]}</option>
+                  ))}
+                </select>
                 <div className="flex w-24 shrink-0 items-center gap-1.5">
                   <input
                     type="number" min={0} max={100} disabled={!editable} value={slab.percent}
@@ -228,7 +238,7 @@ export function SettingsPage() {
           {editable && (
             <button
               type="button" className="btn-secondary mt-4 py-1.5 text-xs"
-              onClick={() => patch({ executionPaymentSlabs: [...slabs, { label: '', percent: 0 }] })}
+              onClick={() => patch({ executionPaymentSlabs: [...slabs, { label: '', percent: 0, dueAt: 'completed' }] })}
             >
               <Icon name="plus" className="h-4 w-4" /> Add slab
             </button>

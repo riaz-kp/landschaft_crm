@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
@@ -42,7 +42,16 @@ export function ProjectDetail() {
   const { can } = usePermissions()
   const [pinning, setPinning] = useState(false)
   const [startingAmc, setStartingAmc] = useState(false)
-  const [tab, setTab] = useState<Tab>('overview')
+  // A bell notice opens a tab directly (/projects/p1?tab=tasks), also when this project is already open.
+  const [searchParams] = useSearchParams()
+  const location = useLocation()
+  const linkedTab = searchParams.get('tab') as Tab | null
+  const [tab, setTab] = useState<Tab>(linkedTab ?? 'overview')
+  const [arrival, setArrival] = useState(location.key)
+  if (arrival !== location.key) {
+    setArrival(location.key)
+    if (linkedTab) setTab(linkedTab)
+  }
   const [editingDetails, setEditingDetails] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | 'new' | null>(null)
   const [finishing, setFinishing] = useState<Task | null>(null)
@@ -388,7 +397,7 @@ export function ProjectDetail() {
                   <ProgressCell
                     value={row.progress}
                     label={row.label}
-                    onChange={editable ? (v) => api.projects.setPhaseProgress(project.id, row.key, v) : undefined}
+                    onChange={editable ? (v) => api.projects.setPhaseProgress(project.id, row.key, v, user.id) : undefined}
                   />
                 </td>
               </tr>

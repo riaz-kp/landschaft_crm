@@ -1,15 +1,15 @@
 import { defaultPermissions, normalizePermissions } from './roles'
-import type { Settings } from './types'
+import type { PaymentSlab, Settings, SlabDue } from './types'
 
 /** Settings a new company starts with, before anyone changes them in Settings. */
 export function defaultSettings(): Settings {
   return {
     designPaymentSplit: { concept: 30, threeD: 30, civilWork: 30, boq: 10 },
     executionPaymentSlabs: [
-      { label: 'Work start', percent: 50 },
-      { label: 'Hardscape complete', percent: 25 },
-      { label: 'Softscape complete', percent: 20 },
-      { label: 'Handover', percent: 5 },
+      { label: 'Work start', percent: 50, dueAt: 'workStarted' },
+      { label: 'Hardscape complete', percent: 25, dueAt: 'hardscape' },
+      { label: 'Softscape complete', percent: 20, dueAt: 'softscape' },
+      { label: 'Handover', percent: 5, dueAt: 'completed' },
     ],
     taEnabled: false,
     taRatePerKm: 0,
@@ -36,5 +36,26 @@ export function defaultSettings(): Settings {
 export function normalizeSettings(stored?: Partial<Settings> | null): Settings {
   const defaults = defaultSettings()
   if (!stored) return defaults
-  return { ...defaults, ...stored, permissions: normalizePermissions(stored.permissions) }
+  return {
+    ...defaults,
+    ...stored,
+    permissions: normalizePermissions(stored.permissions),
+    executionPaymentSlabs: normalizeSlabs(stored.executionPaymentSlabs ?? defaults.executionPaymentSlabs),
+  }
+}
+
+/**
+ * Slabs saved before each said when it falls due get one from its name, or
+ * failing that its place: the first when work starts, the rest at completion.
+ */
+function normalizeSlabs(slabs: Partial<PaymentSlab>[]): PaymentSlab[] {
+  return slabs.map((slab, i) => {
+    const label = slab.label ?? ''
+    const guessed: SlabDue = /hardscape/i.test(label) ? 'hardscape'
+      : /softscape|planting|lawn/i.test(label) ? 'softscape'
+        : /mep|irrigation|electric|drainage|plumb/i.test(label) ? 'mep'
+          : i === 0 || /start|advance|mobili/i.test(label) ? 'workStarted'
+            : 'completed'
+    return { label, percent: slab.percent ?? 0, dueAt: slab.dueAt ?? guessed }
+  })
 }

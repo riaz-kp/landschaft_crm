@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
+import { useSession } from '../../state/session'
 import { formatDate } from '../../domain/format'
 import { MEP_LABELS, MEP_SERVICES, PHASE_LABELS } from '../../domain/types'
 import {
@@ -19,6 +20,7 @@ const DESCRIPTIONS: Record<Key, string> = {
 
 export function ExecutionPhasePage({ phase }: { phase: Key }) {
   const db = useDb()
+  const { user } = useSession()
   const { can } = usePermissions()
   const editable = can('Execution', 'edit')
 
@@ -95,7 +97,7 @@ export function ExecutionPhasePage({ phase }: { phase: Key }) {
                     <ProgressCell
                       value={project.execution[phase].progress}
                       label={`${PHASE_LABELS[phase]} for ${project.name}`}
-                      onChange={editable ? (v) => api.projects.setPhaseProgress(project.id, phase, v) : undefined}
+                      onChange={editable ? (v) => api.projects.setPhaseProgress(project.id, phase, v, user.id) : undefined}
                     />
                   </td>
                   <td className="td">
