@@ -8,6 +8,8 @@ import type {
   ClientDocKey, ClientDocTick, ProjectLogEntry, ClientBrief,
 } from '../domain/types'
 import { placeholderSitePhoto } from './photos'
+import { seedQuotations } from './quotes'
+import { plantsProjects } from './plants'
 import { CHECKLISTS } from '../domain/commercial'
 import type { ChecklistTick } from '../domain/types'
 
@@ -78,6 +80,7 @@ export const clients: Client[] = [
   { id: 'c4', name: 'Dr. Ramesh Nair', phone: '+91 94470 30004', whatsapp: '+91 94470 30004', email: 'ramesh.nair@gmail.com', address: 'Edava, Varkala', createdAt: '2026-06-08' },
   { id: 'c5', name: 'Greenfield Apartments', phone: '+91 94470 30005', whatsapp: '+91 94470 30005', email: 'assoc@greenfield.in', address: 'Kozhikode', createdAt: '2026-06-25' },
   { id: 'c6', name: 'Marine Drive Towers Association', phone: '+91 94470 30011', whatsapp: '+91 94470 30011', email: 'secretary@marinedrivetowers.in', address: 'Marine Drive, Kochi', createdAt: addDays(today(), -60) },
+  { id: 'c7', name: 'Ashraf', phone: '+91 94470 30012', whatsapp: '+91 94470 30012', address: 'Kondotty, Malappuram', createdAt: addDays(today(), -24) },
 ]
 
 export const leads: Lead[] = [
@@ -116,6 +119,12 @@ function received(keys: ClientDocKey[], by: string, on: string, notNeeded: Clien
   ])
 }
 
+/** A seeded project's link to its project in the plants app (mock/plants). */
+function plantsLink(name: string): Project['plantsProject'] {
+  const found = plantsProjects.find((p) => p.name === name)!
+  return { id: found.id, name: found.name }
+}
+
 /**
  * The three worked examples from the structure document, seeded so the client
  * recognises their own numbers: 45% design-only, 55% execution-only, 82% both.
@@ -123,6 +132,7 @@ function received(keys: ClientDocKey[], by: string, on: string, notNeeded: Clien
 export const projects: Project[] = [
   {
     id: 'p1', code: 'LS-2026-001', name: 'Residence Landscape Design', clientId: 'c1',
+    plantsProject: plantsLink('ABC Holdings Villa — Kowdiar'),
     category: 'Residential', area: 4500, areaUnit: 'sq ft',
     clientDocs: received(['contour', 'archFloor', 'archSections', 'archElevations', 'sitePhotos'], 'e3', '2026-04-28', ['model3d']),
     siteLocation: 'Kowdiar, Thiruvananthapuram', projectManagerId: 'e3',
@@ -137,6 +147,7 @@ export const projects: Project[] = [
   },
   {
     id: 'p2', code: 'LS-2026-002', name: 'Villa Landscape Execution', clientId: 'c2',
+    plantsProject: plantsLink('XYZ Estates Villa'),
     category: 'Residential', area: 6800, areaUnit: 'sq ft',
     clientDocs: received(['model3d', 'presentation', 'archFloor', 'sitePhotos'], 'e7', '2026-05-28'),
     siteLocation: 'Panampilly Nagar, Kochi', projectManagerId: 'e7',
@@ -153,6 +164,7 @@ export const projects: Project[] = [
   },
   {
     id: 'p3', code: 'LS-2026-003', name: 'Resort Landscape', clientId: 'c3',
+    plantsProject: plantsLink('DEF Resort — Kovalam'),
     category: 'Hospitality', area: 3.5, areaUnit: 'acres',
     clientDocs: received(['model3d', 'contour', 'presentation', 'archFloor', 'archSections', 'archElevations', 'sitePhotos'], 'e3', '2026-04-10'),
     siteLocation: 'Kovalam, Thiruvananthapuram', projectManagerId: 'e7',
@@ -199,6 +211,7 @@ export const projects: Project[] = [
   },
   {
     id: 'p6', code: 'LS-2026-006', name: 'Kovalam Villa Concept', clientId: 'c3',
+    plantsProject: plantsLink('Kovalam Villa Concept'),
     category: 'Hospitality', area: 2400, areaUnit: 'sq ft',
     siteLocation: 'Kovalam', projectManagerId: 'e3',
     startDate: '2026-08-01', expectedCompletion: '2026-10-20', status: 'Planning',
@@ -251,6 +264,24 @@ export const projects: Project[] = [
     execution: { hardscape: phase(false), softscape: phase(false), mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } }, maintenance: phase(false) },
     value: 180000, delayed: false,
     siteCoords: { lat: 9.9816, lng: 76.2756 }, checklist: ticks(QUOTATION_ALL, 'e8'),
+  },
+  {
+    // The company's own quotation (Ashraf, Residence, Kondotty) — see mock/quotes.
+    id: 'p10', code: 'LS-2026-009', name: 'Residence', clientId: 'c7',
+    plantsProject: plantsLink('Ashraf Residence'),
+    category: 'Residential', area: 3200, areaUnit: 'sq ft',
+    clientDocs: received(['sitePhotos', 'archFloor'], 'e7', '2026-10-24'),
+    siteLocation: 'Kondotty', projectManagerId: 'e7',
+    startDate: '2026-11-16', expectedCompletion: '2027-01-30', status: 'Planning',
+    services: { design: false, execution: true },
+    design: { concept: phase(false), threeD: phase(false), civilWork: phase(false), boq: phase(false) },
+    execution: {
+      hardscape: phase(true, 0), softscape: phase(true, 0),
+      mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } },
+      maintenance: phase(true, 0),
+    },
+    value: 690540, executionValue: 690540, delayed: false,
+    siteCoords: { lat: 11.1463, lng: 75.9636 }, checklist: ticks(['qt.scope', 'qt.survey', 'qt.pricing', 'qt.terms', 'qt.approved', 'qt.sent'], 'e8'),
   },
 ]
 
@@ -568,16 +599,8 @@ export const issues: Issue[] = [
   { id: 'i3', projectId: 'p5', reportId: 'r2', text: 'Association requested a change to the walkway alignment', raisedBy: 'e12', assignedTo: 'e7', date: addDays(today(), -2), status: 'Open' },
 ]
 
-export const quotations: Quotation[] = [
-  { id: 'q1', kind: 'BOQ', number: 'BOQ-2026-011', projectId: 'p1', clientId: 'c1', date: '2026-04-20', status: 'Accepted', items: [{ description: 'Concept design', quantity: 1, unit: 'LS', rate: 425000 }, { description: '3D presentation', quantity: 1, unit: 'LS', rate: 170000 }, { description: 'Civil drawings', quantity: 1, unit: 'LS', rate: 127500 }, { description: 'BOQ preparation', quantity: 1, unit: 'LS', rate: 127500 }] },
-  { id: 'q2', kind: 'Quotation', number: 'QT-2026-014', projectId: 'p2', clientId: 'c2', date: '2026-05-18', status: 'Accepted', items: [{ description: 'Hardscape works', quantity: 1, unit: 'LS', rate: 1200000 }, { description: 'Softscape works', quantity: 1, unit: 'LS', rate: 850000 }, { description: 'Irrigation and electrical', quantity: 1, unit: 'LS', rate: 350000 }] },
-  { id: 'q3', kind: 'BOQ', number: 'BOQ-2026-021', projectId: 'p6', clientId: 'c3', date: '2026-07-28', status: 'Sent', items: [{ description: 'Concept design', quantity: 1, unit: 'LS', rate: 210000 }, { description: '3D presentation', quantity: 1, unit: 'LS', rate: 105000 }, { description: 'BOQ preparation', quantity: 1, unit: 'LS', rate: 105000 }] },
-  { id: 'q4', kind: 'Quotation', number: 'QT-2026-023', projectId: 'p8', clientId: 'c5', date: '2026-08-05', status: 'Draft', items: [{ description: 'Campus softscape', quantity: 1, unit: 'LS', rate: 1450000 }, { description: 'Irrigation and drainage', quantity: 1, unit: 'LS', rate: 450000 }] },
-  // Design + Execution carries both documents.
-  { id: 'q5', kind: 'BOQ', number: 'BOQ-2026-009', projectId: 'p3', clientId: 'c3', date: '2026-04-05', status: 'Accepted', items: [{ description: 'Masterplan concept', quantity: 1, unit: 'LS', rate: 600000 }, { description: '3D presentation', quantity: 1, unit: 'LS', rate: 240000 }, { description: 'Civil and structural drawings', quantity: 1, unit: 'LS', rate: 180000 }] },
-  { id: 'q6', kind: 'Quotation', number: 'QT-2026-012', projectId: 'p3', clientId: 'c3', date: '2026-05-02', status: 'Accepted', items: [{ description: 'Hardscape — pool deck and plazas', quantity: 2400, unit: 'sq ft', rate: 1250 }, { description: 'Softscape and planting', quantity: 1, unit: 'LS', rate: 2600000 }, { description: 'MEP — irrigation, lighting, drainage', quantity: 1, unit: 'LS', rate: 1980000 }] },
-  { id: 'q7', kind: 'Quotation', number: 'QT-2026-027', projectId: 'p9', clientId: 'c6', date: addDays(today(), -52), status: 'Accepted', items: [{ description: 'Annual maintenance — monthly visits', quantity: 12, unit: 'visit', rate: 12500 }, { description: 'Quarterly seasonal replanting', quantity: 4, unit: 'round', rate: 7500 }] },
-]
+/** BOQs and quotations, built in mock/quotes. */
+export const quotations: Quotation[] = seedQuotations()
 
 export const paymentRequests: PaymentRequest[] = [
   { id: 'pr1', projectId: 'p1', phase: 'concept', amount: 425000, requestedBy: 'e3', date: '2026-06-02', status: 'Paid', note: 'Concept approved by client' },

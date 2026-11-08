@@ -1,6 +1,7 @@
 import type { DbShape } from '../../../data/store'
 import { DESIGN_PHASES, type Department, type ID, type PhaseKey } from '../../../domain/types'
 import { formatCurrency, today } from '../../../domain/format'
+import { quoteValue } from '../../../domain/quotation'
 
 export interface HistoryItem {
   id: string
@@ -52,11 +53,12 @@ export function clientHistory(db: DbShape, clientId: ID): HistoryItem[] {
   }
 
   for (const quote of db.quotations.filter((q) => q.clientId === clientId)) {
-    const total = quote.items.reduce((sum, i) => sum + i.quantity * i.rate, 0)
+    const total = quoteValue(quote)
     items.push({
-      id: `q-${quote.id}`, date: quote.date, department: 'Accounts', icon: 'doc',
-      title: `${quote.kind} ${quote.number} — ${quote.status}`, detail: formatCurrency(total),
-      to: '/accounts/quotations',
+      id: `q-${quote.id}`, date: quote.date, department: quote.kind === 'BOQ' ? 'Design' : 'Accounts', icon: 'doc',
+      title: `${quote.kind} ${quote.number} — ${quote.status}`,
+      detail: total === undefined ? 'Quantities and plans, no prices' : formatCurrency(total),
+      to: `/projects/${quote.projectId}/commercial/${quote.id}`,
     })
   }
 

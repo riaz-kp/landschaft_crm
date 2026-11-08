@@ -120,6 +120,7 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
     { label: 'Site visit before proposal', value: (p) => (p.siteVisitRequired ? 'Required' : '') },
     { label: 'Services', value: (p) => (p.services ? projectType(p as Project) : '') },
     { label: 'Phases', value: (p) => (p.design && p.execution ? describePhases(p as Project) : '') },
+    { label: 'Plants app project', value: (p) => p.plantsProject?.name ?? '' },
   ]
   const after = { ...before, ...patch }
   return shown
@@ -127,6 +128,12 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
     .filter(([, from, to]) => from !== to)
     .map(([label, from, to]) => `${label}: ${from || '—'} → ${to || '—'}`)
     .join(' · ')
+}
+
+/** The checklist steps (domain/commercial) a document's new status completes. */
+const CHECKLIST_ON_STATUS: Record<Quotation['kind'], Partial<Record<Quotation['status'], string[]>>> = {
+  BOQ: { Sent: ['boq.shared'], Accepted: ['boq.shared', 'boq.approved'] },
+  Quotation: { Sent: ['qt.sent'], Accepted: ['qt.sent', 'qt.accepted'] },
 }
 
 /** A visit report as stored on the visit. */
@@ -870,8 +877,21 @@ export const adapter: Api = {
       })
       return record
     },
-    update(quotationId, patch) {
-      store.update((db) => patchIn(db.quotations, quotationId, patch))
+    update(quotationId, patch, by) {
+      store.update((db) => {
+        const quote = db.quotations.find((q) => q.id === quotationId)
+        if (!quote) return
+        const statusBefore = quote.status
+        Object.assign(quote, patch)
+        if (!by || !patch.status || patch.status === statusBefore) return
+        // The document going out, or being accepted, is a step on the project's checklist.
+        const steps = CHECKLIST_ON_STATUS[quote.kind][patch.status] ?? []
+        const project = db.projects.find((p) => p.id === quote.projectId)
+        if (!project || !steps.length) return
+        const checklist = { ...project.checklist }
+        for (const step of steps) if (!checklist[step]?.done) checklist[step] = { done: true, by, on: today() }
+        project.checklist = checklist
+      })
     },
     remove(quotationId) {
       store.update((db) => removeFrom(db.quotations, quotationId))

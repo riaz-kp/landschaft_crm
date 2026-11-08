@@ -33,11 +33,13 @@ a "Not configured" screen rather than running against nothing.
    (SQL editor, or `supabase db push`). It creates one table per collection,
    row-level security on every table, the triggers that guard roles, pay and
    Settings, and the private `files` bucket for photos and documents.
-2. **Functions.** Deploy both with JWT verification off
+2. **Functions.** Deploy all three with JWT verification off
    (`supabase functions deploy staff-accounts --no-verify-jwt`, and the same for
-   `client-portal`). `staff-accounts` checks the caller's token itself; it is
+   `client-portal` and `plants`). `staff-accounts` checks the caller's token itself; it is
    how admins create logins. `client-portal` serves the client links (below),
-   whose callers have no login at all.
+   whose callers have no login at all. `plants` reads plant lists from the
+   plants app for BOQs and quotations; it needs the plants app's login saved as
+   secrets — see *Plants from the plants app* below.
 3. **Auth settings** (Supabase → Authentication): turn **off** "Allow new users
    to sign up" — staff logins are created by an admin, never by sign-up.
 4. **Hosting.** `frontend/vercel.json` serves the SPA on Vercel. The build
@@ -422,6 +424,89 @@ Documents tab adding one marks the document received, as a file does. Drive
 decides who may open a link, so share one the client will see as *Anyone with
 the link*.
 
+## BOQ & Quotation documents
+
+BOQs and quotations are built in the CRM, section by section, after the
+company's own quotation (the Ashraf residence quotation), and print as A4 pages
+in the same design: cover with the letter, Bill of Quantities, summary, terms,
+work procedure, payment schedule, work schedule, bank details and the client's
+acceptance.
+
+**Which document a project carries** follows its services:
+
+| Services | Document | Each item shows | Plan image per area |
+|---|---|---|---|
+| Design only | BOQ | item, dimension, quantity, unit | yes |
+| Design + Execution | BOQ | item, dimension, quantity, unit | yes |
+| Design + Execution | Quotation | item, dimension, quantity, unit, rate, amount | yes |
+| Execution only | Quotation | item, dimension, quantity, unit, rate, amount | no |
+
+A BOQ is quantities and specifications; a quotation is the BOQ priced. An AMC-only
+project is priced on a quotation of visits. Hardscape is laid out **area by area**:
+each area has its heading, its plan image, then the stones and items laid there.
+
+- **Where:** a project's *BOQ & Quotation* tab (New BOQ / New quotation), or
+  Accounts → BOQ & Quotations. Each document opens in its own editor
+  (`/projects/:id/commercial/:docId`) and saves as you type, like the rest of the app.
+- **Sections:** plants · hardscape areas · project management, planting, soil
+  preparation & logistics · discount and grand total · payment schedule · terms ·
+  scope and work procedure · work schedule · bank details · client acceptance.
+  Each can be left out of a document; a BOQ never carries prices, a payment
+  schedule or bank details.
+- **A quotation from the BOQ:** on a Design + Execution project, *Make a
+  quotation from this BOQ* copies its plants, areas, plans and quantities, ready
+  for rates. *Duplicate as a new draft* makes a revision.
+- **Status:** marking a document Sent or Accepted ticks the matching steps of the
+  project's checklist. An accepted document is locked until its status is
+  changed back.
+- **Printing:** *Preview & print* lays the document out as A4 pages, with table
+  headings repeated on each page and the pages numbered; *Print / Save as PDF*
+  prints it or saves it as a PDF named after the document.
+- **Wording:** Settings → *BOQ & Quotation Documents* holds the company and bank
+  details, the cover letters, management lines, payment stages, terms and work
+  procedure every new document starts from. A document keeps its own copy.
+- **Who:** Accounts handle both. A BOQ is also the design team's (Design
+  create / edit), a quotation the execution team's (Execution create / edit).
+
+No database change is needed: documents live in the existing `quotations`
+table, which stores each record as JSON. Older flat quotations are read as
+management lines.
+
+### Plants from the plants app
+
+Plants are chosen, sized and priced in the plants app (plants.landschaft.in),
+never in the CRM. A document's *Plants* section finds the plants-app project
+**matching the CRM project by name** (and client and site), marks the best
+match, and lets you search for and pick another. The link is kept on the
+project, and the plant list is copied onto the document — grouped by category
+with photo, botanical name, height / size, quantity, unit and rate — so a
+document sent to a client does not change under it. *Fetch again* takes the
+current list; the editor says when the plants app has changed since.
+
+The plants app's API accepts browser calls only from its own site and takes a
+single admin login, so the CRM reads it through the `plants` Edge Function,
+which holds that login as secrets and calls the API server to server:
+
+```bash
+supabase functions deploy plants --no-verify-jwt
+supabase secrets set PLANTS_API_USERNAME=<plants app admin username> PLANTS_API_PASSWORD=<its password>
+# Optional; this is the default:
+supabase secrets set PLANTS_API_URL=https://api.landschaft.in
+```
+
+Without the CLI, add the same secrets in the Supabase dashboard under
+*Edge Functions → Secrets*. No redeploy is needed after setting them.
+
+Only signed-in office staff can call it, and it only reads. Until it is deployed
+and its secrets are set, the *Plants* section says the link is not set up; the
+rest of the document works. In the demo, a few sample plants-app projects stand
+in for it, among them the Ashraf residence list, so the demo's *Residence*
+project (Ashraf, Kondotty) reproduces the company's quotation: plants
+₹2,85,800, hardscape ₹3,61,740, management ₹43,000, grand total ₹6,90,540.
+
+The data version moved to v6, so browser data is replaced by the new seed on
+first load.
+
 ## What the document asked to keep configurable
 
 These live in **Settings** rather than being hard-coded:
@@ -449,6 +534,7 @@ supabase/
 ├── migrations/   tables, row-level security, guards, storage bucket
 └── functions/    staff-accounts — first admin, create / rename / reset / switch off logins
                   client-portal — the AMC report and requirement checklist links
+                  plants — plant lists from the plants app, for BOQs and quotations
 frontend/src/
 ├── domain/       types, roles + permissions, defaults, progress, finance, formatting
 ├── api/          client.ts is the seam every page writes through; storeAdapter.ts holds the behaviour

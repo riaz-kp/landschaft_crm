@@ -4,6 +4,7 @@ import { useSession } from '../../state/session'
 import { formatCurrency, formatDate, pad2 } from '../../domain/format'
 import { inRange, periodPhrase } from '../../domain/period'
 import { paymentSchedule, withCollection } from '../../domain/workflow'
+import { quoteValue } from '../../domain/quotation'
 import { PeriodSwitch, useDashboardPeriod } from '../../components/PeriodSwitch'
 import {
   Badge, PageHeader, Section, StatTile, StatusBadge, Table, EmptyState, ProgressBar,
@@ -144,7 +145,7 @@ export function AccountsDashboard() {
                   <td className="td font-medium text-stone-900">{quote.number}</td>
                   <td className="td">{clientName(quote.clientId)}</td>
                   <td className="td tabular-nums">
-                    {formatCurrency(quote.items.reduce((s, i) => s + i.quantity * i.rate, 0))}
+                    {quoteValue(quote) === undefined ? <span className="text-stone-400">BOQ · no prices</span> : formatCurrency(quoteValue(quote)!)}
                   </td>
                   <td className="td"><StatusBadge status={quote.status} /></td>
                 </tr>
