@@ -12,7 +12,7 @@ import {
   quoteTotals, quoteWarnings, sectionApplies, shows, showsPlans,
 } from '../../domain/quotation'
 import { QUOTE_SECTIONS, type Quotation, type QuotationStatus, type QuoteArea, type QuoteSection } from '../../domain/types'
-import { printPath, useCreateQuote, useQuoteAccess } from './access'
+import { viewPath, useCreateQuote, useQuoteAccess } from './access'
 import { AreasEditor } from './AreasEditor'
 import { PlantsSection } from './PlantsSection'
 import { NumberInput, PaymentStagesEditor, SectionCard, ServicesEditor, Switch, TitledListEditor } from './editors'
@@ -107,7 +107,7 @@ function QuoteEditor({ initial }: { initial: Quotation }) {
             >
               {QUOTE_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
-            <Link to={printPath(draft)} className="btn-primary"><Icon name="eye" className="h-4 w-4" /> Preview &amp; print</Link>
+            <Link to={viewPath(draft)} className="btn-primary"><Icon name="eye" className="h-4 w-4" /> View document</Link>
           </>
         }
       />
