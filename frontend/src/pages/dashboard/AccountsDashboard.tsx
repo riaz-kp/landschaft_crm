@@ -3,9 +3,10 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatCurrency, formatDate, pad2 } from '../../domain/format'
 import { inRange, periodPhrase } from '../../domain/period'
+import { paymentSchedule, withCollection } from '../../domain/workflow'
 import { PeriodSwitch, useDashboardPeriod } from '../../components/PeriodSwitch'
 import {
-  PageHeader, Section, StatTile, StatusBadge, Table, EmptyState, ProgressBar,
+  Badge, PageHeader, Section, StatTile, StatusBadge, Table, EmptyState, ProgressBar,
 } from '../../components/ui'
 
 /** Arshad and Anaswara's view. Materials and procurement are out of scope. */
@@ -23,6 +24,14 @@ export function AccountsDashboard() {
   const approved = db.paymentRequests.filter((r) => r.status === 'Approved')
   const openQuotes = db.quotations.filter((q) => ['Draft', 'Sent'].includes(q.status))
   const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
+  // Every slab a project has reached that its payments do not yet cover — what to call the client about.
+  const toCollect = db.projects.flatMap((project) => {
+    const paid = db.payments.filter((p) => p.projectId === project.id).reduce((sum, p) => sum + p.amount, 0)
+    return withCollection(paymentSchedule(project, db.settings), paid)
+      .filter((row) => row.reached && !row.collected)
+      .map((row) => ({ project, row }))
+  })
+  const toCollectTotal = toCollect.reduce((sum, { row }) => sum + (row.outstanding ?? 0), 0)
 
   return (
     <div>
@@ -41,6 +50,48 @@ export function AccountsDashboard() {
           tone={pending.length ? 'amber' : 'green'} to="/accounts/payment-requests"
         />
       </div>
+
+      <Section
+        title="Payments to Collect"
+        description="Payment slabs projects have reached that the client has not paid yet. You are told on your bell as each one falls due."
+        className="mt-6"
+        actions={toCollect.length > 0 && (
+          <span className="text-sm font-semibold tabular-nums text-amber-700">
+            {toCollect.length} slab{toCollect.length === 1 ? '' : 's'} due{toCollectTotal > 0 && ` · ${formatCurrency(toCollectTotal)}`}
+          </span>
+        )}
+      >
+        {toCollect.length === 0 ? (
+          <EmptyState title="Nothing to collect right now." />
+        ) : (
+          <Table head={['Project', 'Slab', 'Due since', 'Amount']}>
+            {toCollect.map(({ project, row }) => (
+              <tr key={`${project.id}-${row.key}`} className="row-hover">
+                <td className="td">
+                  <Link to={`/projects/${project.id}?tab=accounts`} className="font-medium text-stone-900 hover:text-brand-700">{project.name}</Link>
+                  <span className="block text-xs text-stone-400">{project.code} · {clientName(project.clientId)}</span>
+                </td>
+                <td className="td">
+                  <Badge tone={row.stage === 'Design' ? 'green' : 'blue'}>{row.stage}</Badge>
+                  <span className="ml-2 font-medium text-stone-800">{row.label}</span>
+                  <span className="ml-1 text-xs tabular-nums text-stone-400">{row.percent}%</span>
+                </td>
+                <td className="td text-stone-600">{row.dueWhen}</td>
+                <td className="td tabular-nums">
+                  {row.outstanding === undefined ? (
+                    <span className="text-stone-400">Value not set</span>
+                  ) : (
+                    <>
+                      {formatCurrency(row.outstanding)}
+                      {row.outstanding < (row.amount ?? 0) && <span className="block text-xs text-stone-400">of {formatCurrency(row.amount ?? 0)}</span>}
+                    </>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </Section>
 
       <Section title="Collection Progress" className="mt-6">
         <div className="px-5 py-5">

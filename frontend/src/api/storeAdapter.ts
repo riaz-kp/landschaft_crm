@@ -10,9 +10,8 @@ import { workerSkills } from '../domain/workers'
 import { formatArea, normaliseCode, suggestProjectCode } from '../domain/projectInfo'
 import { applyScope, describePhases } from '../domain/projectScope'
 import { projectType } from '../domain/progress'
-import { holders, stepFor } from '../domain/workflow'
+import { holders, paymentSchedule, stepFor, withCollection, type ScheduleRow } from '../domain/workflow'
 import { CLIENT_DOCS } from '../domain/clientDocs'
-import { hasPermission } from '../domain/roles'
 
 type WithId = { id: ID }
 
@@ -45,6 +44,60 @@ function log(db: DbShape, entry: Omit<ProjectLogEntry, 'id' | 'at'>) {
 }
 
 const nameOf = (db: DbShape, id?: ID) => db.employees.find((e) => e.id === id)?.name ?? '—'
+
+/** Puts a notice on these people's bells. Foremen work from the field app, which has no bell, so they are left out. */
+function notify(db: DbShape, input: { to: Employee[]; by: ID; title: string; notes?: string; projectId?: ID; link?: string }) {
+  const people = input.to.filter((e) => e.role !== 'foreman')
+  if (!people.length) return
+  db.reminders.push({
+    id: nextId('rm'), title: input.title, date: today(), repeat: 'none', notes: input.notes, projectId: input.projectId,
+    createdBy: input.by, forIds: people.map((e) => e.id), doneDates: [], notice: true, link: input.link,
+  })
+}
+
+/** Tells someone a task is now theirs — unless they gave it to themselves, or it is already done. */
+function notifyTask(db: DbShape, task: Task, by: ID, handedOver: boolean, reason?: string) {
+  const person = db.employees.find((e) => e.id === task.assigneeId)
+  if (!person || task.assigneeId === by || task.status === 'Done') return
+  const project = db.projects.find((p) => p.id === task.projectId)
+  notify(db, {
+    to: [person], by, projectId: task.projectId, link: `/projects/${task.projectId}?tab=tasks`,
+    title: `${project ? `${project.code} · ` : ''}${handedOver ? 'Task handed to you' : 'New task'}: ${task.title}`,
+    notes: [`Due ${formatDate(task.dueDate)}`, `${task.priority} priority`, `from ${nameOf(db, by)}`, reason?.trim() && `“${reason.trim()}”`]
+      .filter(Boolean).join(' · '),
+  })
+}
+
+/**
+ * Tells Accounts about each payment a change to the project brought due, with
+ * its amount, and notes it in the project's history without one. `before` is
+ * the schedule as it stood before the change. Each payment is told once, and
+ * not at all when what the client has paid already covers it.
+ */
+function flagPaymentsDue(db: DbShape, project: Project, before: ScheduleRow[], by: ID) {
+  const was = new Set(before.filter((row) => row.reached).map((row) => row.key))
+  const flagged = new Set(project.paymentsFlagged ?? [])
+  const received = db.payments.filter((p) => p.projectId === project.id).reduce((sum, p) => sum + p.amount, 0)
+  const newly = withCollection(paymentSchedule(project, db.settings), received)
+    .filter((row) => row.reached && !was.has(row.key) && !flagged.has(row.key))
+  if (!newly.length) return
+  project.paymentsFlagged = [...flagged, ...newly.map((row) => row.key)]
+  const accounts = holders(db.employees, ['accounts'])
+  const others = accounts.filter((e) => e.id !== by)
+  const told = others.length ? others : accounts
+  for (const row of newly.filter((r) => !r.collected)) {
+    const amount = row.amount !== undefined ? `${formatCurrency(row.amount)} (${row.percent}%)` : `${row.percent}%, value not set yet`
+    notify(db, {
+      to: told, by, projectId: project.id, link: `/projects/${project.id}?tab=accounts`,
+      title: `${project.code} · Payment due: ${row.stage.toLowerCase()} ${row.label}, ${amount}`,
+      notes: `${project.name} · ${row.dueWhen}`,
+    })
+    log(db, {
+      projectId: project.id, kind: 'payment-due', byId: by, title: `${row.stage} — ${row.label}`,
+      detail: [row.dueWhen, told.length && `told ${told.map((e) => e.name).join(', ')}`].filter(Boolean).join(' · '),
+    })
+  }
+}
 
 /** "Status: In Progress → Completed · Area: — → 4,500 sq ft" for the fields a project edit changed. */
 function describeChanges(db: DbShape, before: Project, patch: Partial<Project>): string {
@@ -169,6 +222,7 @@ export const adapter: Api = {
           }
           db.tasks.push(task)
           log(db, { projectId: id, taskId: task.id, kind: 'task-created', byId: by, title: task.title, toId: task.assigneeId, detail: 'Assigned automatically when the project was opened' })
+          notifyTask(db, task, by, false)
         }
         // Selling AMC with the project opens its maintenance contract straight away.
         if (input.services.amc && input.amc) {
@@ -183,8 +237,11 @@ export const adapter: Api = {
         const project = db.projects.find((p) => p.id === projectId)
         if (!project) return
         const changes = by ? describeChanges(db, project, patch) : ''
+        const before = paymentSchedule(project, db.settings)
         Object.assign(project, patch)
         if (by && changes) log(db, { projectId, kind: 'project-edited', byId: by, title: 'Project details updated', detail: changes })
+        // Marking it Completed, or a phase reaching 100%, can bring payments due.
+        if (by) flagPaymentsDue(db, project, before, by)
       })
     },
 
@@ -212,6 +269,7 @@ export const adapter: Api = {
         const project = db.projects.find((p) => p.id === projectId)
         if (!project) return
         const step = stepFor(key)
+        const before = paymentSchedule(project, db.settings)
         project.workflow = { ...project.workflow, [key]: done ? { done, by, on: today() } : { done } }
         if (!done) {
           log(db, { projectId, kind: 'workflow-step', byId: by, title: `Reopened — ${step.label}` })
@@ -226,19 +284,9 @@ export const adapter: Api = {
           projectId, kind: 'workflow-step', byId: by, title: step.label,
           detail: told.length ? `${notice} · told ${told.map((e) => e.name).join(', ')}` : undefined,
         })
-        // The amount goes only to those who can see Accounts; the rest, and the history, get the notice alone.
-        const amount = step.amount?.(project, db.settings)
-        const seesMoney = (e: Employee) => hasPermission(db.settings.permissions, e.role, 'Accounts', 'view')
-        const groups = amount
-          ? [{ people: told.filter(seesMoney), text: `${notice}, ${amount}` }, { people: told.filter((e) => !seesMoney(e)), text: notice }]
-          : [{ people: told, text: notice }]
-        for (const { people, text } of groups) {
-          if (!people.length) continue
-          db.reminders.push({
-            id: nextId('rm'), title: `${project.code} · ${text}`, date: today(), repeat: 'none',
-            notes: project.name, projectId, createdBy: by, forIds: people.map((e) => e.id), doneDates: [], notice: true,
-          })
-        }
+        notify(db, { to: told, by, title: `${project.code} · ${notice}`, notes: project.name, projectId, link: `/projects/${projectId}?tab=workflow` })
+        // The payment a step brings due goes to Accounts from the schedule, with its amount.
+        flagPaymentsDue(db, project, before, by)
       })
     },
 
@@ -251,16 +299,19 @@ export const adapter: Api = {
       })
     },
 
-    setPhaseProgress(projectId, phaseKey, progress) {
+    setPhaseProgress(projectId, phaseKey, progress, by) {
       store.update((db) => {
         const project = db.projects.find((p) => p.id === projectId)
         if (!project) return
+        const before = paymentSchedule(project, db.settings)
         const clamped = Math.max(0, Math.min(100, Math.round(progress)))
         if (phaseKey in project.design) {
           project.design[phaseKey as keyof typeof project.design].progress = clamped
         } else if (phaseKey in project.execution) {
           project.execution[phaseKey as keyof typeof project.execution].progress = clamped
         }
+        // A phase reaching 100% can bring the next payment due.
+        flagPaymentsDue(db, project, before, by)
       })
     },
   },
@@ -346,6 +397,7 @@ export const adapter: Api = {
 
         // An approved report feeds the next day's plan into real tasks.
         const project = db.projects.find((p) => p.id === report.projectId)
+        const created: Task[] = []
         for (const line of report.nextDayPlan) {
           if (!line.trim()) continue
           const already = db.tasks.some((t) => t.fromReportId === report.id && t.title === line.trim())
@@ -361,9 +413,20 @@ export const adapter: Api = {
             fromReportId: report.id,
           }
           db.tasks.push(task)
+          created.push(task)
           log(db, {
             projectId: task.projectId, taskId: task.id, kind: 'task-created', byId: reviewerId, title: task.title,
             toId: task.assigneeId, detail: `From the next-day plan in the daily report of ${formatDate(report.date)}`,
+          })
+        }
+        // One notice for the lot, rather than one per line of the plan.
+        if (created.length === 1) notifyTask(db, created[0], reviewerId, false)
+        const assignee = db.employees.find((e) => e.id === created[0]?.assigneeId)
+        if (created.length > 1 && assignee && assignee.id !== reviewerId) {
+          notify(db, {
+            to: [assignee], by: reviewerId, projectId: report.projectId, link: `/projects/${report.projectId}?tab=tasks`,
+            title: `${project ? `${project.code} · ` : ''}${created.length} new tasks from the daily report of ${formatDate(report.date)}`,
+            notes: created.map((t) => t.title).join(' · '),
           })
         }
       })
@@ -834,6 +897,7 @@ export const adapter: Api = {
           projectId: record.projectId, taskId: record.id, kind: 'task-created', byId: by, title: record.title,
           toId: record.assigneeId, detail: `Due ${formatDate(record.dueDate)} · ${record.priority} priority`,
         })
+        notifyTask(db, record, by, false)
       })
       return record
     },
@@ -844,11 +908,13 @@ export const adapter: Api = {
         const { status, doneNote, assigneeId, ...rest } = patch
         Object.assign(task, rest)
         // A new assignee is a hand-over, and goes into the project history.
-        if (assigneeId && assigneeId !== task.assigneeId) {
+        const handedOver = Boolean(assigneeId && assigneeId !== task.assigneeId)
+        if (assigneeId && handedOver) {
           log(db, { projectId: task.projectId, taskId, kind: 'task-reassigned', byId: by, title: task.title, fromId: task.assigneeId, toId: assigneeId })
           task.assigneeId = assigneeId
         }
         if (status) changeStatus(db, task, status, by, doneNote)
+        if (handedOver) notifyTask(db, task, by, true)
       })
     },
     reassign(taskId, toId, by, reason) {
@@ -860,6 +926,7 @@ export const adapter: Api = {
           fromId: task.assigneeId, toId, detail: reason?.trim() || undefined,
         })
         task.assigneeId = toId
+        notifyTask(db, task, by, true, reason)
       })
     },
     remove(taskId, by) {

@@ -5,7 +5,7 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatCurrency, formatDate } from '../../domain/format'
 import type { Project } from '../../domain/types'
-import { canTickStep, holders, nextStep, paymentSchedule, workflowFor } from '../../domain/workflow'
+import { canTickStep, holders, nextStep, paymentSchedule, withCollection, workflowFor } from '../../domain/workflow'
 import { Badge, EmptyState, Modal, ProgressBar, Section, Table } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { MoneyFields, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
@@ -90,13 +90,13 @@ export function WorkflowTab({ project }: { project: Project }) {
 export function PaymentSchedule({ project, received, canEdit }: { project: Project; received: number; canEdit: boolean }) {
   const db = useDb()
   const [editing, setEditing] = useState(false)
-  const rows = paymentSchedule(project, db.settings)
+  const rows = withCollection(paymentSchedule(project, db.settings), received)
   const dueSoFar = rows.filter((r) => r.reached).reduce((s, r) => s + (r.amount ?? 0), 0)
 
   return (
     <Section
       title="Payment Schedule"
-      description="Slabs from Settings, applied to the design and execution values Accounts fixed for this project."
+      description="Slabs from Settings, applied to the design and execution values Accounts fixed for this project. What the client has paid is set against them in order."
       className="lg:col-span-3"
       actions={canEdit && (
         <button onClick={() => setEditing(true)} className="btn-secondary py-1.5"><Icon name="edit" className="h-4 w-4" /> Edit values</button>
@@ -127,7 +127,9 @@ export function PaymentSchedule({ project, received, canEdit }: { project: Proje
               <td className="td tabular-nums">{row.percent}%</td>
               <td className="td tabular-nums">{row.amount !== undefined ? formatCurrency(row.amount) : <span className="text-stone-400">Value not set</span>}</td>
               <td className="td">
-                {row.reached === true ? <Badge tone="amber">Due</Badge> : row.reached === false ? <Badge tone="stone">Upcoming</Badge> : null}
+                {row.collected ? <Badge tone="green">Collected</Badge>
+                  : row.reached ? <Badge tone="amber">{row.outstanding !== undefined && row.outstanding < (row.amount ?? 0) ? `Due · ${formatCurrency(row.outstanding)} left` : 'Due'}</Badge>
+                    : <Badge tone="stone">Upcoming</Badge>}
               </td>
             </tr>
           ))}

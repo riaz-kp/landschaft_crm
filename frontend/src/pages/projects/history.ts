@@ -55,6 +55,8 @@ function fromLog(db: DbShape, entry: ProjectLogEntry): ProjectHistoryItem {
       return { ...base, kind: 'project', icon: 'edit', title: entry.title, detail: entry.detail }
     case 'workflow-step':
       return { ...base, kind: 'project', icon: 'check', title: `Workflow — ${entry.title}`, detail: entry.detail }
+    case 'payment-due':
+      return { ...base, kind: 'money', icon: 'rupee', title: `Payment due — ${entry.title}`, detail: entry.detail }
   }
 }
 

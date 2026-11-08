@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
+import { useSession } from '../../state/session'
 import { formatCurrency, formatDate } from '../../domain/format'
 import { PHASE_LABELS, type DesignPhaseKey } from '../../domain/types'
 import {
@@ -19,6 +20,7 @@ const DESCRIPTIONS: Record<DesignPhaseKey, string> = {
 /** One screen per design phase, listing every project that carries it. */
 export function DesignPhasePage({ phase }: { phase: DesignPhaseKey }) {
   const db = useDb()
+  const { user } = useSession()
   const { can } = usePermissions()
   const editable = can('Design', 'edit')
 
@@ -65,7 +67,7 @@ export function DesignPhasePage({ phase }: { phase: DesignPhaseKey }) {
                   <ProgressCell
                     value={project.design[phase].progress}
                     label={`${PHASE_LABELS[phase]} for ${project.name}`}
-                    onChange={editable ? (v) => api.projects.setPhaseProgress(project.id, phase, v) : undefined}
+                    onChange={editable ? (v) => api.projects.setPhaseProgress(project.id, phase, v, user.id) : undefined}
                   />
                 </td>
                 <td className="td"><StatusBadge status={project.status} /></td>

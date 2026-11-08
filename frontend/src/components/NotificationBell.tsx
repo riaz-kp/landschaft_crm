@@ -90,7 +90,15 @@ export function NotificationBell() {
                     <Icon name="check" className="h-3 w-3" />
                   </button>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-stone-800">{o.reminder.title}</p>
+                    {/* A notice (new task, payment due, hand-off) opens where it happened. */}
+                    {o.reminder.link ? (
+                      <Link to={o.reminder.link} onClick={() => setOpen(false)} className="text-sm font-medium text-stone-800 hover:text-brand-700">
+                        {o.reminder.title}
+                      </Link>
+                    ) : (
+                      <p className="text-sm font-medium text-stone-800">{o.reminder.title}</p>
+                    )}
+                    {o.reminder.notice && o.reminder.notes && <p className="truncate text-xs text-stone-500">{o.reminder.notes}</p>}
                     <p className={`text-xs ${o.date < today() ? 'font-semibold text-red-600' : 'text-stone-400'}`}>
                       {o.date < today() ? `Missed · ${formatDate(o.date)}` : 'Today'}{o.reminder.time && ` · ${formatTime(o.reminder.time)}`}
                     </p>
