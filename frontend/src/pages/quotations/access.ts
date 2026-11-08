@@ -22,10 +22,12 @@ export function useQuoteAccess() {
   }
 }
 
+/** The document to read on any screen: where opening a document lands. */
+export const viewPath = (quote: Pick<Quotation, 'id' | 'projectId'>) => `/projects/${quote.projectId}/commercial/${quote.id}`
 /** The document's editor. */
-export const quotePath = (quote: Pick<Quotation, 'id' | 'projectId'>) => `/projects/${quote.projectId}/commercial/${quote.id}`
-/** The document as its printed pages, with Edit and Print: where opening a document lands. */
-export const viewPath = (quote: Pick<Quotation, 'id'>) => `/print/commercial/${quote.id}`
+export const editPath = (quote: Pick<Quotation, 'id' | 'projectId'>) => `${viewPath(quote)}/edit`
+/** The document as its A4 pages, to print or save as a PDF. */
+export const pdfPath = (quote: Pick<Quotation, 'id'>) => `/print/commercial/${quote.id}`
 
 /** Makes a document from the company defaults (or from another document) and opens it. */
 export function useCreateQuote() {
@@ -34,7 +36,7 @@ export function useCreateQuote() {
   const navigate = useNavigate()
   return (kind: CommercialDoc, project: Project, from?: Quotation) => {
     const record = api.quotations.create(newQuotation({ kind, project, settings: db.settings, date: today(), by: user.id, from }))
-    navigate(quotePath(record))
+    navigate(editPath(record))
     return record
   }
 }

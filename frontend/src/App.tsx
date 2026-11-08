@@ -29,6 +29,7 @@ const AmcCalendar = lazy(() => import('./pages/amc/AmcCalendar').then((m) => ({ 
 const AmcRenewals = lazy(() => import('./pages/amc/AmcRenewals').then((m) => ({ default: m.AmcRenewals })))
 const Consultations = lazy(() => import('./pages/consultations/Consultations').then((m) => ({ default: m.Consultations })))
 const Quotations = lazy(() => import('./pages/accounts/Quotations').then((m) => ({ default: m.Quotations })))
+const QuoteViewPage = lazy(() => import('./pages/quotations/QuoteView').then((m) => ({ default: m.QuoteViewPage })))
 const QuoteEditorPage = lazy(() => import('./pages/quotations/QuoteEditor').then((m) => ({ default: m.QuoteEditorPage })))
 const QuotePrint = lazy(() => import('./pages/quotations/QuotePrint').then((m) => ({ default: m.QuotePrint })))
 const PaymentRequests = lazy(() => import('./pages/accounts/PaymentRequests').then((m) => ({ default: m.PaymentRequests })))
@@ -85,7 +86,7 @@ export function App() {
           <Route path="chat/:projectId" element={<FieldChat />} />
         </Route>
 
-        {/* A BOQ or quotation as printed pages, without the CRM around it. */}
+        {/* A BOQ or quotation as its A4 pages (PDF view), without the CRM around it. */}
         <Route path="/print/commercial/:quoteId" element={<Suspense fallback={null}><QuotePrint /></Suspense>} />
 
         <Route element={<AdminShell />}>
@@ -107,7 +108,8 @@ export function App() {
           <Route path="/projects/amc" element={<ProjectList scope="amc" />} />
           <Route path="/projects/map" element={<ProjectsMap />} />
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
-          <Route path="/projects/:projectId/commercial/:quoteId" element={<QuoteEditorPage />} />
+          <Route path="/projects/:projectId/commercial/:quoteId" element={<QuoteViewPage />} />
+          <Route path="/projects/:projectId/commercial/:quoteId/edit" element={<QuoteEditorPage />} />
 
           <Route path="/tasks/mine" element={<MyTasks />} />
           <Route path="/tasks/team" element={<TeamTasks />} />

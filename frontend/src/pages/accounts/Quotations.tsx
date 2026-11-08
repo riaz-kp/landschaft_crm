@@ -11,7 +11,7 @@ import {
   PageHeader, Section, Table, EmptyState, StatTile, Pills, SearchInput, Toolbar, RowActions, ConfirmDialog, Badge,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
-import { quotePath, useQuoteAccess, viewPath } from '../quotations/access'
+import { editPath, useQuoteAccess, viewPath } from '../quotations/access'
 import { NewQuoteModal } from '../quotations/NewQuoteModal'
 
 type KindFilter = 'All' | CommercialDoc
@@ -122,7 +122,7 @@ export function Quotations() {
                           <Icon name="eye" className="h-4 w-4" />
                         </Link>
                       }
-                      onEdit={access.canEdit(quote.kind) ? () => navigate(quotePath(quote)) : undefined}
+                      onEdit={access.canEdit(quote.kind) ? () => navigate(editPath(quote)) : undefined}
                       onDelete={access.canDelete(quote.kind) ? () => setDeleting(quote) : undefined}
                     />
                   </td>

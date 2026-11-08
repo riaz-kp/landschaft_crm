@@ -10,7 +10,7 @@ import { formatDate } from '../../domain/format'
 import { KIND_TITLE, formatRupees, kindRule, quoteValue, shows } from '../../domain/quotation'
 import { plantsProjectUrl } from '../../data/plants'
 import type { CommercialDoc, Project } from '../../domain/types'
-import { quotePath, useCreateQuote, useQuoteAccess, viewPath } from './access'
+import { editPath, useCreateQuote, useQuoteAccess, viewPath } from './access'
 import { NewQuoteModal } from './NewQuoteModal'
 
 /**
@@ -86,7 +86,7 @@ export function CommercialTab({ project, canTick }: { project: Project; canTick:
                             {value !== undefined && <span className="text-sm font-semibold tabular-nums text-stone-800">{formatRupees(value)}</span>}
                             <StatusBadge status={q.status} />
                             {access.canEdit(q.kind) && (
-                              <Link to={quotePath(q)} className="btn-icon" title="Edit" aria-label={`Edit ${q.number}`}><Icon name="edit" className="h-4 w-4" /></Link>
+                              <Link to={editPath(q)} className="btn-icon" title="Edit" aria-label={`Edit ${q.number}`}><Icon name="edit" className="h-4 w-4" /></Link>
                             )}
                             <Link to={viewPath(q)} className="btn-secondary py-1 text-xs">Open</Link>
                           </div>
