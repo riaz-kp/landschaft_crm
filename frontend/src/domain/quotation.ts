@@ -22,6 +22,9 @@ export const QUOTE_STATUSES: QuotationStatus[] = ['Draft', 'Sent', 'Accepted', '
 /** Only a quotation carries rates, amounts, a summary and a payment schedule. */
 export const isPriced = (kind: CommercialDoc) => kind === 'Quotation'
 
+/** The GST rate a new quotation starts with; it can be changed or switched off on each quotation. */
+export const DEFAULT_GST_RATE = 18
+
 /** Plan images: always on a BOQ; on a quotation only when the project has design (execution-only quotations have none). */
 export function showsPlans(kind: CommercialDoc, services: Project['services']): boolean {
   return kind === 'BOQ' || Boolean(services.design)
@@ -98,6 +101,7 @@ export function newQuotation({ kind, project, settings, date, by, from }: NewQuo
     servicesTitle: defaults.servicesTitle,
     services: defaults.services.map((line) => ({ ...line, id: lineId('sl') })),
     discount: 0,
+    gstRate: kind === 'Quotation' ? DEFAULT_GST_RATE : undefined,
     terms: defaults.terms.map((t) => ({ ...t })),
     procedure: defaults.procedure.map((t) => ({ ...t })),
     procedureNote: defaults.procedureNote,
@@ -211,6 +215,13 @@ export interface QuoteTotals {
   services: number
   subtotal: number
   discount: number
+  /** The subtotal less the discount: what GST is charged on. */
+  taxable: number
+  /** GST in percent, when the quotation charges it. */
+  gstRate?: number
+  /** The GST amount, rounded to the paisa; 0 without GST. */
+  gst: number
+  /** The grand total: the taxable value plus GST. */
   total: number
 }
 
@@ -222,13 +233,19 @@ export function quoteTotals(quote: Quotation): QuoteTotals {
   const services = shows(quote, 'services') ? quote.services.reduce((s, line) => s + serviceAmount(line), 0) : 0
   const subtotal = plants + hardscape + services
   const discount = Math.min(Math.max(0, quote.discount || 0), subtotal)
-  return { plants, hardscape, areas, services, subtotal, discount, total: subtotal - discount }
+  const taxable = subtotal - discount
+  const gstRate = isPriced(quote.kind) && quote.gstRate !== undefined ? quote.gstRate : undefined
+  const gst = gstRate ? Math.round(taxable * gstRate) / 100 : 0
+  return { plants, hardscape, areas, services, subtotal, discount, taxable, gstRate, gst, total: taxable + gst }
 }
 
 /** The value lists show: a quotation's grand total. A BOQ has none. */
 export function quoteValue(quote: Quotation): number | undefined {
   return isPriced(quote.kind) ? quoteTotals(quote).total : undefined
 }
+
+/** "GST 18%" — the label of the GST line. */
+export const gstLabel = (rate: number) => `GST ${rate.toLocaleString('en-IN', { maximumFractionDigits: 2 })}%`
 
 /** ₹3,19,620.00 — Indian grouping with paise, as the printed documents show money. */
 export function formatRupees(amount: number): string {
