@@ -14,6 +14,7 @@ import {
 import type { Client, CommercialDoc, DocumentSettings, PlantLine, Project, Quotation } from '../../domain/types'
 import { layOut, usePages, type Block } from './paginate'
 import { editPath, useQuoteAccess } from './access'
+import { SpecText } from './editors'
 
 // The page, in CSS pixels: A4 at 96 dpi.
 const PAGE_W = 794
@@ -380,6 +381,8 @@ function SubtotalRow({ label, amount }: { label: string; amount: number }) {
 }
 
 const THUMB = 'h-[38px] w-[38px] rounded-[8px]'
+/** A hardscape item set out with its specification has room for a bigger photo of the stone. */
+const THUMB_LARGE = 'h-[60px] w-[60px] rounded-[8px]'
 
 function Thumb({ src, alt }: { src?: string; alt: string }) {
   if (!src) {
@@ -450,7 +453,8 @@ function buildBlocks(quote: Quotation, project: Project, settings: DocumentSetti
   const areas = quote.areas.filter((a) => a.name.trim() || a.items.length || a.planImage)
   if (shows(quote, 'hardscape') && areas.length) {
     const frame = 'hardscape'
-    const cols = priced ? [7, 9, 30, 10, 11, 8, 11, 14] : [8, 10, 40, 14, 14, 14]
+    // The description column is the widest: an item can carry its whole specification.
+    const cols = priced ? [7, 10, 32, 10, 8, 7, 12, 14] : [8, 11, 45, 12, 12, 12]
     const head = (
       <Row
         className="border-b py-2.5" style={{ background: CREAM }}
@@ -494,10 +498,18 @@ function buildBlocks(quote: Quotation, project: Project, settings: DocumentSetti
                   {
                     w: cols[1],
                     node: item.image
-                      ? <StoredPicture src={item.image} alt={item.item} className={`object-cover ${THUMB}`} />
+                      ? <StoredPicture src={item.image} alt={item.item} className={`object-cover ${item.specification?.trim() ? THUMB_LARGE : THUMB}`} />
                       : <span className={`block ${THUMB}`} style={{ background: '#f3f1ec' }} />,
                   },
-                  { w: cols[2], node: <span className="text-[12.5px] font-medium text-stone-900">{item.item}</span> },
+                  {
+                    w: cols[2],
+                    node: (
+                      <div className="py-1">
+                        <p className="text-[12.5px] font-medium text-stone-900">{item.item}</p>
+                        <SpecText spec={item.specification} className="mt-0.5 text-[10px] leading-[1.45] text-stone-600" headingClassName="text-[8px] text-stone-400" />
+                      </div>
+                    ),
+                  },
                   { w: cols[3], node: <span className="text-[12px] text-stone-700">{item.dimension?.trim() || '—'}</span>, align: 'center' },
                   { w: cols[4], node: <span className="text-[12px] tabular-nums text-stone-800">{formatQty(item.quantity)}</span>, align: 'center' },
                   { w: cols[5], node: <span className="text-[12px] text-stone-700">{item.unit || '—'}</span>, align: 'center' },

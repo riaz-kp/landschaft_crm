@@ -175,6 +175,28 @@ export function normalizeQuotation(raw: Partial<Quotation> & Pick<Quotation, 'id
 /** True for a record in the shape documents had before sections. */
 export const isLegacyQuotation = (raw: Partial<Quotation>) => !raw.areas && !raw.services && Array.isArray(raw.items)
 
+// ---------------------------------------------------------------- item specifications
+
+export interface SpecLine {
+  text: string
+  /** "Material specification", "Laying method" and the like, on a line of their own. */
+  heading: boolean
+}
+
+const SPEC_HEADING = /^(material specification|specification|laying method|method of laying|notes?)\s*:?$/i
+
+/** A specification as the lines it is printed in, blank lines left out. */
+export function specLines(spec: string | undefined): SpecLine[] {
+  return (spec ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((text) => {
+      const heading = SPEC_HEADING.test(text)
+      return { text: heading ? text.replace(/\s*:$/, '') : text, heading }
+    })
+}
+
 // ---------------------------------------------------------------- money
 
 export const plantAmount = (line: PlantLine) => (line.quantity ?? 0) * (line.rate ?? 0)

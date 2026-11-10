@@ -15,9 +15,9 @@ interface Props {
   history: Quotation[]
 }
 
-/** The last dimension, unit and rate used for each item on any document, newest document first. */
+/** The last specification, dimension, unit and rate used for each item on any document, newest document first. */
 function lastUsed(history: Quotation[]) {
-  type Last = Partial<Pick<AreaItem, 'dimension' | 'unit' | 'rate'>>
+  type Last = Partial<Pick<AreaItem, 'specification' | 'dimension' | 'unit' | 'rate'>>
   const seen = new Map<string, Last>()
   const newest = [...history].sort((a, b) => b.date.localeCompare(a.date))
   for (const quote of newest) {
@@ -26,6 +26,7 @@ function lastUsed(history: Quotation[]) {
       if (!key) continue
       const known: Last = seen.get(key) ?? {}
       seen.set(key, {
+        specification: known.specification ?? (item.specification?.trim() || undefined),
         dimension: known.dimension ?? item.dimension,
         unit: known.unit ?? item.unit,
         rate: known.rate ?? (quote.kind === 'Quotation' && item.rate ? item.rate : undefined),
@@ -49,11 +50,12 @@ export function AreasEditor({ areas, onChange, priced, plans, disabled, history 
   const setItem = (areaId: string, itemId: string, patch: Partial<AreaItem>) =>
     setItems(areaId, (items) => items.map((it) => (it.id === itemId ? { ...it, ...patch } : it)))
 
-  /** Typing an item used before fills in its dimension, unit and rate from last time, where they are still empty. */
+  /** Typing an item used before fills in its specification, dimension, unit and rate from last time, where they are still empty. */
   const recall = (areaId: string, item: AreaItem) => {
     const last = known.get(item.item.trim().toLowerCase())
     if (!last) return
     const fill: Partial<AreaItem> = {}
+    if (!item.specification?.trim() && last.specification) fill.specification = last.specification
     if (!item.dimension && last.dimension) fill.dimension = last.dimension
     if (last.unit && (!item.unit || item.unit === 'Sqft') && last.unit !== item.unit) fill.unit = last.unit
     if (priced && !item.rate && last.rate) fill.rate = last.rate
@@ -139,12 +141,18 @@ export function AreasEditor({ areas, onChange, priced, plans, disabled, history 
                     >
                       <span className="hidden text-sm font-semibold tabular-nums text-stone-400 md:block">{i + 1}</span>
                       <ItemPhoto value={item.image} name={item.item} disabled={disabled} onChange={(image) => setItem(area.id, item.id, { image })} />
-                      <input
-                        className="input font-medium" list="quote-items" value={item.item} disabled={disabled}
-                        placeholder="Stone or item, e.g. Bangalore Stone" aria-label={`Area ${index + 1} item ${i + 1}`}
-                        onChange={(e) => setItem(area.id, item.id, { item: e.target.value })}
-                        onBlur={() => recall(area.id, item)}
-                      />
+                      <div className="min-w-0 space-y-1.5">
+                        <input
+                          className="input font-medium" list="quote-items" value={item.item} disabled={disabled}
+                          placeholder="Stone or item, e.g. Bangalore Stone" aria-label={`Area ${index + 1} item ${i + 1}`}
+                          onChange={(e) => setItem(area.id, item.id, { item: e.target.value })}
+                          onBlur={() => recall(area.id, item)}
+                        />
+                        <SpecField
+                          value={item.specification} disabled={disabled} label={`Area ${index + 1} item ${i + 1} specification`}
+                          onChange={(specification) => setItem(area.id, item.id, { specification })}
+                        />
+                      </div>
                       {!disabled ? (
                         <button
                           type="button" className="btn-icon justify-self-end hover:bg-red-50 hover:text-red-600 2xl:order-last"
@@ -207,5 +215,32 @@ export function AreasEditor({ areas, onChange, priced, plans, disabled, history 
         />
       )}
     </div>
+  )
+}
+
+/**
+ * The material specification and laying method under an item, one point per
+ * line. Hidden behind a small link until there is something to show, so short
+ * items stay one line.
+ */
+function SpecField({ value, onChange, disabled, label }: { value?: string; onChange: (v: string | undefined) => void; disabled?: boolean; label: string }) {
+  const [open, setOpen] = useState(false)
+  const text = value ?? ''
+  if (!text && !open) {
+    if (disabled) return null
+    return (
+      <button type="button" className="text-xs font-medium text-brand-700 hover:underline" onClick={() => setOpen(true)}>
+        + Specification
+      </button>
+    )
+  }
+  return (
+    <textarea
+      className="input min-h-[64px] resize-y text-xs leading-relaxed text-stone-700" value={text} disabled={disabled} aria-label={label}
+      rows={Math.min(18, Math.max(3, text.split('\n').length + 1))} autoFocus={open && !text}
+      placeholder={'Material specification\nColour - …\nSize - …\nLaying method\nBedding course - …'}
+      onChange={(e) => onChange(e.target.value || undefined)}
+      onBlur={() => { if (!text.trim()) { setOpen(false); onChange(undefined) } }}
+    />
   )
 }

@@ -13,6 +13,7 @@ import {
 } from '../../domain/quotation'
 import type { Client, DocumentSettings, Project, Quotation } from '../../domain/types'
 import { editPath, pdfPath, useQuoteAccess } from './access'
+import { SpecText } from './editors'
 
 const CREAM = '#f6f3ec'
 
@@ -149,8 +150,11 @@ function QuoteView({ quote, project, client, settings }: { quote: Quotation; pro
                       {area.items.map((item) => (
                         <LineRow
                           key={item.id}
-                          image={item.image ? <StoredImg src={item.image} alt={item.item} className="h-10 w-10 rounded-lg object-cover" /> : <Thumb />}
+                          image={item.image
+                            ? <StoredImg src={item.image} alt={item.item} className={`${item.specification?.trim() ? 'h-16 w-16 sm:h-24 sm:w-24' : 'h-10 w-10'} shrink-0 rounded-lg object-cover`} />
+                            : <Thumb />}
                           title={item.item}
+                          details={<SpecText spec={item.specification} className="mt-1 text-xs leading-relaxed text-stone-600" headingClassName="text-[10px] text-stone-400" />}
                           cols={[item.dimension?.trim() || '—', qty(item.quantity, item.unit), ...(priced ? [item.rate ? formatRupees(item.rate) : '—'] : [])]}
                           labels={['Size', 'Qty', 'Rate']}
                           amount={priced ? itemAmount(item) : undefined}
@@ -329,8 +333,8 @@ function GroupHead({ label, count, strong }: { label: string; count?: string; st
  * One line: on a phone the figures sit under the name, on a wider screen in
  * columns beside it. The amount stays at the right either way.
  */
-function LineRow({ image, title, subtitle, description, cols, labels, amount }: {
-  image?: ReactNode; title: string; subtitle?: string; description?: string; cols: string[]; labels: string[]; amount?: number
+function LineRow({ image, title, subtitle, description, details, cols, labels, amount }: {
+  image?: ReactNode; title: string; subtitle?: string; description?: string; details?: ReactNode; cols: string[]; labels: string[]; amount?: number
 }) {
   return (
     <li className="flex items-start gap-3 px-4 py-3 sm:items-center sm:px-5">
@@ -339,6 +343,7 @@ function LineRow({ image, title, subtitle, description, cols, labels, amount }: 
         <p className="text-sm font-medium text-stone-900">{title}</p>
         {subtitle && <p className="text-xs italic text-stone-500">{subtitle}</p>}
         {description && <p className="mt-0.5 text-xs leading-relaxed text-stone-500">{description}</p>}
+        {details}
         <p className="mt-1 text-xs text-stone-500 sm:hidden">
           {cols.map((c, i) => <span key={i} className="whitespace-nowrap">{i > 0 && <span className="mx-1.5 text-stone-300">·</span>}{labels[i]} {c}</span>)}
         </p>
