@@ -612,6 +612,12 @@ export interface PlantsCopy {
 export interface AreaItem {
   id: ID
   item: string
+  /**
+   * The material specification and laying method, one point per line, as the
+   * BOQ spreadsheet gives it under the item. Lines such as "Laying method" on
+   * their own are printed as small headings.
+   */
+  specification?: string
   /** Size of the stone or item, e.g. "1 x 4". */
   dimension?: string
   quantity: number

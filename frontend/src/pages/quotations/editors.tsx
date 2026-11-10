@@ -3,10 +3,27 @@ import { Icon } from '../../components/Icon'
 import { StoredImg } from '../../components/StoredImage'
 import { compressImage } from '../../components/imageResize'
 import { storePhoto } from '../../data/files'
-import { formatRupees, serviceAmount } from '../../domain/quotation'
+import { formatRupees, serviceAmount, specLines } from '../../domain/quotation'
 import type { PaymentStage, ServiceLine, TitledText } from '../../domain/types'
 
 // ---------------------------------------------------------------- small pieces
+
+/**
+ * An item's specification, line by line as the BOQ spreadsheet sets it out:
+ * "Material specification" and "Laying method" as small headings, each point
+ * under them on its own line.
+ */
+export function SpecText({ spec, className = '', headingClassName = '' }: { spec?: string; className?: string; headingClassName?: string }) {
+  const lines = specLines(spec)
+  if (!lines.length) return null
+  return (
+    <div className={className}>
+      {lines.map((line, i) => (line.heading
+        ? <p key={i} className={`${i > 0 ? 'mt-1.5' : ''} font-semibold uppercase tracking-[0.12em] ${headingClassName}`}>{line.text}</p>
+        : <p key={i}>{line.text}</p>))}
+    </div>
+  )
+}
 
 /** Moves one entry of a list up (-1) or down (+1). */
 export function move<T>(list: T[], index: number, by: -1 | 1): T[] {
