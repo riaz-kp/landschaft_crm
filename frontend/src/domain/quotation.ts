@@ -215,13 +215,13 @@ export interface QuoteTotals {
   services: number
   subtotal: number
   discount: number
-  /** The subtotal less the discount: what GST is charged on. */
+  /** What GST is charged on: the project management amount. Plants and hardscape are not taxed. */
   taxable: number
   /** GST in percent, when the quotation charges it. */
   gstRate?: number
   /** The GST amount, rounded to the paisa; 0 without GST. */
   gst: number
-  /** The grand total: the taxable value plus GST. */
+  /** The grand total: the subtotal less the discount, plus GST. */
   total: number
 }
 
@@ -233,10 +233,11 @@ export function quoteTotals(quote: Quotation): QuoteTotals {
   const services = shows(quote, 'services') ? quote.services.reduce((s, line) => s + serviceAmount(line), 0) : 0
   const subtotal = plants + hardscape + services
   const discount = Math.min(Math.max(0, quote.discount || 0), subtotal)
-  const taxable = subtotal - discount
+  // GST is on project management only; the discount comes off the whole, not the taxable part.
+  const taxable = services
   const gstRate = isPriced(quote.kind) && quote.gstRate !== undefined ? quote.gstRate : undefined
   const gst = gstRate ? Math.round(taxable * gstRate) / 100 : 0
-  return { plants, hardscape, areas, services, subtotal, discount, taxable, gstRate, gst, total: taxable + gst }
+  return { plants, hardscape, areas, services, subtotal, discount, taxable, gstRate, gst, total: subtotal - discount + gst }
 }
 
 /** The value lists show: a quotation's grand total. A BOQ has none. */
