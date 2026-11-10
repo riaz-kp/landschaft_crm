@@ -51,7 +51,7 @@ export function ContactNumbers({ phone, whatsapp }: { phone: string; whatsapp?: 
   const wa = whatsapp || phone
   return (
     <span className="block space-y-0.5">
-      <a href={`tel:${phone.replace(/\s/g, '')}`} className="flex flex-wrap items-center gap-x-1.5 hover:text-brand-700">
+      <a href={phone ? `tel:${phone.replace(/\s/g, '')}` : undefined} className="flex flex-wrap items-center gap-x-1.5 hover:text-brand-700">
         <Icon name="phone" className="h-3.5 w-3.5 text-stone-400" />
         <span className="whitespace-nowrap tabular-nums">{phone || '—'}</span>
         {wa === phone && phone && <span className="whitespace-nowrap text-xs text-stone-400">· WhatsApp</span>}

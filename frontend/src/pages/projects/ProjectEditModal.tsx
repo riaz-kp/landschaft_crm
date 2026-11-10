@@ -14,6 +14,7 @@ import { applyScope, scopeOf, scopeProblem, type ProjectScope } from '../../doma
 import { DesignPhasePicker, ExecutionPhasePicker, ServicePicker } from './ProjectScope'
 import { IntakeFields, MoneyFields, intakeOf, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
 import { usePermissions } from '../../state/permissions'
+import { ClientPicker } from './ClientPicker'
 
 /** Edits a project's details and scope — its services and phases. Every change is written to the project history. */
 export function ProjectEditModal({ project, onClose }: { project: Project; onClose: () => void }) {
@@ -27,6 +28,7 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
     area: project.area ? String(project.area) : '',
     areaUnit: project.areaUnit ?? ('sq ft' as AreaUnit),
     status: project.status,
+    clientId: project.clientId,
     siteLocation: project.siteLocation,
     projectManagerId: project.projectManagerId,
     startDate: project.startDate,
@@ -53,6 +55,7 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
     if (!normaliseCode(form.code)) return setError('Enter a project code.')
     if (taken) return setError(`Project code ${normaliseCode(form.code)} is already used by “${taken.name}”.`)
     if (!form.category) return setError('Choose the project type.')
+    if (!form.clientId) return setError('Choose the client.')
     if (form.area && !(Number(form.area) > 0)) return setError('The site area must be a number above zero, or left blank.')
     if (!form.siteLocation.trim()) return setError('Enter the site location.')
     if (form.expectedCompletion < form.startDate) return setError('Expected completion cannot be before the start date.')
@@ -71,6 +74,7 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
       area: form.area ? Number(form.area) : undefined,
       areaUnit: form.area ? form.areaUnit : undefined,
       status: form.status,
+      clientId: form.clientId,
       siteLocation: form.siteLocation.trim(),
       projectManagerId: form.projectManagerId,
       startDate: form.startDate,
@@ -128,6 +132,16 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
               </button>
             ))}
           </div>
+        </div>
+        {/* Not a <label>: the picker holds its own buttons, which a label would re-trigger. */}
+        <div className="sm:col-span-2">
+          <span className="label">Client<span className="ml-0.5 text-red-500">*</span></span>
+          <div className="mt-1.5">
+            <ClientPicker value={form.clientId} onChange={(clientId) => set({ clientId })} />
+          </div>
+          {form.clientId !== project.clientId && (
+            <p className="mt-1.5 text-xs text-stone-500">The project's BOQs, quotations, payments and documents move to this client too.</p>
+          )}
         </div>
         <Field label="Site Area">
           <div className="flex gap-2">

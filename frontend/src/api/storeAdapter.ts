@@ -107,6 +107,7 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
     { label: 'Project type', value: (p) => p.category ?? '' },
     { label: 'Area', value: (p) => formatArea(p) },
     { label: 'Status', value: (p) => p.status ?? '' },
+    { label: 'Client', value: (p) => (p.clientId ? db.clients.find((c) => c.id === p.clientId)?.name ?? '' : '') },
     { label: 'Site', value: (p) => p.siteLocation ?? '' },
     { label: 'Manager', value: (p) => (p.projectManagerId ? nameOf(db, p.projectManagerId) : '') },
     { label: 'Start', value: (p) => (p.startDate ? formatDate(p.startDate) : '') },
@@ -245,7 +246,16 @@ export const adapter: Api = {
         if (!project) return
         const changes = by ? describeChanges(db, project, patch) : ''
         const before = paymentSchedule(project, db.settings)
+        // A project moved to another client takes its documents and money records along.
+        const newClient = patch.clientId && patch.clientId !== project.clientId ? patch.clientId : undefined
         Object.assign(project, patch)
+        if (newClient) {
+          for (const list of [db.quotations, db.payments, db.documents, db.followUps, db.clarifications]) {
+            for (const record of list as { projectId?: ID; clientId?: ID }[]) {
+              if (record.projectId === projectId) record.clientId = newClient
+            }
+          }
+        }
         if (by && changes) log(db, { projectId, kind: 'project-edited', byId: by, title: 'Project details updated', detail: changes })
         // Marking it Completed, or a phase reaching 100%, can bring payments due.
         if (by) flagPaymentsDue(db, project, before, by)
