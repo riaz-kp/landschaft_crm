@@ -19,8 +19,6 @@ export function ClientFormModal({
 
   const save = () => {
     if (!form.name.trim()) return setError('Enter the client name.')
-    if (!form.phone.trim()) return setError('Enter a phone number.')
-    if (!form.address.trim()) return setError('Enter the address.')
     const values = {
       name: form.name.trim(),
       phone: form.phone.trim(),
@@ -52,7 +50,6 @@ export function ClientFormModal({
           <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </Field>
         <PhoneWhatsAppFields
-          required
           phone={form.phone}
           whatsapp={form.whatsapp}
           onChange={(numbers) => setForm({ ...form, ...numbers })}
@@ -60,7 +57,7 @@ export function ClientFormModal({
         <Field label="Email">
           <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </Field>
-        <Field label="Address" required>
+        <Field label="Address">
           <textarea rows={2} className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
         </Field>
         {error && <p className="text-sm font-medium text-red-600">{error}</p>}

@@ -26,7 +26,7 @@ export function ClientPicker({ value, onChange }: { value: ID; onChange: (client
       return {
         value: c.id,
         label: c.name,
-        sub: `${c.address} · ${c.phone}`,
+        sub: [c.address, c.phone].filter(Boolean).join(' · '),
         keywords: [c.whatsapp, c.email].filter(Boolean).join(' '),
         group: 'Clients',
         avatar: true,

@@ -9,7 +9,7 @@ import { commercialDocs } from '../../domain/commercial'
 import { projectType } from '../../domain/progress'
 import {
   COMMON_ITEMS, COMMON_UNITS, KIND_TITLE, QUOTE_STATUSES, SECTION_LABELS, blankService, formatRupees, isPriced, kindRule,
-  quoteTotals, quoteWarnings, sectionApplies, shows, showsPlans,
+  DEFAULT_GST_RATE, quoteTotals, quoteWarnings, sectionApplies, shows, showsPlans,
 } from '../../domain/quotation'
 import { QUOTE_SECTIONS, type Quotation, type QuotationStatus, type QuoteArea, type QuoteSection } from '../../domain/types'
 import { viewPath, useCreateQuote, useQuoteAccess } from './access'
@@ -306,6 +306,25 @@ function QuoteEditor({ initial }: { initial: Quotation }) {
                     <dd className="w-32">
                       <NumberInput value={draft.discount} onChange={(discount) => patch({ discount })} disabled={readOnly} label="Discount" className="py-1.5" />
                     </dd>
+                  </div>
+                  {totals.gstRate !== undefined && <SummaryRow label="Taxable value" value={formatRupees(totals.taxable)} />}
+                  <div className="flex items-center justify-between gap-3 px-5 py-2.5">
+                    <dt className="flex items-center gap-2 text-stone-500">
+                      <Switch
+                        compact checked={draft.gstRate !== undefined} disabled={readOnly} label="Add GST"
+                        onChange={(on) => patch({ gstRate: on ? DEFAULT_GST_RATE : undefined })}
+                      />
+                      GST
+                    </dt>
+                    {draft.gstRate !== undefined ? (
+                      <dd className="flex items-center gap-2">
+                        <span className="flex w-20 items-center gap-1">
+                          <NumberInput value={draft.gstRate} onChange={(gstRate) => patch({ gstRate })} disabled={readOnly} label="GST rate in percent" placeholder="18" className="py-1.5" />
+                          <span className="text-stone-500">%</span>
+                        </span>
+                        <span className="w-24 text-right font-semibold tabular-nums text-stone-900">{formatRupees(totals.gst)}</span>
+                      </dd>
+                    ) : <dd className="text-stone-400">Not charged</dd>}
                   </div>
                 </dl>
                 <div className="flex items-center justify-between bg-[#33463a] px-5 py-4 text-white">

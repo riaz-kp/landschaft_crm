@@ -505,8 +505,9 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
     start: draft.start,
     durationMins: 60,
     party: 'Client' as 'Client' | 'Lead' | 'Other',
-    clientId: db.clients[0]?.id ?? '',
-    leadId: db.leads.find((l) => !['Won', 'Lost'].includes(l.status))?.id ?? '',
+    // Nobody picked to begin with, so the client or lead is always a choice, not a pre-filled first entry.
+    clientId: '',
+    leadId: '',
     attendee: '',
     purpose: '',
     mode: 'Office' as Consultation['mode'],
@@ -529,6 +530,8 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
     if (isSunday(form.date)) return setError('Sunday is the weekly off — pick another day.')
     if (overruns) return setError('That runs past 6:00 PM. Pick an earlier time or a shorter slot.')
     if (clash) return setError(`Clashes with "${clash.purpose}" (${timeRange(clash.start, endOf(clash))}).`)
+    if (form.party === 'Client' && !form.clientId) return setError('Pick the client.')
+    if (form.party === 'Lead' && !form.leadId) return setError('Pick the lead.')
     if (form.party === 'Other' && !form.attendee.trim()) return setError('Enter who the meeting is with.')
     api.consultations.create({
       hostId: form.hostId || undefined,

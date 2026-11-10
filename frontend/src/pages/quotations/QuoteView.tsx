@@ -8,7 +8,7 @@ import { StoredImg } from '../../components/StoredImage'
 import { Badge, EmptyState, StatusBadge } from '../../components/ui'
 import { formatDate } from '../../domain/format'
 import {
-  KIND_TITLE, formatQty, formatRupees, groupPlants, isPriced, itemAmount, plantAmount, plantThumb, quoteTotals, serviceAmount,
+  KIND_TITLE, formatQty, formatRupees, gstLabel, groupPlants, isPriced, itemAmount, plantAmount, plantThumb, quoteTotals, serviceAmount,
   shows, showsPlans,
 } from '../../domain/quotation'
 import type { Client, DocumentSettings, Project, Quotation } from '../../domain/types'
@@ -198,6 +198,7 @@ function QuoteView({ quote, project, client, settings }: { quote: Quotation; pro
               ...(areas.length ? [['Hardscape', totals.hardscape] as const] : []),
               ...(services.length ? [[servicesTitle.split(',')[0].trim(), totals.services] as const] : []),
               ...(totals.discount ? [['Discount', -totals.discount] as const] : []),
+              ...(totals.gstRate !== undefined ? [['Taxable value', totals.taxable] as const, [gstLabel(totals.gstRate), totals.gst] as const] : []),
             ].map(([label, amount]) => (
               <div key={label} className="flex items-center justify-between gap-4 px-5 py-3 text-sm">
                 <dt className="text-stone-600">{label}</dt>

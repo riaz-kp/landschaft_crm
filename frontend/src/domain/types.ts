@@ -710,6 +710,11 @@ export interface Quotation {
   services: ServiceLine[]
   /** Rupees off the total. Quotations only. */
   discount: number
+  /**
+   * GST charged on the taxable value (the total after discount), in percent.
+   * Left out when the quotation is quoted without GST. Quotations only.
+   */
+  gstRate?: number
   terms: TitledText[]
   procedure: TitledText[]
   procedureNote: string

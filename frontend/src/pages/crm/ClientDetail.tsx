@@ -50,15 +50,19 @@ export function ClientDetail() {
         title={client.name}
         subtitle={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>{client.address}</span>
-            <span className="text-stone-300">·</span>
+            {client.address && <>
+              <span>{client.address}</span>
+              <span className="text-stone-300">·</span>
+            </>}
             <span>Client since {formatDate(client.createdAt)}</span>
           </span>
         }
         actions={<>
-          <a href={whatsappUrl(client.whatsapp || client.phone)} target="_blank" rel="noreferrer" className="btn-secondary">
-            <Icon name="chat" className="h-4 w-4 text-brand-600" /> WhatsApp
-          </a>
+          {(client.whatsapp || client.phone) && (
+            <a href={whatsappUrl(client.whatsapp || client.phone)} target="_blank" rel="noreferrer" className="btn-secondary">
+              <Icon name="chat" className="h-4 w-4 text-brand-600" /> WhatsApp
+            </a>
+          )}
           {can('CRM', 'edit') && <button onClick={() => setEditing(true)} className="btn-secondary"><Icon name="edit" className="h-4 w-4" /> Edit</button>}
           {can('CRM', 'delete') && <button onClick={() => setDeleting(true)} className="btn-danger"><Icon name="trash" className="h-4 w-4" /> Delete</button>}
         </>}

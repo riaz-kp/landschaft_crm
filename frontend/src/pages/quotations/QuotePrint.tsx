@@ -8,7 +8,7 @@ import { BRAND } from '../../components/brand'
 import { useFileUrl } from '../../components/StoredImage'
 import { formatDate } from '../../domain/format'
 import {
-  KIND_TITLE, formatQty, formatRupees, groupPlants, isPriced, itemAmount, plantAmount, plantThumb, quoteTotals, serviceAmount,
+  KIND_TITLE, formatQty, formatRupees, gstLabel, groupPlants, isPriced, itemAmount, plantAmount, plantThumb, quoteTotals, serviceAmount,
   shows, showsPlans,
 } from '../../domain/quotation'
 import type { Client, CommercialDoc, DocumentSettings, PlantLine, Project, Quotation } from '../../domain/types'
@@ -590,6 +590,7 @@ function buildBlocks(quote: Quotation, project: Project, settings: DocumentSetti
       ...(shows(quote, 'hardscape') && areas.length ? [['Hardscape subtotal', totals.hardscape] as [string, number]] : []),
       ...(shows(quote, 'services') && services.length ? [[(quote.servicesTitle.trim() || 'Project management').split(',')[0].trim(), totals.services] as [string, number]] : []),
       ['Discount', totals.discount],
+      ...(totals.gstRate !== undefined ? [['Taxable value', totals.taxable], [gstLabel(totals.gstRate), totals.gst]] as [string, number][] : []),
     ]
     blocks.push({
       key: 'summary', breakBefore: blocks.length === 0,
