@@ -242,9 +242,10 @@ function SiteVisitFormModal({ visit, onClose }: { visit?: SiteVisit; onClose: ()
   const staff = db.employees.filter((e) => e.role !== 'super_admin')
   const [form, setForm] = useState({
     party: (visit?.clientId ? 'Client' : 'Lead') as 'Lead' | 'Client',
-    leadId: visit?.leadId ?? openLeads[0]?.id ?? '',
-    clientId: visit?.clientId ?? db.clients[0]?.id ?? '',
-    location: visit?.location ?? openLeads[0]?.location ?? '',
+    // New visits start with nobody picked, so the lead or client is always a choice, not a pre-filled first entry.
+    leadId: visit?.leadId ?? '',
+    clientId: visit?.clientId ?? '',
+    location: visit?.location ?? '',
     coords: visit?.coords,
     date: visit?.date ?? addDays(today(), 1),
     time: visit?.time ?? '10:00',

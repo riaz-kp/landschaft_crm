@@ -51,7 +51,8 @@ export function NewProject() {
     area: '',
     areaUnit: 'sq ft' as AreaUnit,
     name: '',
-    clientId: db.clients[0]?.id ?? '',
+    // Left empty so the client is always chosen: a pre-filled first client looked already decided.
+    clientId: '',
     siteLocation: '',
     // The person opening it when they manage projects, else the first project manager.
     projectManagerId: MANAGER_ROLES.includes(user.role) ? user.id : db.employees.find((e) => MANAGER_ROLES.includes(e.role))?.id ?? user.id,
