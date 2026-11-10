@@ -711,7 +711,8 @@ export interface Quotation {
   /** Rupees off the total. Quotations only. */
   discount: number
   /**
-   * GST charged on the taxable value (the total after discount), in percent.
+   * GST charged on the taxable value, in percent. Only project management
+   * is taxable: plants and hardscape carry no GST.
    * Left out when the quotation is quoted without GST. Quotations only.
    */
   gstRate?: number
