@@ -50,8 +50,10 @@ export function ClientDetail() {
         title={client.name}
         subtitle={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>{client.address}</span>
-            <span className="text-stone-300">·</span>
+            {client.address && <>
+              <span>{client.address}</span>
+              <span className="text-stone-300">·</span>
+            </>}
             <span>Client since {formatDate(client.createdAt)}</span>
           </span>
         }

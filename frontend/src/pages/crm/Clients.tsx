@@ -103,7 +103,7 @@ export function Clients() {
                     )}
                   </td>
                   <td className="td"><ContactNumbers phone={client.phone} whatsapp={client.whatsapp} /></td>
-                  <td className="td">{client.address}</td>
+                  <td className="td">{client.address || '—'}</td>
                   <td className="td">
                     {projects.length === 0 ? (
                       <span className="text-stone-400">—</span>
