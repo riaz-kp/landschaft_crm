@@ -235,12 +235,15 @@ function SpecField({ value, onChange, disabled, label }: { value?: string; onCha
     )
   }
   return (
-    <textarea
-      className="input min-h-[64px] resize-y text-xs leading-relaxed text-stone-700" value={text} disabled={disabled} aria-label={label}
-      rows={Math.min(18, Math.max(3, text.split('\n').length + 1))} autoFocus={open && !text}
-      placeholder={'Material specification\nColour - …\nSize - …\nLaying method\nBedding course - …'}
-      onChange={(e) => onChange(e.target.value || undefined)}
-      onBlur={() => { if (!text.trim()) { setOpen(false); onChange(undefined) } }}
-    />
+    <div>
+      <textarea
+        className="input min-h-[64px] resize-y text-xs leading-relaxed text-stone-700" value={text} disabled={disabled} aria-label={label}
+        rows={Math.min(18, Math.max(3, text.split('\n').length + 1))} autoFocus={open && !text}
+        placeholder={'Material specification\nColour - …\nSize - …\nLaying method\nBedding course - …'}
+        onChange={(e) => onChange(e.target.value || undefined)}
+        onBlur={() => { if (!text.trim()) { setOpen(false); onChange(undefined) } }}
+      />
+      {!disabled && <p className="mt-1 text-[11px] text-stone-400">One point per line. End a line with “:” to make it a heading.</p>}
+    </div>
   )
 }
