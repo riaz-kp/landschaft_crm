@@ -380,9 +380,10 @@ function SubtotalRow({ label, amount }: { label: string; amount: number }) {
   )
 }
 
-const THUMB = 'h-[38px] w-[38px] rounded-[8px]'
+// max-w-none: a photo keeps its square even in a narrow cell, instead of being squeezed.
+const THUMB = 'h-[38px] w-[38px] max-w-none shrink-0 rounded-[8px]'
 /** A hardscape item set out with its specification has room for a bigger photo of the stone. */
-const THUMB_LARGE = 'h-[60px] w-[60px] rounded-[8px]'
+const THUMB_LARGE = 'h-[60px] w-[60px] max-w-none shrink-0 rounded-[8px]'
 
 function Thumb({ src, alt }: { src?: string; alt: string }) {
   if (!src) {
@@ -417,7 +418,7 @@ function buildBlocks(quote: Quotation, project: Project, settings: DocumentSetti
   const lines = quote.plants?.lines ?? []
   if (shows(quote, 'plants') && lines.length) {
     const frame = 'plants'
-    const cols = priced ? [7, 9, 30, 11, 10, 8, 11, 14] : [8, 10, 40, 14, 14, 14]
+    const cols = priced ? [5, 9, 32, 11, 10, 8, 11, 14] : [6, 10, 42, 14, 14, 14]
     const head = (
       <Row
         className="border-b py-2.5" style={{ background: CREAM }}
@@ -454,7 +455,8 @@ function buildBlocks(quote: Quotation, project: Project, settings: DocumentSetti
   if (shows(quote, 'hardscape') && areas.length) {
     const frame = 'hardscape'
     // The description column is the widest: an item can carry its whole specification.
-    const cols = priced ? [7, 10, 32, 10, 8, 7, 12, 14] : [8, 11, 45, 12, 12, 12]
+    // Sl. No. only holds a number; the photo column is wide enough for the 60px photo of an item with a specification.
+    const cols = priced ? [5, 12, 32, 10, 8, 7, 12, 14] : [6, 12, 46, 12, 12, 12]
     const head = (
       <Row
         className="border-b py-2.5" style={{ background: CREAM }}

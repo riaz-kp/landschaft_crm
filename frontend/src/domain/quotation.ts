@@ -183,20 +183,25 @@ export const isLegacyQuotation = (raw: Partial<Quotation>) => !raw.areas && !raw
 
 export interface SpecLine {
   text: string
-  /** "Material specification", "Laying method" and the like, on a line of their own. */
+  /** A line that prints as a small heading: see `specLines`. */
   heading: boolean
 }
 
+/** Words that are always a heading when they are the whole line, with or without a colon. */
 const SPEC_HEADING = /^(material specification|specification|laying method|method of laying|notes?)\s*:?$/i
 
-/** A specification as the lines it is printed in, blank lines left out. */
+/**
+ * A specification as the lines it is printed in, blank lines left out. A line
+ * is a heading when it ends with a colon ("Drainage:"), or when it is one of the
+ * usual headings on its own ("Laying method"). Headings print without the colon.
+ */
 export function specLines(spec: string | undefined): SpecLine[] {
   return (spec ?? '')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
     .map((text) => {
-      const heading = SPEC_HEADING.test(text)
+      const heading = SPEC_HEADING.test(text) || text.endsWith(':')
       return { text: heading ? text.replace(/\s*:$/, '') : text, heading }
     })
 }
