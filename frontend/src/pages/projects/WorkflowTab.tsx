@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
-import { formatCurrency, formatDate } from '../../domain/format'
-import type { Project } from '../../domain/types'
-import { canTickStep, holders, nextStep, paymentSchedule, withCollection, workflowFor } from '../../domain/workflow'
-import { Badge, EmptyState, Modal, ProgressBar, Section, Table } from '../../components/ui'
+import { formatCurrency, formatDate, today } from '../../domain/format'
+import type { ID, Payment, Project } from '../../domain/types'
+import { canTickStep, holders, nextStep, paymentSchedule, withCollection, workflowFor, type CollectionRow } from '../../domain/workflow'
+import { Badge, ConfirmDialog, EmptyState, Field, Modal, ProgressBar, Section, Table } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { MoneyFields, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
 
@@ -86,20 +86,35 @@ export function WorkflowTab({ project }: { project: Project }) {
   )
 }
 
-/** The design and execution payment slabs for this project, from Settings, with the values Accounts set. */
-export function PaymentSchedule({ project, received, canEdit }: { project: Project; received: number; canEdit: boolean }) {
+/**
+ * The design and execution payment slabs for this project, from Settings, with
+ * the values Accounts set, and the payments the client has made. Recording a
+ * payment sets it against the slabs in order and tells the people concerned.
+ */
+export function PaymentSchedule({ project, received, canEdit, canRecord, canRemove }: {
+  project: Project; received: number; canEdit: boolean; canRecord: boolean; canRemove: boolean
+}) {
   const db = useDb()
+  const { user } = useSession()
   const [editing, setEditing] = useState(false)
+  // A slab being paid for, or 'any' for a payment not tied to one.
+  const [recording, setRecording] = useState<CollectionRow | 'any' | null>(null)
+  const [removing, setRemoving] = useState<Payment | null>(null)
   const rows = withCollection(paymentSchedule(project, db.settings), received)
   const dueSoFar = rows.filter((r) => r.reached).reduce((s, r) => s + (r.amount ?? 0), 0)
+  const payments = db.payments.filter((p) => p.projectId === project.id).sort((a, b) => b.date.localeCompare(a.date))
+  const staffName = (id?: ID) => (id ? db.employees.find((e) => e.id === id)?.name : undefined) ?? '—'
 
   return (
     <Section
       title="Payment Schedule"
       description="Slabs from Settings, applied to the design and execution values Accounts fixed for this project. What the client has paid is set against them in order."
       className="lg:col-span-3"
-      actions={canEdit && (
-        <button onClick={() => setEditing(true)} className="btn-secondary py-1.5"><Icon name="edit" className="h-4 w-4" /> Edit values</button>
+      actions={(canEdit || canRecord) && (
+        <div className="flex gap-2">
+          {canEdit && <button onClick={() => setEditing(true)} className="btn-secondary py-1.5"><Icon name="edit" className="h-4 w-4" /> Edit values</button>}
+          {canRecord && <button onClick={() => setRecording('any')} className="btn-primary py-1.5"><Icon name="plus" className="h-4 w-4" /> Record payment</button>}
+        </div>
       )}
     >
       <dl className="grid gap-4 border-b border-stone-100 px-5 py-4 sm:grid-cols-4">
@@ -127,16 +142,128 @@ export function PaymentSchedule({ project, received, canEdit }: { project: Proje
               <td className="td tabular-nums">{row.percent}%</td>
               <td className="td tabular-nums">{row.amount !== undefined ? formatCurrency(row.amount) : <span className="text-stone-400">Value not set</span>}</td>
               <td className="td">
-                {row.collected ? <Badge tone="green">Collected</Badge>
-                  : row.reached ? <Badge tone="amber">{row.outstanding !== undefined && row.outstanding < (row.amount ?? 0) ? `Due · ${formatCurrency(row.outstanding)} left` : 'Due'}</Badge>
-                    : <Badge tone="stone">Upcoming</Badge>}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {row.collected ? <Badge tone="green">Collected</Badge>
+                    : row.reached ? <Badge tone="amber">{row.outstanding !== undefined && row.outstanding < (row.amount ?? 0) ? `Due · ${formatCurrency(row.outstanding)} left` : 'Due'}</Badge>
+                      : <Badge tone="stone">{row.amount !== undefined && row.outstanding !== undefined && row.outstanding < row.amount ? `Upcoming · ${formatCurrency(row.amount - row.outstanding)} paid` : 'Upcoming'}</Badge>}
+                  {canRecord && row.reached && !row.collected && (
+                    <button onClick={() => setRecording(row)} className="btn-secondary px-2.5 py-1 text-xs">Record payment</button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}
         </Table>
       )}
+
+      <div className="border-t border-stone-100">
+        <p className="px-5 pb-1 pt-4 text-xs font-bold uppercase tracking-wider text-stone-400">Payments received</p>
+        {payments.length === 0 ? (
+          <p className="px-5 pb-4 text-sm text-stone-500">Nothing recorded yet.</p>
+        ) : (
+          <Table head={['Date', 'Amount', 'Method', 'Reference', 'Recorded by', '']}>
+            {payments.map((payment) => (
+              <tr key={payment.id} className="row-hover">
+                <td className="td tabular-nums">{formatDate(payment.date)}</td>
+                <td className="td font-semibold tabular-nums text-stone-900">{formatCurrency(payment.amount)}</td>
+                <td className="td">{payment.method}</td>
+                <td className="td max-w-xs truncate" title={payment.note}>{[payment.reference, payment.note].filter(Boolean).join(' · ') || '—'}</td>
+                <td className="td">{staffName(payment.byId)}</td>
+                <td className="td text-right">
+                  {canRemove && (
+                    <button onClick={() => setRemoving(payment)} className="text-stone-400 hover:text-red-600" aria-label={`Remove the payment of ${formatCurrency(payment.amount)}`}>
+                      <Icon name="trash" className="h-4 w-4" />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </div>
+
       {editing && <ValuesModal project={project} onClose={() => setEditing(false)} />}
+      {recording && <RecordPaymentModal project={project} row={recording === 'any' ? undefined : recording} onClose={() => setRecording(null)} />}
+      {removing && (
+        <ConfirmDialog
+          title="Remove this payment?"
+          confirmLabel="Remove"
+          onClose={() => setRemoving(null)}
+          onConfirm={() => api.payments.remove(removing.id, user.id)}
+          message={`${formatCurrency(removing.amount)} received ${formatDate(removing.date)} by ${removing.method} is taken off the project, and the slabs it paid for show as due again. The project's history notes the removal.`}
+        />
+      )}
     </Section>
+  )
+}
+
+const METHODS: Payment['method'][] = ['Bank Transfer', 'UPI', 'Cheque', 'Cash']
+
+/**
+ * Accounts records money the client paid. Opened from a slab, the amount starts
+ * at what is still owed on it; the payment is still set against the slabs in
+ * order, so paying more than one slab at once is one entry.
+ */
+function RecordPaymentModal({ project, row, onClose }: { project: Project; row?: CollectionRow; onClose: () => void }) {
+  const { user } = useSession()
+  const owed = row?.outstanding ?? row?.amount
+  const [form, setForm] = useState({
+    amount: owed ? String(Math.round(owed)) : '',
+    date: today(),
+    method: 'Bank Transfer' as Payment['method'],
+    reference: '',
+    note: '',
+  })
+  const [error, setError] = useState<string | null>(null)
+  const save = () => {
+    const amount = Number(form.amount)
+    if (!(amount > 0)) return setError('Enter the amount received.')
+    if (!form.date) return setError('Enter the date it was received.')
+    if (form.date > today()) return setError('The date cannot be in the future.')
+    api.payments.record({
+      projectId: project.id, amount, date: form.date, method: form.method,
+      reference: form.reference.trim(), note: form.note.trim() || undefined,
+    }, user.id)
+    onClose()
+  }
+  return (
+    <Modal
+      title={row ? `Record payment — ${row.stage.toLowerCase()} ${row.label}` : 'Record payment'}
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="btn-secondary">Cancel</button>
+        <button onClick={save} className="btn-primary">Record payment</button>
+      </>}
+    >
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Amount received (₹)" required hint={owed ? `${formatCurrency(owed)} is owed on this slab.` : undefined}>
+            <input
+              type="number" min={0} inputMode="decimal" className="input" value={form.amount} autoFocus
+              onChange={(e) => { setForm({ ...form, amount: e.target.value }); setError(null) }}
+            />
+          </Field>
+          <Field label="Received on" required>
+            <input type="date" className="input" max={today()} value={form.date} onChange={(e) => { setForm({ ...form, date: e.target.value }); setError(null) }} />
+          </Field>
+          <Field label="Method">
+            <select className="input" value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value as Payment['method'] })}>
+              {METHODS.map((m) => <option key={m}>{m}</option>)}
+            </select>
+          </Field>
+          <Field label={form.method === 'Cheque' ? 'Cheque number' : 'Reference'}>
+            <input className="input" value={form.reference} placeholder={form.method === 'Cash' ? 'Receipt number' : 'UTR / transaction ID'} onChange={(e) => setForm({ ...form, reference: e.target.value })} />
+          </Field>
+        </div>
+        <Field label="Note">
+          <input className="input" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+        </Field>
+        <p className="text-xs text-stone-500">
+          The CEO, the rest of Accounts, the project manager and the head of the stage it pays for are told. Anyone without access to Accounts hears only that an amount was collected, not how much.
+        </p>
+        {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+      </div>
+    </Modal>
   )
 }
 

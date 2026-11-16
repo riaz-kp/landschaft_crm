@@ -32,8 +32,13 @@ export interface ProjectHistoryItem {
 
 const nameOf = (db: DbShape, id?: ID) => db.employees.find((e) => e.id === id)?.name ?? 'someone'
 
+/** The money fields a project edit can name; staff who may not see Accounts get the edit without them. */
+const MONEY_FIELDS = ['Value', 'Design value', 'Execution value', 'Budget']
+const withoutMoney = (detail?: string) =>
+  detail?.split(' · ').filter((part) => !MONEY_FIELDS.some((field) => part.startsWith(`${field}:`))).join(' · ')
+
 /** One logged task or project event as a history line. */
-function fromLog(db: DbShape, entry: ProjectLogEntry): ProjectHistoryItem {
+function fromLog(db: DbShape, entry: ProjectLogEntry, seesMoney: boolean): ProjectHistoryItem {
   const base = { id: entry.id, date: entry.at.slice(0, 10), time: entry.at.slice(11, 16), byId: entry.byId }
   switch (entry.kind) {
     case 'task-created':
@@ -53,11 +58,15 @@ function fromLog(db: DbShape, entry: ProjectLogEntry): ProjectHistoryItem {
     case 'task-deleted':
       return { ...base, kind: 'tasks', icon: 'trash', title: `Task deleted — ${entry.title}`, detail: entry.fromId && `Was with ${nameOf(db, entry.fromId)}` }
     case 'project-edited':
-      return { ...base, kind: 'project', icon: 'edit', title: entry.title, detail: entry.detail }
+      return { ...base, kind: 'project', icon: 'edit', title: entry.title, detail: seesMoney ? entry.detail : withoutMoney(entry.detail) }
     case 'workflow-step':
       return { ...base, kind: 'project', icon: 'check', title: `Workflow — ${entry.title}`, detail: entry.detail }
     case 'payment-due':
       return { ...base, kind: 'money', icon: 'rupee', title: `Payment due — ${entry.title}`, detail: entry.detail }
+    case 'payment-removed':
+      return seesMoney
+        ? { ...base, kind: 'money', icon: 'trash', title: `Payment record removed — ${entry.title}`, detail: entry.detail }
+        : { ...base, kind: 'money', icon: 'trash', title: 'Payment record removed' }
   }
 }
 
@@ -73,13 +82,14 @@ function doneFromTask(task: Task): ProjectHistoryItem {
  * Everything that has happened on a project, newest first: task hand-overs,
  * completions and edits as they were logged, plus what the rest of the system
  * already records — documents received, site reports, payments, AMC visits.
+ * Someone who may not see Accounts gets the money lines without the figures.
  */
-export function projectHistory(db: DbShape, projectId: ID): ProjectHistoryItem[] {
+export function projectHistory(db: DbShape, projectId: ID, seesMoney: boolean): ProjectHistoryItem[] {
   const project = db.projects.find((p) => p.id === projectId)
   if (!project) return []
 
   const logged = db.projectLog.filter((l) => l.projectId === projectId)
-  const items: ProjectHistoryItem[] = logged.map((entry) => fromLog(db, entry))
+  const items: ProjectHistoryItem[] = logged.map((entry) => fromLog(db, entry, seesMoney))
 
   items.push({
     id: `start-${project.id}`, date: project.startDate, kind: 'project', icon: 'folder',
@@ -127,16 +137,19 @@ export function projectHistory(db: DbShape, projectId: ID): ProjectHistoryItem[]
     items.push({
       id: `q-${quote.id}`, date: quote.date, kind: 'money', icon: 'doc',
       title: `${quote.kind} ${quote.number} — ${quote.status}`,
-      detail: quoteValue(quote) === undefined ? 'Quantities and plans, no prices' : formatCurrency(quoteValue(quote)!),
+      detail: quoteValue(quote) === undefined ? 'Quantities and plans, no prices' : seesMoney ? formatCurrency(quoteValue(quote)!) : undefined,
       to: `/projects/${projectId}/commercial/${quote.id}`,
     })
   }
 
   for (const payment of db.payments.filter((p) => p.projectId === projectId)) {
-    items.push({
-      id: `pay-${payment.id}`, date: payment.date, kind: 'money', icon: 'rupee',
-      title: `Payment received — ${formatCurrency(payment.amount)}`, detail: `${payment.method} · ${payment.reference}`,
-    })
+    items.push(seesMoney
+      ? {
+        id: `pay-${payment.id}`, date: payment.date, kind: 'money', icon: 'rupee', byId: payment.byId,
+        title: `Payment received — ${formatCurrency(payment.amount)}`,
+        detail: [payment.method, payment.reference, payment.note].filter(Boolean).join(' · '),
+      }
+      : { id: `pay-${payment.id}`, date: payment.date, kind: 'money', icon: 'rupee', byId: payment.byId, title: 'Amount collected' })
   }
 
   return items
@@ -146,7 +159,7 @@ export function projectHistory(db: DbShape, projectId: ID): ProjectHistoryItem[]
 
 /** One task's own history — created, handed over, done, reopened — newest first. */
 export function taskHistory(db: DbShape, task: Task): ProjectHistoryItem[] {
-  const logged = db.projectLog.filter((l) => l.taskId === task.id).map((entry) => fromLog(db, entry))
+  const logged = db.projectLog.filter((l) => l.taskId === task.id).map((entry) => fromLog(db, entry, false))
   const doneLogged = db.projectLog.some((l) => l.taskId === task.id && l.kind === 'task-done')
   const items = task.status === 'Done' && !doneLogged ? [...logged, doneFromTask(task)] : logged
   return items.sort((a, b) => `${b.date}T${b.time ?? '00:00'}`.localeCompare(`${a.date}T${a.time ?? '00:00'}`))

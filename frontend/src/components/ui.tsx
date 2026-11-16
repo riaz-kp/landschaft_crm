@@ -262,21 +262,21 @@ export function Tabs<K extends string>({
   tabs, active, onChange,
 }: { tabs: { key: K; label: string; count?: number }[]; active: K; onChange: (key: K) => void }) {
   return (
-    // A phone wraps the tabs into pills instead of a strip that scrolls sideways.
-    <nav className="no-scrollbar mb-5 flex flex-wrap gap-1.5 sm:flex-nowrap sm:gap-1 sm:overflow-x-auto sm:border-b sm:border-stone-200">
+    // Tabs wrap onto a second line rather than hiding off the edge in a strip that scrolls sideways.
+    <nav className="mb-5 flex flex-wrap gap-1 rounded-2xl border border-stone-200/80 bg-white p-1 shadow-card">
       {tabs.map((t) => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
-          className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors sm:-mb-px sm:rounded-none sm:border-b-2 sm:px-4 sm:py-2.5 ${
+          className={`inline-flex items-center whitespace-nowrap rounded-xl px-3 py-1.5 text-[13px] font-semibold transition-colors sm:px-3.5 sm:py-2 sm:text-sm ${
             active === t.key
-              ? 'bg-brand-600 text-white shadow-sm sm:border-brand-600 sm:bg-transparent sm:text-brand-800 sm:shadow-none'
-              : 'bg-white text-stone-600 ring-1 ring-inset ring-stone-200 hover:text-stone-800 sm:border-transparent sm:bg-transparent sm:text-stone-500 sm:ring-0'
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'text-stone-500 hover:bg-stone-100 hover:text-stone-800'
           }`}
         >
           {t.label}
           {t.count !== undefined && (
-            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${active === t.key ? 'bg-white/20 text-white sm:bg-brand-100 sm:text-brand-700' : 'bg-stone-100 text-stone-500'}`}>
+            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] leading-none tabular-nums ${active === t.key ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-500'}`}>
               {t.count}
             </span>
           )}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
+import { usePermissions } from '../../state/permissions'
 import { formatDateLong, formatTime } from '../../domain/format'
 import type { ID } from '../../domain/types'
 import { EmptyState, Pills, Section } from '../../components/ui'
@@ -33,7 +34,8 @@ function Meta({ item }: { item: ProjectHistoryItem }) {
 export function ProjectHistory({ projectId }: { projectId: ID }) {
   const db = useDb()
   const [filter, setFilter] = useState<HistoryKind | 'all'>('all')
-  const history = projectHistory(db, projectId)
+  const seesMoney = usePermissions().can('Accounts', 'view')
+  const history = projectHistory(db, projectId, seesMoney)
   const shown = filter === 'all' ? history : history.filter((h) => h.kind === filter)
 
   const months: { label: string; items: ProjectHistoryItem[] }[] = []
