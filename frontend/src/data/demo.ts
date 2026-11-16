@@ -1,5 +1,6 @@
 import { normalizeSettings } from '../domain/defaults'
 import { normalizeQuotation } from '../domain/quotation'
+import { normalizePhaseTag, normalizeProjectPhases } from '../domain/designPhases'
 import type { Project } from '../domain/types'
 import { store, type DbShape } from './store'
 
@@ -10,6 +11,7 @@ import { store, type DbShape } from './store'
 // v6 is BOQs and quotations with sections: plants from the plants app, hardscape
 // areas with plans, management lines, terms and the payment schedule.
 const STORAGE_KEY = 'landschaft-crm-prototype-v6'
+// Design phases were reorganised (five instead of four) after v6; older saves are converted as they load.
 
 type Seed = typeof import('../mock/seed')
 
@@ -43,6 +45,7 @@ function fromSeed(seed: Seed): DbShape {
     projectLog: seed.projectLog,
     chatReads: {},
     clientBriefs: seed.clientBriefs,
+    materials: seed.materials,
     settings: seed.settings,
   })
 }
@@ -70,7 +73,9 @@ function load(seed: Seed): DbShape {
     return {
       ...fresh,
       ...parsed,
-      projects: parsed.projects.map((p) => withSeedDetails(p, fresh.projects)),
+      projects: parsed.projects.map((p) => normalizeProjectPhases(withSeedDetails(p, fresh.projects))),
+      tasks: (parsed.tasks ?? fresh.tasks).map(normalizePhaseTag),
+      paymentRequests: (parsed.paymentRequests ?? fresh.paymentRequests).map(normalizePhaseTag),
       // Documents read in today's shape, whatever shape they were saved in.
       quotations: (parsed.quotations ?? fresh.quotations).map(normalizeQuotation),
       settings: normalizeSettings({ ...fresh.settings, ...parsed.settings }),

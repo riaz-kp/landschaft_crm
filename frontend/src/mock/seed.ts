@@ -5,7 +5,7 @@ import type {
   DocumentRecord, Employee, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
   MaintenanceVisit, PaymentRequest, Phase, PhotoSession, Project, Quotation, ReportPhoto, Settings, SiteAssignment,
   SiteVisit, StaffAttendanceStatus, Task, Worker, ProjectMessage, PayRecord, Reminder,
-  ClientDocKey, ClientDocTick, ProjectLogEntry, ClientBrief,
+  ClientDocKey, ClientDocTick, ProjectLogEntry, ClientBrief, Material,
 } from '../domain/types'
 import { placeholderSitePhoto } from './photos'
 import { seedQuotations } from './quotes'
@@ -131,14 +131,14 @@ function plantsLink(name: string): Project['plantsProject'] {
  */
 export const projects: Project[] = [
   {
-    id: 'p1', code: 'LS-2026-001', name: 'Residence Landscape Design', clientId: 'c1',
+    id: 'p1', code: 'LND26101', name: 'Residence Landscape Design', clientId: 'c1', positioning: 'Premium',
     plantsProject: plantsLink('ABC Holdings Villa — Kowdiar'),
     category: 'Residential', area: 4500, areaUnit: 'sq ft',
     clientDocs: received(['contour', 'archFloor', 'archSections', 'archElevations', 'sitePhotos'], 'e3', '2026-04-28', ['model3d']),
     siteLocation: 'Kowdiar, Thiruvananthapuram', projectManagerId: 'e3',
     startDate: '2026-05-01', expectedCompletion: '2026-09-30', status: 'In Progress',
     services: { design: true, execution: false },
-    design: { concept: phase(true, 100), threeD: phase(true, 80), civilWork: phase(true, 0), boq: phase(true, 0) },
+    design: { concept: phase(true, 100), presentation: phase(true, 80), detailing1: phase(true, 0), detailing2: phase(true, 0), documentation: phase(true, 0) },
     execution: { hardscape: phase(false), softscape: phase(false), mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } }, maintenance: phase(false) },
     value: 850000, delayed: false,
     siteCoords: { lat: 8.5241, lng: 76.9606 }, checklist: ticks(['boq.measure', 'boq.quantities'], 'e3'),
@@ -146,14 +146,14 @@ export const projects: Project[] = [
     briefToken: 'demo-residence-checklist',
   },
   {
-    id: 'p2', code: 'LS-2026-002', name: 'Villa Landscape Execution', clientId: 'c2',
+    id: 'p2', code: 'LND26102', name: 'Villa Landscape Execution', clientId: 'c2', positioning: 'Standard',
     plantsProject: plantsLink('XYZ Estates Villa'),
     category: 'Residential', area: 6800, areaUnit: 'sq ft',
     clientDocs: received(['model3d', 'presentation', 'archFloor', 'sitePhotos'], 'e7', '2026-05-28'),
     siteLocation: 'Panampilly Nagar, Kochi', projectManagerId: 'e7',
     startDate: '2026-06-01', expectedCompletion: '2026-10-15', status: 'In Progress',
     services: { design: false, execution: true },
-    design: { concept: phase(false), threeD: phase(false), civilWork: phase(false), boq: phase(false) },
+    design: { concept: phase(false), presentation: phase(false), detailing1: phase(false), detailing2: phase(false), documentation: phase(false) },
     execution: {
       hardscape: phase(true, 100), softscape: phase(true, 65),
       mep: { enabled: true, progress: 0, services: { irrigation: true, electrical: true, drainage: false } },
@@ -163,14 +163,14 @@ export const projects: Project[] = [
     siteCoords: { lat: 9.9580, lng: 76.2950 }, checklist: ticks(QUOTATION_ALL, 'e8'),
   },
   {
-    id: 'p3', code: 'LS-2026-003', name: 'Resort Landscape', clientId: 'c3',
+    id: 'p3', code: 'LND26103', name: 'Resort Landscape', clientId: 'c3', positioning: 'Premium',
     plantsProject: plantsLink('DEF Resort — Kovalam'),
     category: 'Hospitality', area: 3.5, areaUnit: 'acres',
     clientDocs: received(['model3d', 'contour', 'presentation', 'archFloor', 'archSections', 'archElevations', 'sitePhotos'], 'e3', '2026-04-10'),
     siteLocation: 'Kovalam, Thiruvananthapuram', projectManagerId: 'e7',
     startDate: '2026-04-15', expectedCompletion: '2026-11-30', status: 'In Progress',
     services: { design: true, execution: true },
-    design: { concept: phase(true, 100), threeD: phase(true, 100), civilWork: phase(true, 100), boq: phase(true, 100) },
+    design: { concept: phase(true, 100), presentation: phase(true, 100), detailing1: phase(true, 100), detailing2: phase(true, 100), documentation: phase(true, 100) },
     execution: {
       hardscape: phase(true, 90), softscape: phase(true, 70), mep: { enabled: true, progress: 35, services: { irrigation: true, electrical: true, drainage: true } },
       maintenance: phase(true, 0),
@@ -179,13 +179,13 @@ export const projects: Project[] = [
     siteCoords: { lat: 8.4004, lng: 76.9787 }, checklist: ticks([...BOQ_ALL, ...QUOTATION_ALL], 'e3'),
   },
   {
-    id: 'p4', code: 'LS-2026-004', name: 'Edava Residence Garden', clientId: 'c4',
+    id: 'p4', code: 'LND26104', name: 'Edava Residence Garden', clientId: 'c4', positioning: 'Basic',
     category: 'Residential', area: 18, areaUnit: 'cents',
     clientDocs: received(['archFloor', 'sitePhotos'], 'e7', '2026-06-26', ['model3d', 'presentation']),
     siteLocation: 'എടവ, Varkala', projectManagerId: 'e7',
     startDate: '2026-07-01', expectedCompletion: '2026-09-15', status: 'In Progress',
     services: { design: false, execution: true },
-    design: { concept: phase(false), threeD: phase(false), civilWork: phase(false), boq: phase(false) },
+    design: { concept: phase(false), presentation: phase(false), detailing1: phase(false), detailing2: phase(false), documentation: phase(false) },
     execution: {
       hardscape: phase(true, 100), softscape: phase(true, 45),
       mep: { enabled: true, progress: 60, services: { irrigation: true, electrical: false, drainage: false } },
@@ -195,13 +195,13 @@ export const projects: Project[] = [
     siteCoords: { lat: 8.7650, lng: 76.6960 }, checklist: ticks(QUOTATION_ALL, 'e8'),
   },
   {
-    id: 'p5', code: 'LS-2026-005', name: 'Greenfield Common Areas', clientId: 'c5',
+    id: 'p5', code: 'LND26105', name: 'Greenfield Common Areas', clientId: 'c5', positioning: 'Standard',
     category: 'Residential', area: 22000, areaUnit: 'sq ft',
     clientDocs: received(['contour', 'archFloor', 'sitePhotos'], 'e3', '2026-06-18'),
     siteLocation: 'Kozhikode', projectManagerId: 'e7',
     startDate: '2026-06-20', expectedCompletion: '2026-10-30', status: 'In Progress',
     services: { design: true, execution: true },
-    design: { concept: phase(true, 100), threeD: phase(true, 100), civilWork: phase(true, 60), boq: phase(true, 40) },
+    design: { concept: phase(true, 100), presentation: phase(true, 100), detailing1: phase(true, 60), detailing2: phase(true, 0), documentation: phase(true, 40) },
     execution: {
       hardscape: phase(true, 55), softscape: phase(true, 20), mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } },
       maintenance: phase(false),
@@ -210,25 +210,25 @@ export const projects: Project[] = [
     siteCoords: { lat: 11.2588, lng: 75.7804 }, checklist: ticks(['boq.measure', 'boq.quantities', 'boq.specs', 'qt.scope', 'qt.survey'], 'e3'),
   },
   {
-    id: 'p6', code: 'LS-2026-006', name: 'Kovalam Villa Concept', clientId: 'c3',
+    id: 'p6', code: 'LND26106', name: 'Kovalam Villa Concept', clientId: 'c3', positioning: 'Premium',
     plantsProject: plantsLink('Kovalam Villa Concept'),
     category: 'Hospitality', area: 2400, areaUnit: 'sq ft',
     siteLocation: 'Kovalam', projectManagerId: 'e3',
     startDate: '2026-08-01', expectedCompletion: '2026-10-20', status: 'Planning',
     services: { design: true, execution: false },
-    design: { concept: phase(true, 40), threeD: phase(true, 0), civilWork: phase(false), boq: phase(true, 0) },
+    design: { concept: phase(true, 40), presentation: phase(true, 0), detailing1: phase(false), detailing2: phase(false), documentation: phase(true, 0) },
     execution: { hardscape: phase(false), softscape: phase(false), mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } }, maintenance: phase(false) },
     value: 420000, delayed: false,
     siteCoords: { lat: 8.3930, lng: 76.9820 }, checklist: ticks(['boq.measure'], 'e3'),
   },
   {
-    id: 'p7', code: 'LS-2025-018', name: 'Sea Breeze Villa', clientId: 'c2',
+    id: 'p7', code: 'LND25118', name: 'Sea Breeze Villa', clientId: 'c2', positioning: 'Standard',
     category: 'Residential', area: 9500, areaUnit: 'sq ft',
     clientDocs: received(['model3d', 'contour', 'presentation', 'archFloor', 'archSections', 'archElevations', 'sitePhotos'], 'e3', '2025-10-27'),
     siteLocation: 'Fort Kochi', projectManagerId: 'e7',
     startDate: '2025-11-01', expectedCompletion: '2026-06-30', status: 'Completed',
     services: { design: true, execution: true, amc: true },
-    design: { concept: phase(true, 100), threeD: phase(true, 100), civilWork: phase(true, 100), boq: phase(true, 100) },
+    design: { concept: phase(true, 100), presentation: phase(true, 100), detailing1: phase(true, 100), detailing2: phase(true, 100), documentation: phase(true, 100) },
     execution: {
       hardscape: phase(true, 100), softscape: phase(true, 100), mep: { enabled: true, progress: 100, services: { irrigation: true, electrical: true, drainage: true } },
       maintenance: phase(true, 40),
@@ -237,13 +237,13 @@ export const projects: Project[] = [
     siteCoords: { lat: 9.9658, lng: 76.2421 }, checklist: ticks([...BOQ_ALL, ...QUOTATION_ALL], 'e8'),
   },
   {
-    id: 'p8', code: 'LS-2026-007', name: 'Cyber Park Softscape', clientId: 'c5',
+    id: 'p8', code: 'LND26107', name: 'Cyber Park Softscape', clientId: 'c5', positioning: 'Standard',
     category: 'Commercial', area: 1.2, areaUnit: 'acres',
     clientDocs: received(['contour', 'sitePhotos'], 'e7', '2026-08-06'),
     siteLocation: 'Kozhikode', projectManagerId: 'e7',
     startDate: '2026-08-10', expectedCompletion: '2026-12-15', status: 'In Progress',
     services: { design: false, execution: true },
-    design: { concept: phase(false), threeD: phase(false), civilWork: phase(false), boq: phase(false) },
+    design: { concept: phase(false), presentation: phase(false), detailing1: phase(false), detailing2: phase(false), documentation: phase(false) },
     execution: {
       hardscape: phase(false), softscape: phase(true, 30),
       mep: { enabled: true, progress: 10, services: { irrigation: true, electrical: false, drainage: true } },
@@ -254,27 +254,27 @@ export const projects: Project[] = [
   },
   {
     // Sold as an AMC alone — no design or execution by us.
-    id: 'p9', code: 'LS-2026-008', name: 'Marine Drive Towers — Garden AMC', clientId: 'c6',
+    id: 'p9', code: 'LND26108', name: 'Marine Drive Towers — Garden AMC', clientId: 'c6', positioning: 'Basic',
     category: 'Residential', area: 14000, areaUnit: 'sq ft',
     clientDocs: received(['sitePhotos'], 'e6', addDays(today(), -50), ['model3d', 'contour', 'presentation', 'archSections', 'archElevations']),
     siteLocation: 'Marine Drive, Kochi', projectManagerId: 'e6',
     startDate: addDays(today(), -45), expectedCompletion: addDays(today(), 319), status: 'In Progress',
     services: { design: false, execution: false, amc: true },
-    design: { concept: phase(false), threeD: phase(false), civilWork: phase(false), boq: phase(false) },
+    design: { concept: phase(false), presentation: phase(false), detailing1: phase(false), detailing2: phase(false), documentation: phase(false) },
     execution: { hardscape: phase(false), softscape: phase(false), mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } }, maintenance: phase(false) },
     value: 180000, delayed: false,
     siteCoords: { lat: 9.9816, lng: 76.2756 }, checklist: ticks(QUOTATION_ALL, 'e8'),
   },
   {
     // The company's own quotation (Ashraf, Residence, Kondotty) — see mock/quotes.
-    id: 'p10', code: 'LS-2026-009', name: 'Residence', clientId: 'c7',
+    id: 'p10', code: 'LND26109', name: 'Residence', clientId: 'c7',
     plantsProject: plantsLink('Ashraf Residence'),
     category: 'Residential', area: 3200, areaUnit: 'sq ft',
     clientDocs: received(['sitePhotos', 'archFloor'], 'e7', '2026-10-24'),
     siteLocation: 'Kondotty', projectManagerId: 'e7',
     startDate: '2026-11-16', expectedCompletion: '2027-01-30', status: 'Planning',
     services: { design: false, execution: true },
-    design: { concept: phase(false), threeD: phase(false), civilWork: phase(false), boq: phase(false) },
+    design: { concept: phase(false), presentation: phase(false), detailing1: phase(false), detailing2: phase(false), documentation: phase(false) },
     execution: {
       hardscape: phase(true, 0), softscape: phase(true, 0),
       mep: { enabled: false, progress: 0, services: { irrigation: false, electrical: false, drainage: false } },
@@ -297,19 +297,19 @@ export const siteAssignments: SiteAssignment[] = [
 ]
 
 export const tasks: Task[] = [
-  { id: 't1', projectId: 'p1', phase: 'threeD', title: 'Render rear garden views', assigneeId: 'e4', status: 'In Progress', priority: 'High', dueDate: addDays(today(), 3) },
-  { id: 't2', projectId: 'p1', phase: 'civilWork', title: 'Prepare civil drawings for pergola', assigneeId: 'e5', status: 'To Do', priority: 'Medium', dueDate: addDays(today(), 9) },
-  { id: 't3', projectId: 'p1', phase: 'boq', title: 'Draft BOQ from approved concept', assigneeId: 'e3', status: 'To Do', priority: 'Medium', dueDate: addDays(today(), 14) },
+  { id: 't1', projectId: 'p1', phase: 'presentation', title: 'Render rear garden views', assigneeId: 'e4', status: 'In Progress', priority: 'High', dueDate: addDays(today(), 3) },
+  { id: 't2', projectId: 'p1', phase: 'detailing1', title: 'Prepare civil drawings for pergola', assigneeId: 'e5', status: 'To Do', priority: 'Medium', dueDate: addDays(today(), 9) },
+  { id: 't3', projectId: 'p1', phase: 'documentation', title: 'Draft BOQ from approved concept', assigneeId: 'e3', status: 'To Do', priority: 'Medium', dueDate: addDays(today(), 14) },
   { id: 't4', projectId: 'p3', phase: 'hardscape', title: 'Complete pool deck paving', assigneeId: 'e7', status: 'In Progress', priority: 'High', dueDate: addDays(today(), 5) },
   { id: 't5', projectId: 'p3', phase: 'mep', title: 'Irrigation trunk line layout', assigneeId: 'e7', status: 'In Progress', priority: 'High', dueDate: addDays(today(), 7) },
   { id: 't6', projectId: 'p4', phase: 'softscape', title: 'Plant remaining ground cover', assigneeId: 'e7', status: 'To Do', priority: 'High', dueDate: addDays(today(), 1) },
-  { id: 't7', projectId: 'p5', phase: 'civilWork', title: 'Revise civil drawing per association feedback', assigneeId: 'e5', status: 'Review', priority: 'High', dueDate: addDays(today(), 2) },
+  { id: 't7', projectId: 'p5', phase: 'detailing1', title: 'Revise civil drawing per association feedback', assigneeId: 'e5', status: 'Review', priority: 'High', dueDate: addDays(today(), 2) },
   { id: 't8', projectId: 'p5', phase: 'hardscape', title: 'Walkway kerb casting', assigneeId: 'e7', status: 'In Progress', priority: 'Medium', dueDate: addDays(today(), 6) },
   { id: 't9', projectId: 'p6', phase: 'concept', title: 'Concept mood board', assigneeId: 'e4', status: 'In Progress', priority: 'Medium', dueDate: addDays(today(), 4) },
   { id: 't10', projectId: 'p2', phase: 'softscape', title: 'Source native palm varieties', assigneeId: 'e6', status: 'To Do', priority: 'Low', dueDate: addDays(today(), 12) },
   { id: 't11', projectId: 'p2', phase: 'hardscape', title: 'Snag list — driveway edging', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -3) },
   { id: 't12', projectId: 'p8', phase: 'softscape', title: 'Soil testing at block C', assigneeId: 'e7', status: 'To Do', priority: 'Medium', dueDate: addDays(today(), 8) },
-  { id: 't13', projectId: 'p3', phase: 'boq', title: 'Final BOQ reconciliation', assigneeId: 'e3', status: 'Done', priority: 'High', dueDate: addDays(today(), -10) },
+  { id: 't13', projectId: 'p3', phase: 'documentation', title: 'Final BOQ reconciliation', assigneeId: 'e3', status: 'Done', priority: 'High', dueDate: addDays(today(), -10) },
   { id: 't14', projectId: 'p1', phase: 'concept', title: 'Client concept walkthrough', assigneeId: 'e3', status: 'Done', priority: 'High', dueDate: addDays(today(), -8) },
   // Ashfaq's own work — the lead responsibility stays with him.
   { id: 't15', projectId: 'p3', title: 'Approve resort hardscape payment milestone', assigneeId: 'e1', status: 'To Do', priority: 'High', dueDate: addDays(today(), 1) },
@@ -333,18 +333,18 @@ export const tasks: Task[] = [
   { id: 'td7', projectId: 'p2', phase: 'hardscape', title: 'Paving to front court', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -18) },
   { id: 'td8', projectId: 'p2', phase: 'softscape', title: 'Topsoil delivery and spread', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -19) },
   { id: 'td9', projectId: 'p3', phase: 'concept', title: 'Resort masterplan concept', assigneeId: 'e4', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -20) },
-  { id: 'td10', projectId: 'p3', phase: 'threeD', title: 'Aerial 3D views', assigneeId: 'e5', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -21) },
-  { id: 'td11', projectId: 'p3', phase: 'threeD', title: 'Pool area walkthrough', assigneeId: 'e4', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -22) },
-  { id: 'td12', projectId: 'p3', phase: 'civilWork', title: 'Pool deck structural detail', assigneeId: 'e5', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -23) },
-  { id: 'td13', projectId: 'p3', phase: 'civilWork', title: 'Retaining wall drawings', assigneeId: 'e5', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -24) },
+  { id: 'td10', projectId: 'p3', phase: 'presentation', title: 'Aerial 3D views', assigneeId: 'e5', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -21) },
+  { id: 'td11', projectId: 'p3', phase: 'presentation', title: 'Pool area walkthrough', assigneeId: 'e4', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -22) },
+  { id: 'td12', projectId: 'p3', phase: 'detailing1', title: 'Pool deck structural detail', assigneeId: 'e5', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -23) },
+  { id: 'td13', projectId: 'p3', phase: 'detailing1', title: 'Retaining wall drawings', assigneeId: 'e5', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -24) },
   { id: 'td14', projectId: 'p3', phase: 'hardscape', title: 'Entrance plaza paving', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -25) },
   { id: 'td15', projectId: 'p3', phase: 'hardscape', title: 'Pathway kerbing', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -26) },
   { id: 'td16', projectId: 'p4', phase: 'hardscape', title: 'Garden wall construction', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -27) },
   { id: 'td17', projectId: 'p4', phase: 'hardscape', title: 'Stepping stone path', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -28) },
   { id: 'td18', projectId: 'p4', phase: 'softscape', title: 'Bed preparation', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -29) },
   { id: 'td19', projectId: 'p5', phase: 'concept', title: 'Common area concept', assigneeId: 'e4', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -30) },
-  { id: 'td20', projectId: 'p5', phase: 'threeD', title: 'Clubhouse garden 3D', assigneeId: 'e5', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -31) },
-  { id: 'td21', projectId: 'p5', phase: 'threeD', title: 'Walkway visualisation', assigneeId: 'e4', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -32) },
+  { id: 'td20', projectId: 'p5', phase: 'presentation', title: 'Clubhouse garden 3D', assigneeId: 'e5', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -31) },
+  { id: 'td21', projectId: 'p5', phase: 'presentation', title: 'Walkway visualisation', assigneeId: 'e4', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -32) },
   { id: 'td22', projectId: 'p7', phase: 'softscape', title: 'Final planting', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -33) },
   { id: 'td23', projectId: 'p7', phase: 'softscape', title: 'Lawn laying', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -34) },
   { id: 'td24', projectId: 'p7', phase: 'mep', title: 'Irrigation commissioning', assigneeId: 'e7', status: 'Done', priority: 'Medium', dueDate: addDays(today(), -35) },
@@ -604,10 +604,10 @@ export const quotations: Quotation[] = seedQuotations()
 
 export const paymentRequests: PaymentRequest[] = [
   { id: 'pr1', projectId: 'p1', phase: 'concept', amount: 425000, requestedBy: 'e3', date: '2026-06-02', status: 'Paid', note: 'Concept approved by client' },
-  { id: 'pr2', projectId: 'p1', phase: 'threeD', amount: 170000, requestedBy: 'e3', date: addDays(today(), -4), status: 'Approved', note: '3D presentation delivered' },
+  { id: 'pr2', projectId: 'p1', phase: 'presentation', amount: 170000, requestedBy: 'e3', date: addDays(today(), -4), status: 'Approved', note: '3D presentation delivered' },
   { id: 'pr3', projectId: 'p3', phase: 'hardscape', amount: 1800000, requestedBy: 'e7', date: addDays(today(), -2), status: 'Pending', note: 'Hardscape 90% milestone' },
   { id: 'pr4', projectId: 'p2', phase: 'softscape', amount: 550000, requestedBy: 'e7', date: addDays(today(), -9), status: 'Paid' },
-  { id: 'pr5', projectId: 'p5', phase: 'civilWork', amount: 300000, requestedBy: 'e3', date: addDays(today(), -1), status: 'Pending', note: 'Civil drawings 60% complete' },
+  { id: 'pr5', projectId: 'p5', phase: 'detailing1', amount: 300000, requestedBy: 'e3', date: addDays(today(), -1), status: 'Pending', note: 'Civil drawings 60% complete' },
 ]
 
 export const payments: Payment[] = [
@@ -807,6 +807,20 @@ export const calendarEvents: CalendarEvent[] = [
  * any other combination totalling 100.
  */
 export const settings: Settings = { ...defaultSettings(), holidays: HOLIDAYS }
+
+/** Materials added to the library by hand. The rest of the Materials page comes from the seeded BOQs and quotations. */
+export const materials: Material[] = [
+  {
+    id: 'mat1', name: 'River Pebbles', dimension: '20–40 mm', unit: 'Kg', rate: 18,
+    specification: 'Washed, mixed natural colours\nLaid 50 mm deep over weed membrane',
+    projectIds: ['p3', 'p5'], notes: 'Kollam supplier', createdBy: 'e2', createdAt: '2026-09-14',
+  },
+  {
+    id: 'mat2', name: 'Kota Stone', dimension: '2 x 2', unit: 'Sqft', rate: 95,
+    specification: 'Machine-cut, honed finish\nLaying method\nOn 40 mm cement mortar bed, joints grouted',
+    projectIds: ['p4'], createdBy: 'e7', createdAt: '2026-10-02',
+  },
+]
 
 /** A remark posted `daysAgo` days back at `time`. */
 const at = (daysAgo: number, time: string) => `${addDays(today(), -daysAgo)}T${time}`

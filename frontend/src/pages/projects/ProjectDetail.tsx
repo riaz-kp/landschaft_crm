@@ -15,13 +15,14 @@ import { ProjectChat } from '../../components/ProjectChat'
 import { unreadRemarks } from '../../domain/chat'
 import { computeProgress, projectType } from '../../domain/progress'
 import { formatCurrency, formatDate, today } from '../../domain/format'
-import { MEP_LABELS, MEP_SERVICES, PHASE_LABELS, type PhaseKey, type Task, type TaskStatus } from '../../domain/types'
+import { MEP_LABELS, MEP_SERVICES, PHASE_LABELS, TASK_STATUS_LABELS, type PhaseKey, type Task, type TaskStatus } from '../../domain/types'
 import { clientDocProgress } from '../../domain/clientDocs'
 import { formatArea } from '../../domain/projectInfo'
 import {
   PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, ProgressBar, Tabs, RowActions,
 } from '../../components/ui'
 import { ProjectEditModal } from './ProjectEditModal'
+import { PositioningBadge } from './ProjectScope'
 import { ClientDocumentsTab } from './ClientDocuments'
 import { ClientBriefTab } from './ClientBriefTab'
 import { briefFor } from '../../domain/clientBrief'
@@ -85,7 +86,7 @@ export function ProjectDetail() {
   const unread = unreadRemarks(db.projectMessages, db.chatReads, user.id, project.id)
   const photoCount = reports.reduce((s, r) => s + r.photos.length, 0)
   // BOQ is design's to tick, the quotation accounts' or execution's; project editors can do either.
-  const canTick = (doc: string) => editable || (doc === 'BOQ' ? can('Design', 'edit') || can('Accounts', 'edit') : can('Accounts', 'edit') || can('Execution', 'edit'))
+  const canTick = (doc: string) => editable || (doc !== 'Quotation' ? can('Design', 'edit') || can('Accounts', 'edit') : can('Accounts', 'edit') || can('Execution', 'edit'))
   const canEditDocs = editable || can('Design', 'edit') || can('Execution', 'edit')
   const docProgress = clientDocProgress(project)
   const brief = briefFor(db.clientBriefs, project.id)
@@ -131,6 +132,7 @@ export function ProjectDetail() {
         actions={
           <div className="flex items-center gap-2">
             {project.category && <Badge tone="blue">{project.category}</Badge>}
+            <PositioningBadge value={project.positioning} />
             <Badge tone="stone">{projectType(project)}</Badge>
             <StatusBadge status={project.status} />
             {project.delayed && project.status !== 'Completed' && <Badge tone="red">Delayed</Badge>}
@@ -159,6 +161,7 @@ export function ProjectDetail() {
               {[
                 ['Project Code', <span key="code" className="font-mono tracking-wide">{project.code}</span>],
                 ['Project Type', project.category ?? <span key="t" className="text-stone-400">Not set</span>],
+                ['Positioning', project.positioning ?? <span key="pos" className="text-stone-400">Not set</span>],
                 ['Client', client
                   ? <Link key="c" to={`/crm/clients/${client.id}`} className="text-brand-700 hover:text-brand-800">{client.name}</Link>
                   : '—'],
@@ -387,10 +390,10 @@ export function ProjectDetail() {
                           if (status === 'Done') setFinishing(task)
                           else api.tasks.setStatus(task.id, status, user.id)
                         }}
-                        className="input w-32 py-1 text-xs"
+                        className="input w-40 py-1 text-xs"
                         aria-label={`Status for ${task.title}`}
                       >
-                        {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                        {TASK_STATUSES.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}
                       </select>
                     </td>
                     <td className="td">

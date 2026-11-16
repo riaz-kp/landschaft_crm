@@ -6,6 +6,7 @@ import { PermissionMatrixEditor } from './PermissionMatrix'
 import { DocumentSettingsSection } from './DocumentSettings'
 import { DESIGN_PHASES, PHASE_LABELS, type Settings, type SlabDue } from '../../domain/types'
 import { SLAB_DUE_LABELS } from '../../domain/workflow'
+import { DEFAULT_DESIGN_SPLIT, DESIGN_PAYMENT_POINTS } from '../../domain/designPhases'
 import {
   PageHeader, Section, Field, Checkbox, Badge, ProgressBar,
 } from '../../components/ui'
@@ -16,12 +17,9 @@ import { formatDuration, minutesBetween } from '../../domain/format'
 import { DEMO_MODE } from '../../lib/supabase'
 import { resetDemo } from '../../data/demo'
 
-/** Presets the client mentioned by name in the structure document. */
+/** The company's standard design payment structure. */
 const SPLIT_PRESETS: { label: string; split: Settings['designPaymentSplit'] }[] = [
-  { label: '30 / 30 / 30 / 10', split: { concept: 30, threeD: 30, civilWork: 30, boq: 10 } },
-  { label: '50 / 20 / 15 / 15', split: { concept: 50, threeD: 20, civilWork: 15, boq: 15 } },
-  { label: '25 / 25 / 25 / 25', split: { concept: 25, threeD: 25, civilWork: 25, boq: 25 } },
-  { label: '40 / 30 / 15 / 15', split: { concept: 40, threeD: 30, civilWork: 15, boq: 15 } },
+  { label: 'Standard — 50 / 20 / 10 / 10 / 10', split: { ...DEFAULT_DESIGN_SPLIT } },
 ]
 
 /**
@@ -134,7 +132,7 @@ export function SettingsPage() {
 
       <Section
         title="Design Payment Structure"
-        description="How the design value is split across the four phases. Each phase is collected up front: the concept as the advance once the scope is confirmed, the 3D once the concept is finished, and so on. Must total 100%."
+        description="How the design value is split across the five phases. Each phase is collected up front: the concept as the advance once the scope is confirmed, the presentation once the concept is finished, each detailing phase once the one before is finished, and the documentation last. Must total 100%."
         className="mb-6"
       >
         <div className="px-5 py-5">
@@ -155,7 +153,10 @@ export function SettingsPage() {
           <div className="space-y-4">
             {DESIGN_PHASES.map((key) => (
               <div key={key} className="flex items-center gap-4">
-                <span className="w-36 shrink-0 text-sm text-stone-600">{PHASE_LABELS[key]}</span>
+                <span className="w-40 shrink-0">
+                  <span className="block text-sm text-stone-700">{PHASE_LABELS[key]}</span>
+                  <span className="block text-xs text-stone-400">{DESIGN_PAYMENT_POINTS[key]}</span>
+                </span>
                 <div className="min-w-0 flex-1">
                   <ProgressBar value={draft.designPaymentSplit[key]} />
                 </div>

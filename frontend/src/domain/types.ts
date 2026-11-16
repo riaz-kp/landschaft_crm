@@ -251,8 +251,12 @@ export interface SiteVisit {
 
 // ---------------------------------------------------------------- projects
 
-/** The four design phases from the structure document, in order. */
-export const DESIGN_PHASES = ['concept', 'threeD', 'civilWork', 'boq'] as const
+/**
+ * The five design phases, in order. Design detailing is done in two phases,
+ * each paid for on its own. Projects saved under the earlier four (concept,
+ * 3D, civil work, BOQ) are read in this shape — see domain/designPhases.
+ */
+export const DESIGN_PHASES = ['concept', 'presentation', 'detailing1', 'detailing2', 'documentation'] as const
 export type DesignPhaseKey = (typeof DESIGN_PHASES)[number]
 
 /** Execution phases. MEP is optional and has its own three sub-services. */
@@ -266,9 +270,10 @@ export type PhaseKey = DesignPhaseKey | ExecutionPhaseKey
 
 export const PHASE_LABELS: Record<PhaseKey, string> = {
   concept: 'Concept',
-  threeD: '3D Presentation',
-  civilWork: 'Civil Work',
-  boq: 'BOQ',
+  presentation: 'Presentation',
+  detailing1: 'Detailing Phase 1',
+  detailing2: 'Detailing Phase 2',
+  documentation: 'Documentation',
   hardscape: 'Hardscape',
   softscape: 'Softscape',
   mep: 'MEP',
@@ -300,6 +305,10 @@ export const PROJECT_STATUSES: ProjectStatus[] = ['Planning', 'In Progress', 'On
  */
 export const PROJECT_CATEGORIES = ['Residential', 'Commercial', 'Hospitality', 'Institutional'] as const
 export type ProjectCategory = (typeof PROJECT_CATEGORIES)[number]
+
+/** Where the project sits in the market — the level of finish and spend it is designed to. */
+export const PROJECT_POSITIONINGS = ['Basic', 'Standard', 'Premium'] as const
+export type ProjectPositioning = (typeof PROJECT_POSITIONINGS)[number]
 
 /** Kerala sites are measured in square feet, or in cents and acres for land. */
 export const AREA_UNITS = ['sq ft', 'sq m', 'cents', 'acres'] as const
@@ -399,6 +408,8 @@ export interface Project {
   checklist?: Record<string, ChecklistTick>
   /** Residential, Commercial, Hospitality or Institutional. */
   category?: ProjectCategory
+  /** Basic, Standard or Premium. Projects opened before positioning was added have none. */
+  positioning?: ProjectPositioning
   /** Site area, in `areaUnit`. */
   area?: number
   areaUnit?: AreaUnit
@@ -445,6 +456,14 @@ export interface SiteAssignment {
 // ---------------------------------------------------------------- tasks
 
 export type TaskStatus = 'To Do' | 'In Progress' | 'Review' | 'Done'
+
+/** What each status is called on screen and in exports. The stored values stay as they are. */
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  'To Do': 'To begin',
+  'In Progress': 'In progress',
+  Review: 'Awaiting approval',
+  Done: 'Completed',
+}
 export type TaskPriority = 'Low' | 'Medium' | 'High'
 
 export interface Task {
@@ -727,6 +746,30 @@ export interface Quotation {
 }
 
 /**
+ * A material in the company's library, added by hand from the Materials page.
+ * The page also lists every item used on a BOQ or quotation; a material
+ * recorded here with the same name and size is shown as one row with them.
+ */
+export interface Material {
+  id: ID
+  name: string
+  /** Material specification and laying method, one point per line, as on a BOQ. */
+  specification?: string
+  /** Size, e.g. "1 x 4". */
+  dimension?: string
+  unit: string
+  /** The usual rate, in rupees per unit. */
+  rate?: number
+  /** A photo of the material: a stored file ("sb:…"), or a data URL until it is uploaded. */
+  image?: string
+  /** Projects it is used on, besides those whose BOQ or quotation already lists it. */
+  projectIds: ID[]
+  notes?: string
+  createdBy?: ID
+  createdAt?: string
+}
+
+/**
  * Company details, wording and starting content for BOQs and quotations.
  * A new document copies the defaults; each document can then be changed on its own.
  */
@@ -980,7 +1023,7 @@ export interface WorkHours {
  */
 export const MODULES = [
   'Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Projects', 'Tasks', 'Design', 'Execution', 'AMC',
-  'Accounts', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar', 'Reports', 'Settings',
+  'Accounts', 'Materials', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar', 'Reports', 'Settings',
 ] as const
 export type ModuleKey = (typeof MODULES)[number]
 

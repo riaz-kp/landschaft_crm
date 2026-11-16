@@ -7,7 +7,7 @@ import { PERIOD_LABELS, describeRange, inRange, rangeOf, type PeriodKey } from '
 import { allOccurrences, teamNames } from '../../domain/amc'
 import { receivable } from '../../domain/finance'
 import { titleOf } from '../../domain/roles'
-import { DESIGN_PHASES, PHASE_LABELS, PROJECT_CATEGORIES, type Lead, type Project, type ProjectCategory, type ProjectStatus } from '../../domain/types'
+import { DESIGN_PHASES, PHASE_LABELS, PROJECT_CATEGORIES, TASK_STATUS_LABELS, type Lead, type Project, type ProjectCategory, type ProjectStatus } from '../../domain/types'
 import { clientDocProgress } from '../../domain/clientDocs'
 import { usePermissions } from '../../state/permissions'
 import { WeeklyTaskReportModal } from '../tasks/WeeklyTaskReport'
@@ -175,6 +175,7 @@ export function ReportsPage() {
             { header: 'Project', value: (p: Project) => p.name, width: 34 },
             { header: 'Client', value: (p: Project) => clientName(p.clientId), width: 28 },
             { header: 'Project type', value: (p: Project) => p.category ?? '', width: 14 },
+            { header: 'Positioning', value: (p: Project) => p.positioning ?? '', width: 12 },
             { header: 'Services', value: (p: Project) => projectType(p), width: 24 },
             { header: 'Site', value: (p: Project) => p.siteLocation, width: 26 },
             { header: 'Area', value: (p: Project) => p.area, width: 10 },
@@ -244,7 +245,7 @@ export function ReportsPage() {
             { header: 'Phase', value: (t) => (t.phase ? PHASE_LABELS[t.phase] : ''), width: 16 },
             { header: 'Assignee', value: (t) => personName(t.assigneeId), width: 16 },
             { header: 'Priority', value: (t) => t.priority, width: 10 },
-            { header: 'Status', value: (t) => t.status, width: 12 },
+            { header: 'Status', value: (t) => TASK_STATUS_LABELS[t.status], width: 18 },
             { header: 'Done on', value: (t) => excelDate(t.status === 'Done' ? t.doneOn ?? t.dueDate : undefined), width: 12 },
             { header: 'Done note', value: (t) => t.doneNote ?? '', width: 50 },
           ],

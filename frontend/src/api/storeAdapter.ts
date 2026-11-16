@@ -3,7 +3,7 @@ import { addDays, formatCurrency, formatDate, today } from '../domain/format'
 import type {
   ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, Employee, ID,
   Lead, MaintenanceRecord, MaintenanceVisit, PayRecord, PaymentFollowUp, Project, ProjectLogEntry, ProjectMessage, Quotation, Settings, SiteVisit,
-  Task, TaskStatus, Worker, Reminder,
+  Task, TaskStatus, Worker, Reminder, Material,
 } from '../domain/types'
 import type { Api, NewProjectInput, VisitReport } from './client'
 import { workerSkills } from '../domain/workers'
@@ -105,6 +105,7 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
     { label: 'Name', value: (p) => p.name ?? '' },
     { label: 'Code', value: (p) => p.code ?? '' },
     { label: 'Project type', value: (p) => p.category ?? '' },
+    { label: 'Positioning', value: (p) => p.positioning ?? '' },
     { label: 'Area', value: (p) => formatArea(p) },
     { label: 'Status', value: (p) => p.status ?? '' },
     { label: 'Client', value: (p) => (p.clientId ? db.clients.find((c) => c.id === p.clientId)?.name ?? '' : '') },
@@ -182,6 +183,7 @@ export const adapter: Api = {
         code: normaliseCode(input.code) || suggestProjectCode(store.db.projects),
         name: input.name,
         category: input.category,
+        positioning: input.positioning,
         area: input.area || undefined,
         areaUnit: input.area ? input.areaUnit ?? 'sq ft' : undefined,
         clientDocs: input.clientDocs,
@@ -868,6 +870,22 @@ export const adapter: Api = {
     },
     remove(visitId) {
       store.update((db) => removeFrom(db.siteVisits, visitId))
+    },
+  },
+
+  materials: {
+    create(input): Material {
+      const record: Material = { ...input, id: nextId('mat') }
+      store.update((db) => {
+        db.materials.push(record)
+      })
+      return record
+    },
+    update(materialId, patch) {
+      store.update((db) => patchIn(db.materials, materialId, patch))
+    },
+    remove(materialId) {
+      store.update((db) => removeFrom(db.materials, materialId))
     },
   },
 

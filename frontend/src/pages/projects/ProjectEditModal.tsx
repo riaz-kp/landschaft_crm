@@ -4,14 +4,14 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { codeOwner, normaliseCode } from '../../domain/projectInfo'
 import {
-  AREA_UNITS, PROJECT_CATEGORIES, PROJECT_STATUSES, type AreaUnit, type Project, type ProjectCategory, type ProjectStatus,
+  AREA_UNITS, PROJECT_CATEGORIES, PROJECT_STATUSES, type AreaUnit, type Project, type ProjectCategory, type ProjectPositioning, type ProjectStatus,
 } from '../../domain/types'
 import { Field, FormError, Modal } from '../../components/ui'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions } from '../../components/pickerOptions'
 import { Icon } from '../../components/Icon'
 import { applyScope, scopeOf, scopeProblem, type ProjectScope } from '../../domain/projectScope'
-import { DesignPhasePicker, ExecutionPhasePicker, ServicePicker } from './ProjectScope'
+import { DesignPhasePicker, ExecutionPhasePicker, PositioningPicker, ServicePicker } from './ProjectScope'
 import { IntakeFields, MoneyFields, intakeOf, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
 import { usePermissions } from '../../state/permissions'
 import { ClientPicker } from './ClientPicker'
@@ -25,6 +25,7 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
     name: project.name,
     code: project.code,
     category: (project.category ?? '') as ProjectCategory | '',
+    positioning: (project.positioning ?? '') as ProjectPositioning | '',
     area: project.area ? String(project.area) : '',
     areaUnit: project.areaUnit ?? ('sq ft' as AreaUnit),
     status: project.status,
@@ -71,6 +72,7 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
       name: form.name.trim(),
       code: normaliseCode(form.code),
       category: form.category,
+      positioning: form.positioning || undefined,
       area: form.area ? Number(form.area) : undefined,
       areaUnit: form.area ? form.areaUnit : undefined,
       status: form.status,
@@ -132,6 +134,9 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
               </button>
             ))}
           </div>
+        </div>
+        <div className="sm:col-span-2">
+          <PositioningPicker value={form.positioning} onChange={(positioning) => set({ positioning })} />
         </div>
         {/* Not a <label>: the picker holds its own buttons, which a label would re-trigger. */}
         <div className="sm:col-span-2">

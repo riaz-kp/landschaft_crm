@@ -1,11 +1,12 @@
 import { defaultPermissions, normalizePermissions } from './roles'
 import { defaultDocumentSettings, normalizeDocumentSettings } from './documentDefaults'
+import { DEFAULT_DESIGN_SPLIT, normalizeDesignSplit } from './designPhases'
 import type { PaymentSlab, Settings, SlabDue } from './types'
 
 /** Settings a new company starts with, before anyone changes them in Settings. */
 export function defaultSettings(): Settings {
   return {
-    designPaymentSplit: { concept: 30, threeD: 30, civilWork: 30, boq: 10 },
+    designPaymentSplit: { ...DEFAULT_DESIGN_SPLIT },
     executionPaymentSlabs: [
       { label: 'Work start', percent: 50, dueAt: 'workStarted' },
       { label: 'Hardscape complete', percent: 25, dueAt: 'hardscape' },
@@ -42,6 +43,7 @@ export function normalizeSettings(stored?: Partial<Settings> | null): Settings {
     ...defaults,
     ...stored,
     permissions: normalizePermissions(stored.permissions),
+    designPaymentSplit: normalizeDesignSplit(stored.designPaymentSplit),
     executionPaymentSlabs: normalizeSlabs(stored.executionPaymentSlabs ?? defaults.executionPaymentSlabs),
     documents: normalizeDocumentSettings(stored.documents),
   }

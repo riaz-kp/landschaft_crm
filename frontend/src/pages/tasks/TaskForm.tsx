@@ -4,7 +4,7 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { addDays, formatDateLong, today } from '../../domain/format'
 import {
-  DESIGN_PHASES, EXECUTION_PHASES, PHASE_LABELS, type PhaseKey, type Task, type TaskPriority, type TaskStatus,
+  DESIGN_PHASES, EXECUTION_PHASES, PHASE_LABELS, TASK_STATUS_LABELS, type PhaseKey, type Task, type TaskPriority, type TaskStatus,
 } from '../../domain/types'
 import { Avatar, Field, FormError, Modal } from '../../components/ui'
 import { SearchSelect } from '../../components/SearchSelect'
@@ -150,7 +150,7 @@ export function TaskFormModal({
           </Field>
           <Field label="Status">
             <select className="input" value={form.status} onChange={(e) => set({ status: e.target.value as TaskStatus })}>
-              {TASK_STATUSES.map((s) => <option key={s}>{s}</option>)}
+              {TASK_STATUSES.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}
             </select>
           </Field>
         </div>
@@ -180,7 +180,7 @@ export function TaskFormModal({
   )
 }
 
-/** Asks for a done note as a task is moved to Done from a list or the board. */
+/** Asks for a done note as a task is moved to Completed from a list or the board. */
 export function TaskDoneModal({ task, onClose }: { task: Task; onClose: () => void }) {
   const db = useDb()
   const { user } = useSession()
@@ -194,11 +194,11 @@ export function TaskDoneModal({ task, onClose }: { task: Task; onClose: () => vo
 
   return (
     <Modal
-      title="Mark task done"
+      title="Mark task completed"
       onClose={onClose}
       footer={<>
         <button onClick={onClose} className="btn-secondary">Cancel</button>
-        <button onClick={finish} className="btn-primary"><Icon name="check" className="h-4 w-4" /> Mark done</button>
+        <button onClick={finish} className="btn-primary"><Icon name="check" className="h-4 w-4" /> Mark completed</button>
       </>}
     >
       <div className="space-y-4">

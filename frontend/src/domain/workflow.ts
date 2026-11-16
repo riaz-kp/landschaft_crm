@@ -70,9 +70,10 @@ export const WORKFLOW: WorkflowStep[] = [
     applies: designed,
   },
   {
-    key: 'civilDone', stage: 'Design', label: 'Civil work drawings completed',
+    // Stored as civilDone from when the last design phase was civil work.
+    key: 'civilDone', stage: 'Design', label: 'Design documentation completed',
     owners: DESIGN_ROLES, notify: ['execution_head', 'execution_pm', 'ceo'],
-    notice: () => 'Civil work drawings completed — prepare the execution quotation for the client',
+    notice: () => 'Design documentation completed — prepare the execution quotation for the client',
     applies: designed,
   },
   {
@@ -120,7 +121,7 @@ export const SLAB_DUE_LABELS: Record<SlabDue, string> = {
 }
 
 export interface ScheduleRow {
-  /** Stable across edits to the project, e.g. "design:threeD" or "execution:Hardscape complete". */
+  /** Stable across edits to the project, e.g. "design:presentation" or "execution:Hardscape complete". */
   key: string
   stage: 'Design' | 'Execution'
   label: string
@@ -135,8 +136,9 @@ export interface ScheduleRow {
 /**
  * What the client pays and when: the design value split by phase and the
  * execution value by slab, both from Settings. Each design phase is paid for
- * up front — the concept as the advance once the scope is confirmed, the 3D
- * once the concept is finished, and so on. Each execution slab falls due at
+ * up front — the concept as the advance once the scope is confirmed, the
+ * presentation once the concept is finished, each detailing phase once the
+ * phase before it is finished, and the documentation last. Each execution slab falls due at
  * the point Settings gives it: work starting, a phase reaching 100%, or the
  * project being completed. A slab tied to a phase this project does not have
  * falls due at completion.
@@ -147,17 +149,17 @@ export function paymentSchedule(project: Project, settings: Settings): ScheduleR
   const completed = project.status === 'Completed'
   const finished = (key: (typeof DESIGN_PHASES)[number]) => project.design[key].enabled && project.design[key].progress >= 100
   if (project.services.design) {
-    const due: Record<(typeof DESIGN_PHASES)[number], [string, boolean]> = {
-      concept: ['Scope confirmed — advance', Boolean(wf.scopeConfirmed?.done)],
-      threeD: ['Concept finished', Boolean(wf.conceptDone?.done) || finished('concept')],
-      civilWork: ['3D presentation finished', finished('threeD')],
-      boq: ['Civil work drawings completed', Boolean(wf.civilDone?.done) || finished('civilWork')],
-    }
+    // The first phase sold is the advance; each later one falls due once the phase sold before it is finished.
+    let previous: (typeof DESIGN_PHASES)[number] | undefined
     for (const key of DESIGN_PHASES) {
       if (!project.design[key].enabled) continue
+      const [dueWhen, reached] = previous === undefined
+        ? ['Scope confirmed — advance', Boolean(wf.scopeConfirmed?.done)]
+        : [`${PHASE_LABELS[previous]} finished`, finished(previous) || (previous === 'concept' && Boolean(wf.conceptDone?.done))]
+      previous = key
       const percent = settings.designPaymentSplit[key]
       rows.push({
-        key: `design:${key}`, stage: 'Design', label: PHASE_LABELS[key], dueWhen: due[key][0], reached: due[key][1], percent,
+        key: `design:${key}`, stage: 'Design', label: PHASE_LABELS[key], dueWhen, reached, percent,
         amount: project.designValue ? (project.designValue * percent) / 100 : undefined,
       })
     }

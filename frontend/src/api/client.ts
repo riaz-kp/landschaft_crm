@@ -9,16 +9,17 @@
 import type {
   AttendanceEntry, ChatMessage, Clarification, Client, Consultation, ConsultationStatus,
   DailyWorkReport, DocumentRecord, Employee, ID, Issue, LatLng, Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, PersonKind,
-  ProjectMessage, Reminder, AreaUnit, ClientDocKey, ClientDocTick, ProjectCategory, FeeBasis, NextAction, WorkflowStepKey,
-  Project, Quotation, Settings, SiteVisit, Task, Worker, VisitFile, VisitPhoto,
+  ProjectMessage, Reminder, AreaUnit, ClientDocKey, ClientDocTick, ProjectCategory, ProjectPositioning, FeeBasis, NextAction, WorkflowStepKey,
+  Project, Quotation, Settings, DesignPhaseKey, Material, SiteVisit, Task, Worker, VisitFile, VisitPhoto,
 } from '../domain/types'
 import { adapter } from './storeAdapter'
 
 export interface NewProjectInput {
-  /** The project code, e.g. LS-2026-009. Callers check it is not already taken. */
+  /** The project code, e.g. LND26101. Callers check it is not already taken. */
   code: string
   name: string
   category?: ProjectCategory
+  positioning?: ProjectPositioning
   area?: number
   areaUnit?: AreaUnit
   /** Client documents already in hand when the project is opened. */
@@ -44,7 +45,7 @@ export interface NewProjectInput {
   services: { design: boolean; execution: boolean; amc: boolean }
   /** The AMC contract created alongside the project when AMC is sold. */
   amc?: Omit<MaintenanceRecord, 'id' | 'projectId' | 'type' | 'visits'>
-  designPhases: { concept: boolean; threeD: boolean; civilWork: boolean; boq: boolean }
+  designPhases: Record<DesignPhaseKey, boolean>
   executionPhases: {
     hardscape: boolean
     softscape: boolean
@@ -166,6 +167,8 @@ export interface Api {
     remove(payId: ID): void
   }
   siteVisits: Crud<SiteVisit>
+  /** The materials library: materials added by hand, with the projects they are used on. */
+  materials: Crud<Material>
   /**
    * Every task change names who made it, so hand-overs and completions land in
    * the project's history.

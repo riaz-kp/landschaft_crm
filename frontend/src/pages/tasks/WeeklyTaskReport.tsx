@@ -4,7 +4,7 @@ import type { DbShape } from '../../data/store'
 import { daysBetween, today } from '../../domain/format'
 import type { DateRange } from '../../domain/period'
 import { titleOf } from '../../domain/roles'
-import { PHASE_LABELS, type ID, type ProjectLogEntry, type Task } from '../../domain/types'
+import { PHASE_LABELS, TASK_STATUS_LABELS, type ID, type ProjectLogEntry, type Task } from '../../domain/types'
 import { Modal, StatTile } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { WeekPicker, weekLabel, weekOf } from '../../components/WeekPicker'
@@ -133,7 +133,7 @@ async function exportWeeklyTasks(db: DbShape, data: WeeklyTaskData, week: DateRa
       columns: [
         { header: 'Due', value: (t: Task) => excelDate(t.dueDate), width: 12 },
         ...taskColumns,
-        { header: 'Status', value: (t: Task) => t.status, width: 12 },
+        { header: 'Status', value: (t: Task) => TASK_STATUS_LABELS[t.status], width: 18 },
         { header: 'Done on', value: (t: Task) => excelDate(doneDate(t)), width: 12 },
         { header: 'Done note', value: (t: Task) => t.doneNote ?? '', width: 50 },
       ],
@@ -144,7 +144,7 @@ async function exportWeeklyTasks(db: DbShape, data: WeeklyTaskData, week: DateRa
       columns: [
         { header: 'Due', value: (t: Task) => excelDate(t.dueDate), width: 12 },
         ...taskColumns,
-        { header: 'Status now', value: (t: Task) => t.status, width: 12 },
+        { header: 'Status now', value: (t: Task) => TASK_STATUS_LABELS[t.status], width: 18 },
         { header: 'Days overdue', value: (t: Task) => Math.max(0, daysBetween(t.dueDate, asAt)), width: 13 },
       ],
     }),

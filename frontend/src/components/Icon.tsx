@@ -43,6 +43,7 @@ const PATHS: Record<string, string> = {
   hardhat: 'M2 18h20M4 18v-3a8 8 0 0116 0v3M10 7V5a2 2 0 014 0v2M8 10l1-3M16 10l-1-3',
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   board: 'M4 4h4v16H4zM10 4h4v10h-4zM16 4h4v13h-4z',
+  box: 'M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8',
   postpone: 'M12 22a10 10 0 100-20 10 10 0 000 20zM12 6v6l4 2M16 3l3 3-3 3',
   send: 'M22 2L11 13M22 2l-7 20-4-9-9-4z',
   reply: 'M9 17l-5-5 5-5M4 12h11a5 5 0 015 5v2',

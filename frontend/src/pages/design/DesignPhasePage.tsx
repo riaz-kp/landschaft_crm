@@ -4,17 +4,18 @@ import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
 import { useSession } from '../../state/session'
 import { formatCurrency, formatDate } from '../../domain/format'
-import { PHASE_LABELS, type DesignPhaseKey } from '../../domain/types'
+import { PHASE_LABELS, TASK_STATUS_LABELS, type DesignPhaseKey } from '../../domain/types'
 import {
   PageHeader, Section, StatusBadge, Table, EmptyState, StatTile,
 } from '../../components/ui'
 import { ProgressCell } from '../../components/ProjectProgress'
 
 const DESCRIPTIONS: Record<DesignPhaseKey, string> = {
-  concept: 'Concept development across every project carrying the design module.',
-  threeD: '3D visualisation and client presentation.',
-  civilWork: 'Civil drawings and structural detailing.',
-  boq: 'Bill of quantities, priced from the approved design.',
+  concept: 'Concept development across every project carrying the design module. Its payment is the advance.',
+  presentation: 'Visualisation and the client presentation.',
+  detailing1: 'Design detailing, first phase.',
+  detailing2: 'Design detailing, second phase.',
+  documentation: 'Working drawings and the documentation handed over for execution.',
 }
 
 /** One screen per design phase, listing every project that carries it. */
@@ -88,7 +89,7 @@ export function DesignPhasePage({ phase }: { phase: DesignPhaseKey }) {
                 <td className="td">{db.projects.find((p) => p.id === task.projectId)?.name}</td>
                 <td className="td">{db.employees.find((e) => e.id === task.assigneeId)?.name}</td>
                 <td className="td tabular-nums">{formatDate(task.dueDate)}</td>
-                <td className="td"><StatusBadge status={task.status} /></td>
+                <td className="td"><StatusBadge status={task.status} label={TASK_STATUS_LABELS[task.status]} /></td>
               </tr>
             ))}
           </Table>
