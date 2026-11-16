@@ -94,7 +94,7 @@ export function SectionCard({
   )
 }
 
-function RowButtons({ index, count, onMove, onRemove, disabled, noun }: {
+export function RowButtons({ index, count, onMove, onRemove, disabled, noun }: {
   index: number; count: number; onMove: (by: -1 | 1) => void; onRemove: () => void; disabled?: boolean; noun: string
 }) {
   if (disabled) return null

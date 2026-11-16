@@ -7,16 +7,17 @@ import { Icon } from '../../components/Icon'
 import { Badge, Checkbox, ProgressBar, Section, StatusBadge } from '../../components/ui'
 import { CHECKLISTS, checklistProgress, commercialDocs } from '../../domain/commercial'
 import { formatDate } from '../../domain/format'
-import { KIND_TITLE, formatRupees, kindRule, quoteValue, shows } from '../../domain/quotation'
+import { KIND_NOUN, KIND_TITLE, formatRupees, kindRule, quoteValue, shows } from '../../domain/quotation'
+import { formatFee, scopeTotals } from '../../domain/scope'
 import { plantsProjectUrl } from '../../data/plants'
 import type { CommercialDoc, Project } from '../../domain/types'
 import { editPath, useCreateQuote, useQuoteAccess, viewPath } from './access'
 import { NewQuoteModal } from './NewQuoteModal'
 
 /**
- * A project's BOQ and quotation: the documents themselves, and the checklist
- * each goes through before the client signs off. Which documents a project
- * carries follows its services.
+ * A project's scope proposal, BOQ and quotation: the documents themselves, and
+ * the checklist each goes through before the client signs off. Which documents
+ * a project carries follows its services.
  */
 export function CommercialTab({ project, canTick }: { project: Project; canTick: (doc: CommercialDoc) => boolean }) {
   const db = useDb()
@@ -50,7 +51,7 @@ export function CommercialTab({ project, canTick }: { project: Project; canTick:
         )}
       </div>
 
-      <div className={`grid gap-6 ${docs.length === 2 ? 'xl:grid-cols-2' : 'max-w-3xl'}`}>
+      <div className={`grid gap-6 ${docs.length >= 2 ? 'xl:grid-cols-2' : 'max-w-3xl'}`}>
         {docs.map((doc) => {
           const { done, total } = checklistProgress(project, doc)
           const records = db.quotations.filter((q) => q.projectId === project.id && q.kind === doc)
@@ -60,11 +61,11 @@ export function CommercialTab({ project, canTick }: { project: Project; canTick:
                 title={KIND_TITLE[doc]}
                 description={kindRule(doc, project.services)}
                 actions={access.canCreate(doc) && (
-                  <button onClick={() => start(doc)} className="btn-primary py-1.5"><Icon name="plus" className="h-4 w-4" /> New {doc === 'BOQ' ? 'BOQ' : 'quotation'}</button>
+                  <button onClick={() => start(doc)} className="btn-primary py-1.5"><Icon name="plus" className="h-4 w-4" /> New {KIND_NOUN[doc]}</button>
                 )}
               >
                 {records.length === 0 ? (
-                  <p className="px-5 py-6 text-sm text-stone-400">No {doc === 'BOQ' ? 'BOQ' : 'quotation'} yet.</p>
+                  <p className="px-5 py-6 text-sm text-stone-400">No {KIND_NOUN[doc]} yet.</p>
                 ) : (
                   <ul className="divide-y divide-stone-100">
                     {records.map((q) => {
@@ -75,15 +76,19 @@ export function CommercialTab({ project, canTick }: { project: Project; canTick:
                           <div className="min-w-0">
                             <Link to={viewPath(q)} className="font-semibold text-stone-900 hover:text-brand-700">{q.number}</Link>
                             <p className="text-xs text-stone-500">
-                              {[
+                              {(q.kind === 'Scope' ? [
+                                formatDate(q.date),
+                                `${q.scope?.services.length ?? 0} parts of scope`,
+                                q.scope?.visits.included.trim(),
+                              ] : [
                                 formatDate(q.date),
                                 shows(q, 'plants') && `${q.plants?.lines.length ?? 0} plants`,
                                 shows(q, 'hardscape') && `${q.areas.length} area${q.areas.length === 1 ? '' : 's'}, ${items} item${items === 1 ? '' : 's'}`,
-                              ].filter(Boolean).join(' · ')}
+                              ]).filter(Boolean).join(' · ')}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
-                            {value !== undefined && <span className="text-sm font-semibold tabular-nums text-stone-800">{formatRupees(value)}</span>}
+                            {value !== undefined && <span className="text-sm font-semibold tabular-nums text-stone-800">{q.kind === 'Scope' ? formatFee(scopeTotals(q).total) : formatRupees(value)}</span>}
                             <StatusBadge status={q.status} />
                             {access.canEdit(q.kind) && (
                               <Link to={editPath(q)} className="btn-icon" title="Edit" aria-label={`Edit ${q.number}`}><Icon name="edit" className="h-4 w-4" /></Link>
@@ -99,7 +104,9 @@ export function CommercialTab({ project, canTick }: { project: Project; canTick:
 
               <Section
                 title={`${doc} Checklist`}
-                description={doc === 'BOQ' ? 'Marking the BOQ Sent or Accepted ticks the last two steps.' : 'Marking the quotation Sent or Accepted ticks the last two steps.'}
+                description={doc === 'Scope'
+                  ? 'Marking the proposal Sent or Accepted ticks “Sent” and “Work order confirmed”.'
+                  : `Marking the ${KIND_NOUN[doc]} Sent or Accepted ticks the last two steps.`}
                 actions={<Badge tone={done === total ? 'green' : done ? 'amber' : 'stone'}>{done} / {total}</Badge>}
               >
                 <div className="px-5 pt-4"><ProgressBar value={(done / total) * 100} tone={done === total ? 'green' : 'amber'} /></div>

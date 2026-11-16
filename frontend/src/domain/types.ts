@@ -322,8 +322,10 @@ export interface LatLng {
 /**
  * Commercial documents. Which ones a project carries follows its services:
  * Design only → BOQ, Execution only → Quotation, Design + Execution → both.
+ * A project with design also carries a Scope: the consultancy proposal of
+ * services, work schedule and design fee the client confirms first.
  */
-export type CommercialDoc = 'BOQ' | 'Quotation'
+export type CommercialDoc = 'BOQ' | 'Quotation' | 'Scope'
 
 export interface ChecklistTick {
   done: boolean
@@ -742,7 +744,70 @@ export interface Quotation {
   schedule: WorkSchedule
   /** Lines from before documents had sections; see QuotationItem. */
   items?: QuotationItem[]
+  /** A Scope document's own content; see ScopeProposal. */
+  scope?: ScopeProposal
   createdBy?: ID
+}
+
+/**
+ * One lettered part of the scope of services ("A. Site Appraisal & Analysis"),
+ * or one phase of the work schedule ("Phase 1 – Engagement & Data Collection"),
+ * with its points.
+ */
+export interface ScopeGroup {
+  title: string
+  /** Printed after the title in italics: "(If Landschaft is engaged for implementation)". */
+  note?: string
+  points: string[]
+}
+
+/** A fee charged on a Scope: "Design & Consulting charges · ₹90,000". */
+export interface FeeLine {
+  label: string
+  amount: number
+}
+
+/** The charge for one extra site visit beyond those included: "Site Engineer / Supervisor Visit · ₹5,000". */
+export interface VisitRate {
+  label: string
+  rate: number
+}
+
+/**
+ * The consultancy proposal: Landscape Consultancy — Scope of Services & Fee
+ * Proposal. Stored on the document as `scope`; the cover letter, GST rate,
+ * payment stages and status are the document's own fields, as on a quotation.
+ */
+export interface ScopeProposal {
+  /** The subject on the cover, over the title: "Landscape Consultancy". */
+  subject: string
+  /** Scope of services, lettered A, B, C… */
+  services: ScopeGroup[]
+  /** Work schedule, numbered Phase 1, Phase 2… */
+  phases: ScopeGroup[]
+  /** The fee lines, added up; GST is charged on their total. */
+  fees: FeeLine[]
+  visits: {
+    /** What a site visit is and is not. */
+    note: string
+    /** "3 Visits by core team." */
+    included: string
+    rates: VisitRate[]
+  }
+  /** How execution works will be quoted. */
+  executionNote: string
+  /** How the annual maintenance contract will be priced. */
+  amcNote: string
+  /** Terms & conditions, numbered. */
+  terms: string[]
+  /** The closing paragraph before "Thanks & Regards". */
+  closing: string
+  signOff: string
+}
+
+/** What a new Scope starts with: the proposal and its payment terms. */
+export interface ScopeDefaults extends ScopeProposal {
+  paymentStages: PaymentStage[]
 }
 
 /**
@@ -786,6 +851,8 @@ export interface DocumentSettings {
   paymentStages: PaymentStage[]
   schedule: WorkSchedule
   acceptance: Record<CommercialDoc, string>
+  /** What a new Scope (consultancy proposal) starts with. */
+  scope: ScopeDefaults
   /** Where the plants app is opened, for links to a project's plant list. */
   plantsAppUrl: string
 }

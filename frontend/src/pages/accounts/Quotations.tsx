@@ -5,7 +5,7 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatCurrency, formatDate } from '../../domain/format'
 import { projectType } from '../../domain/progress'
-import { KIND_TITLE, QUOTE_STATUSES, quoteValue } from '../../domain/quotation'
+import { KIND_TITLE, KIND_TONE, QUOTE_STATUSES, quoteValue } from '../../domain/quotation'
 import type { CommercialDoc, Quotation, QuotationStatus } from '../../domain/types'
 import {
   PageHeader, Section, Table, EmptyState, StatTile, Pills, SearchInput, Toolbar, RowActions, ConfirmDialog, Badge,
@@ -17,8 +17,9 @@ import { NewQuoteModal } from '../quotations/NewQuoteModal'
 type KindFilter = 'All' | CommercialDoc
 
 /**
- * Every BOQ and quotation. Which one a project gets follows its services:
- * Design only → BOQ, Execution only → Quotation, Design + Execution → both.
+ * Every scope proposal, BOQ and quotation. Which one a project gets follows its services:
+ * Design only → BOQ, Execution only → Quotation, Design + Execution → both;
+ * design projects also get a Scope of Services & Fee Proposal.
  * Each opens as its printed pages, with an Edit button for those who may change it.
  */
 export function Quotations() {
@@ -50,19 +51,20 @@ export function Quotations() {
     && (!q || [x.number, project(x.projectId)?.name ?? '', clientName(x.clientId)].some((v) => v.toLowerCase().includes(q))))
 
   const accepted = db.quotations.filter((x) => x.status === 'Accepted' && x.kind === 'Quotation')
-  const canCreateAny = access.canCreate('BOQ') || access.canCreate('Quotation')
+  const canCreateAny = access.canCreate('Scope') || access.canCreate('BOQ') || access.canCreate('Quotation')
 
   return (
     <div>
       <PageHeader
         title="BOQ & Quotations"
-        subtitle="Design projects get a BOQ, execution projects a Quotation, and Design + Execution projects carry both."
+        subtitle="Design projects get a scope proposal and a BOQ, execution projects a Quotation, and Design + Execution projects carry all three."
         actions={canCreateAny && (
-          <button onClick={() => setCreating({})} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New BOQ / Quotation</button>
+          <button onClick={() => setCreating({})} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New document</button>
         )}
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <StatTile label="Scope proposals" value={db.quotations.filter((x) => x.kind === 'Scope').length} tone="amber" icon="list" />
         <StatTile label="BOQs" value={db.quotations.filter((x) => x.kind === 'BOQ').length} tone="blue" icon="pen" />
         <StatTile label="Quotations" value={db.quotations.filter((x) => x.kind === 'Quotation').length} tone="green" icon="hammer" />
         <StatTile label="Awaiting Client" value={db.quotations.filter((x) => x.status === 'Sent').length} tone="amber" icon="clock" />
@@ -73,8 +75,8 @@ export function Quotations() {
         <Pills<KindFilter>
           active={kind}
           onChange={setKind}
-          options={(['All', 'BOQ', 'Quotation'] as const).map((k) => ({
-            key: k, label: k === 'All' ? 'All' : `${k}s`, count: k === 'All' ? db.quotations.length : db.quotations.filter((x) => x.kind === k).length,
+          options={(['All', 'Scope', 'BOQ', 'Quotation'] as const).map((k) => ({
+            key: k, label: k === 'All' ? 'All' : k === 'Scope' ? 'Scope proposals' : `${k}s`, count: k === 'All' ? db.quotations.length : db.quotations.filter((x) => x.kind === k).length,
           }))}
         />
         <SearchInput value={query} onChange={setQuery} placeholder="Search number, project, client…" className="lg:w-80" />
@@ -97,7 +99,7 @@ export function Quotations() {
                   <td className="td whitespace-nowrap">
                     <Link to={viewPath(quote)} className="font-medium text-stone-900 hover:text-brand-700">{quote.number}</Link>
                   </td>
-                  <td className="td"><Badge tone={quote.kind === 'BOQ' ? 'blue' : 'green'}>{quote.kind}</Badge></td>
+                  <td className="td"><Badge tone={KIND_TONE[quote.kind]}>{quote.kind}</Badge></td>
                   <td className="td">
                     {p ? <Link to={`/projects/${p.id}?tab=commercial`} className="hover:text-brand-700">{p.name}</Link> : '—'}
                     {p && <span className="block text-xs text-stone-400">{projectType(p)}</span>}

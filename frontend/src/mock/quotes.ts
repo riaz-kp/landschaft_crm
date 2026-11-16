@@ -1,6 +1,7 @@
 import { addDays, today } from '../domain/format'
 import { defaultDocumentSettings } from '../domain/documentDefaults'
-import { defaultSections } from '../domain/quotation'
+import { DEFAULT_GST_RATE, defaultSections } from '../domain/quotation'
+import { proposalFrom } from '../domain/scope'
 import type { AreaItem, PlantsCopy, Project, Quotation, QuoteArea, QuoteSection, ServiceLine } from '../domain/types'
 import { plantsProjects } from './plants'
 import { placeholderPlan } from './photos'
@@ -146,5 +147,31 @@ export function seedQuotations(): Quotation[] {
         { id: id('sl'), title: 'Quarterly seasonal replanting', description: 'Seasonal flowering plants replaced in the podium beds every quarter.', quantity: 4, unit: 'Round', rate: 7500 },
       ],
     }),
+    // The design consultancy proposal, as the company sent Mr. Mahesh: ₹90,000 + GST 18% = ₹1,06,200.
+    scopeProposal({ id: 'q9', number: 'SC-2026-004', projectId: 'p1', clientId: 'c1', date: addDays(today(), -12), status: 'Accepted', fee: 90000 }),
+    scopeProposal({ id: 'q10', number: 'SC-2026-007', projectId: 'p6', clientId: 'c3', date: '2026-07-10', status: 'Sent', fee: 145000 }),
   ]
+}
+
+/** A Scope of Services & Fee Proposal from the company's own wording, at this fee. */
+function scopeProposal({ fee, ...base }: Pick<Quotation, 'id' | 'number' | 'projectId' | 'clientId' | 'date' | 'status'> & { fee: number }): Quotation {
+  const proposal = proposalFrom(docs.scope)
+  return {
+    ...base,
+    kind: 'Scope',
+    letter: { ...docs.letters.Scope },
+    intro: '',
+    sections: defaultSections('Scope', DESIGN),
+    areas: [],
+    servicesTitle: docs.servicesTitle,
+    services: [],
+    discount: 0,
+    gstRate: DEFAULT_GST_RATE,
+    terms: [],
+    procedure: [],
+    procedureNote: '',
+    paymentStages: docs.scope.paymentStages.map((s) => ({ ...s })),
+    schedule: { ...docs.schedule },
+    scope: { ...proposal, fees: [{ label: 'Design & Consulting charges', amount: fee }] },
+  }
 }

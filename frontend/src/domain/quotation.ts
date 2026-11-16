@@ -1,4 +1,5 @@
 import { defaultDocumentSettings } from './documentDefaults'
+import { SCOPE_SECTIONS, normalizeScope, proposalFrom, scopeTotals, scopeWarnings } from './scope'
 import type {
   AreaItem, CommercialDoc, ID, PlantLine, Project, Quotation, QuotationStatus, QuoteArea, QuoteSection, ServiceLine, Settings,
 } from './types'
@@ -13,9 +14,23 @@ import type {
  *
  * A BOQ is quantities and specifications; a quotation is the BOQ priced. Each
  * area of the site has its own heading and plan, followed by its items.
+ *
+ * A project with design also carries a Scope — the Scope of Services & Fee
+ * Proposal — which is kept with them but is a document of its own (domain/scope).
  */
 
-export const KIND_TITLE: Record<CommercialDoc, string> = { BOQ: 'Bill of Quantities', Quotation: 'Quotation' }
+export const KIND_TITLE: Record<CommercialDoc, string> = {
+  BOQ: 'Bill of Quantities', Quotation: 'Quotation', Scope: 'Scope of Services & Fee Proposal',
+}
+
+/** The document's name in a sentence: "New BOQ", "Delete quotation", "No scope proposal yet". */
+export const KIND_NOUN: Record<CommercialDoc, string> = { BOQ: 'BOQ', Quotation: 'quotation', Scope: 'scope proposal' }
+
+/** BOQ-2026-004, QT-2026-011, SC-2026-002. */
+export const KIND_PREFIX: Record<CommercialDoc, string> = { BOQ: 'BOQ', Quotation: 'QT', Scope: 'SC' }
+
+/** The badge colour each kind is shown with in lists. */
+export const KIND_TONE: Record<CommercialDoc, 'blue' | 'green' | 'amber'> = { BOQ: 'blue', Quotation: 'green', Scope: 'amber' }
 
 export const QUOTE_STATUSES: QuotationStatus[] = ['Draft', 'Sent', 'Accepted', 'Rejected']
 
@@ -34,6 +49,7 @@ export function showsPlans(kind: CommercialDoc, services: Project['services']): 
 const PRICED_ONLY: QuoteSection[] = ['payment', 'bank']
 
 export function sectionApplies(kind: CommercialDoc, section: QuoteSection): boolean {
+  if (kind === 'Scope') return SCOPE_SECTIONS.includes(section)
   return isPriced(kind) || !PRICED_ONLY.includes(section)
 }
 
@@ -56,6 +72,9 @@ export const SECTION_LABELS: Record<QuoteSection, string> = {
 
 /** What a new document carries. A BOQ is the quantities and the plans; a quotation everything. AMC-only work has no plants or hardscape. */
 export function defaultSections(kind: CommercialDoc, services: Project['services']): Record<QuoteSection, boolean> {
+  if (kind === 'Scope') {
+    return { plants: false, hardscape: false, services: false, terms: true, procedure: false, payment: true, schedule: true, bank: true, acceptance: false }
+  }
   if (kind === 'BOQ') {
     return { plants: true, hardscape: true, services: false, terms: false, procedure: false, payment: false, schedule: false, bank: false, acceptance: false }
   }
@@ -65,6 +84,7 @@ export function defaultSections(kind: CommercialDoc, services: Project['services
 
 /** One line under the document's heading on the project page: what it holds, by the rules above. */
 export function kindRule(kind: CommercialDoc, services: Project['services']): string {
+  if (kind === 'Scope') return 'The consultancy proposal: scope of services, work schedule, design fee, site visits, payment terms and conditions.'
   if (kind === 'BOQ') return 'Area by area: plan image, then each item with its dimension, quantity and unit. No prices.'
   return showsPlans(kind, services)
     ? 'The BOQ priced: plan image per area, each item with its dimension, quantity, unit, rate and amount.'
@@ -101,15 +121,17 @@ export function newQuotation({ kind, project, settings, date, by, from }: NewQuo
     servicesTitle: defaults.servicesTitle,
     services: defaults.services.map((line) => ({ ...line, id: lineId('sl') })),
     discount: 0,
-    gstRate: kind === 'Quotation' ? DEFAULT_GST_RATE : undefined,
+    gstRate: kind === 'BOQ' ? undefined : DEFAULT_GST_RATE,
     terms: defaults.terms.map((t) => ({ ...t })),
     procedure: defaults.procedure.map((t) => ({ ...t })),
     procedureNote: defaults.procedureNote,
-    paymentStages: defaults.paymentStages.map((s) => ({ ...s })),
+    paymentStages: (kind === 'Scope' ? defaults.scope.paymentStages : defaults.paymentStages).map((s) => ({ ...s })),
     schedule: { ...defaults.schedule },
+    ...(kind === 'Scope' ? { scope: proposalFrom(defaults.scope), services: [], terms: [], procedure: [], procedureNote: '' } : {}),
     createdBy: by,
   }
-  if (!from) return base
+  // A Scope starts from the company's proposal, or is copied from another Scope.
+  if (!from || (kind === 'Scope' && from.kind !== 'Scope')) return base
   if (from.kind === kind) {
     // A copy: everything as it was, as a new draft.
     const { id: _id, number: _number, status: _status, createdBy: _by, items: _items, ...rest } = structuredClone(from)
@@ -171,8 +193,9 @@ export function normalizeQuotation(raw: Partial<Quotation> & Pick<Quotation, 'id
     terms: raw.terms ?? [],
     procedure: raw.procedure ?? [],
     procedureNote: raw.procedureNote ?? '',
-    paymentStages: raw.paymentStages ?? defaults.paymentStages.map((s) => ({ ...s })),
+    paymentStages: raw.paymentStages ?? (kind === 'Scope' ? defaults.scope.paymentStages : defaults.paymentStages).map((s) => ({ ...s })),
     schedule: raw.schedule ?? { ...defaults.schedule },
+    ...(kind === 'Scope' ? { scope: normalizeScope(raw.scope) } : {}),
   }
 }
 
@@ -245,8 +268,9 @@ export function quoteTotals(quote: Quotation): QuoteTotals {
   return { plants, hardscape, areas, services, subtotal, discount, taxable, gstRate, gst, total: subtotal - discount + gst }
 }
 
-/** The value lists show: a quotation's grand total. A BOQ has none. */
+/** The value lists show: a quotation's grand total, a scope proposal's net fee. A BOQ has none. */
 export function quoteValue(quote: Quotation): number | undefined {
+  if (quote.kind === 'Scope') return scopeTotals(quote).total
   return isPriced(quote.kind) ? quoteTotals(quote).total : undefined
 }
 
@@ -267,6 +291,7 @@ export function formatQty(value: number | undefined | null): string {
 
 /** What still needs filling in before the document goes to the client. */
 export function quoteWarnings(quote: Quotation, project?: Project): string[] {
+  if (quote.kind === 'Scope') return scopeWarnings(quote)
   const warnings: string[] = []
   const priced = isPriced(quote.kind)
   if (shows(quote, 'plants')) {

@@ -3,8 +3,10 @@ import { Field, Section } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { defaultDocumentSettings } from '../../domain/documentDefaults'
 import { blankService } from '../../domain/quotation'
-import type { CommercialDoc, DocumentSettings, ServiceLine } from '../../domain/types'
+import { groupLetter } from '../../domain/scope'
+import type { CommercialDoc, DocumentSettings, ScopeDefaults, ServiceLine } from '../../domain/types'
 import { PaymentStagesEditor, ServicesEditor, TitledListEditor } from '../quotations/editors'
+import { FeesEditor, GroupsEditor, RatesEditor, TermsEditor } from '../quotations/ScopeEditor'
 
 /** One collapsible group of settings, so the section stays short until something is opened. */
 function Group({ title, hint, children, open: startOpen = false }: { title: string; hint: string; children: ReactNode; open?: boolean }) {
@@ -32,6 +34,7 @@ export function DocumentSettingsSection({ value, onChange, disabled }: { value: 
   const letter = (kind: CommercialDoc, field: 'greeting' | 'body' | 'signOff', text: string) =>
     set({ letters: { ...value.letters, [kind]: { ...value.letters[kind], [field]: text } } })
   const services: ServiceLine[] = value.services.map((s, i) => ({ ...s, id: `default-${i}` }))
+  const scope = (patch: Partial<ScopeDefaults>) => set({ scope: { ...value.scope, ...patch } })
   const defaults = defaultDocumentSettings()
 
   return (
@@ -57,23 +60,72 @@ export function DocumentSettingsSection({ value, onChange, disabled }: { value: 
       </Group>
 
       <Group title="Cover letter & introduction" hint="The letter on the cover page and the line under the Bill of Quantities heading, for each kind of document.">
-        <div className="grid gap-6 lg:grid-cols-2">
-          {(['Quotation', 'BOQ'] as const).map((kind) => (
+        <div className="grid gap-6 lg:grid-cols-3">
+          {(['Scope', 'Quotation', 'BOQ'] as const).map((kind) => (
             <div key={kind} className="space-y-3">
-              <p className="text-sm font-semibold text-stone-900">{kind === 'BOQ' ? 'BOQ' : 'Quotation'}</p>
+              <p className="text-sm font-semibold text-stone-900">{kind === 'Scope' ? 'Scope proposal' : kind}</p>
               <Field label="Greeting"><input className="input" disabled={disabled} value={value.letters[kind].greeting} onChange={(e) => letter(kind, 'greeting', e.target.value)} /></Field>
               <Field label="Letter" hint="A blank line starts a new paragraph.">
                 <textarea className="input min-h-[150px] resize-y" disabled={disabled} value={value.letters[kind].body} onChange={(e) => letter(kind, 'body', e.target.value)} />
               </Field>
               <Field label="Signed"><input className="input" disabled={disabled} value={value.letters[kind].signOff} onChange={(e) => letter(kind, 'signOff', e.target.value)} /></Field>
-              <Field label="Under the Bill of Quantities heading">
-                <textarea className="input min-h-[64px] resize-y" disabled={disabled} value={value.intros[kind]} onChange={(e) => set({ intros: { ...value.intros, [kind]: e.target.value } })} />
-              </Field>
+              {kind !== 'Scope' && (
+                <Field label="Under the Bill of Quantities heading">
+                  <textarea className="input min-h-[64px] resize-y" disabled={disabled} value={value.intros[kind]} onChange={(e) => set({ intros: { ...value.intros, [kind]: e.target.value } })} />
+                </Field>
+              )}
               <Field label="Client acceptance">
                 <textarea className="input min-h-[64px] resize-y" disabled={disabled} value={value.acceptance[kind]} onChange={(e) => set({ acceptance: { ...value.acceptance, [kind]: e.target.value } })} />
               </Field>
             </div>
           ))}
+        </div>
+      </Group>
+
+      <Group title="Scope of Services & Fee Proposal" hint={`${value.scope.services.length} parts of scope, ${value.scope.phases.length} phases, ${value.scope.terms.length} terms on a new proposal.`}>
+        <div className="space-y-6">
+          <Field label="Subject" hint="Printed over the title on the cover.">
+            <input className="input sm:max-w-sm" disabled={disabled} value={value.scope.subject} onChange={(e) => scope({ subject: e.target.value })} />
+          </Field>
+          <div>
+            <p className="label mb-2">Scope of services</p>
+            <GroupsEditor groups={value.scope.services} onChange={(services) => scope({ services })} disabled={disabled} badge={groupLetter} noun="part" addLabel="Add a part" titlePlaceholder="e.g. Site Appraisal & Analysis" />
+          </div>
+          <div>
+            <p className="label mb-2">Work schedule</p>
+            <GroupsEditor groups={value.scope.phases} onChange={(phases) => scope({ phases })} disabled={disabled} badge={(i) => `Phase ${i + 1}`} noun="phase" addLabel="Add a phase" titlePlaceholder="e.g. Engagement & Data Collection" />
+          </div>
+          <FeesEditor fees={value.scope.fees} onChange={(fees) => scope({ fees })} disabled={disabled} />
+          <div>
+            <p className="label mb-2">Payment terms</p>
+            <PaymentStagesEditor
+              stages={value.scope.paymentStages} disabled={disabled}
+              onChange={(paymentStages) => scope({ paymentStages })}
+              onReset={() => scope({ paymentStages: defaults.scope.paymentStages })}
+            />
+          </div>
+          <Field label="Site visit charges">
+            <textarea className="input min-h-[96px] resize-y" disabled={disabled} value={value.scope.visits.note} onChange={(e) => scope({ visits: { ...value.scope.visits, note: e.target.value } })} />
+          </Field>
+          <Field label="Included site visits">
+            <input className="input" disabled={disabled} value={value.scope.visits.included} onChange={(e) => scope({ visits: { ...value.scope.visits, included: e.target.value } })} />
+          </Field>
+          <div>
+            <p className="label mb-2">Additional site visit charges</p>
+            <RatesEditor rates={value.scope.visits.rates} onChange={(rates) => scope({ visits: { ...value.scope.visits, rates } })} disabled={disabled} />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Execution works"><textarea className="input min-h-[80px] resize-y" disabled={disabled} value={value.scope.executionNote} onChange={(e) => scope({ executionNote: e.target.value })} /></Field>
+            <Field label="Annual maintenance (AMC)"><textarea className="input min-h-[80px] resize-y" disabled={disabled} value={value.scope.amcNote} onChange={(e) => scope({ amcNote: e.target.value })} /></Field>
+          </div>
+          <div>
+            <p className="label mb-2">Terms & conditions</p>
+            <TermsEditor terms={value.scope.terms} onChange={(terms) => scope({ terms })} disabled={disabled} />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Closing paragraph"><textarea className="input min-h-[80px] resize-y" disabled={disabled} value={value.scope.closing} onChange={(e) => scope({ closing: e.target.value })} /></Field>
+            <Field label="Signed" hint="One line each."><textarea className="input min-h-[80px] resize-y" disabled={disabled} value={value.scope.signOff} onChange={(e) => scope({ signOff: e.target.value })} /></Field>
+          </div>
         </div>
       </Group>
 

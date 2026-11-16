@@ -12,6 +12,7 @@ import { applyScope, describePhases } from '../domain/projectScope'
 import { projectType } from '../domain/progress'
 import { holders, paymentSchedule, stepFor, withCollection, type ScheduleRow } from '../domain/workflow'
 import { CLIENT_DOCS } from '../domain/clientDocs'
+import { KIND_PREFIX } from '../domain/quotation'
 
 type WithId = { id: ID }
 
@@ -136,6 +137,7 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
 const CHECKLIST_ON_STATUS: Record<Quotation['kind'], Partial<Record<Quotation['status'], string[]>>> = {
   BOQ: { Sent: ['boq.shared'], Accepted: ['boq.shared', 'boq.approved'] },
   Quotation: { Sent: ['qt.sent'], Accepted: ['qt.sent', 'qt.accepted'] },
+  Scope: { Sent: ['sc.sent'], Accepted: ['sc.sent', 'sc.accepted'] },
 }
 
 /** A visit report as stored on the visit. */
@@ -892,7 +894,7 @@ export const adapter: Api = {
   quotations: {
     create(input): Quotation {
       const year = input.date.slice(0, 4)
-      const prefix = input.kind === 'BOQ' ? 'BOQ' : 'QT'
+      const prefix = KIND_PREFIX[input.kind]
       // One past the highest number used that year, so a deleted one is never reissued.
       const used = store.db.quotations
         .filter((q) => q.number.startsWith(`${prefix}-${year}-`))

@@ -8,14 +8,14 @@ import { StoredImg } from '../../components/StoredImage'
 import { Badge, EmptyState, StatusBadge } from '../../components/ui'
 import { formatDate } from '../../domain/format'
 import {
-  KIND_TITLE, formatQty, formatRupees, gstLabel, groupPlants, isPriced, itemAmount, plantAmount, plantThumb, quoteTotals, serviceAmount,
+  KIND_TITLE, KIND_TONE, formatQty, formatRupees, gstLabel, groupPlants, isPriced, itemAmount, plantAmount, plantThumb, quoteTotals, serviceAmount,
   shows, showsPlans,
 } from '../../domain/quotation'
 import type { Client, DocumentSettings, Project, Quotation } from '../../domain/types'
 import { editPath, pdfPath, useQuoteAccess } from './access'
 import { SpecText } from './editors'
-
-const CREAM = '#f6f3ec'
+import { CREAM, Card, Num, PaymentCard } from './viewKit'
+import { ScopeView } from './ScopeView'
 
 /** Opens the document named in the URL as a page that fits any screen. */
 export function QuoteViewPage() {
@@ -27,6 +27,7 @@ export function QuoteViewPage() {
     return <EmptyState title="Document not found." hint="It may have been deleted." icon="doc" />
   }
   const client = db.clients.find((c) => c.id === project.clientId)
+  if (quote.kind === 'Scope') return <ScopeView quote={quote} project={project} client={client} settings={db.settings.documents} />
   return <QuoteView quote={quote} project={project} client={client} settings={db.settings.documents} />
 }
 
@@ -74,7 +75,7 @@ function QuoteView({ quote, project, client, settings }: { quote: Quotation; pro
           <div className="flex items-start justify-between gap-4">
             <BrandMark size={34} />
             <span className="flex flex-wrap justify-end gap-2">
-              <Badge tone={quote.kind === 'BOQ' ? 'blue' : 'green'}>{KIND_TITLE[quote.kind]}</Badge>
+              <Badge tone={KIND_TONE[quote.kind]}>{KIND_TITLE[quote.kind]}</Badge>
               <StatusBadge status={quote.status} />
             </span>
           </div>
@@ -295,21 +296,6 @@ function QuoteView({ quote, project, client, settings }: { quote: Quotation; pro
 
 const qty = (quantity: number | undefined, unit: string | undefined) => [formatQty(quantity), unit].filter((s) => s && s !== '—').join(' ') || '—'
 
-function Card({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
-  return (
-    <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
-      <header className="flex items-center justify-between gap-3 px-5 py-3.5" style={{ background: BRAND.dark }}>
-        <h2 className="flex min-w-0 items-center gap-2.5 text-sm font-semibold text-white">
-          <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: BRAND.sand }} />
-          <span className="truncate">{title}</span>
-        </h2>
-        {note && <span className="shrink-0 text-xs" style={{ color: BRAND.sand }}>{note}</span>}
-      </header>
-      {children}
-    </section>
-  )
-}
-
 /** Column names over the rows, on screens wide enough to show the columns. */
 function ColumnHeads({ cols, priced }: { cols: string[]; priced: boolean }) {
   return (
@@ -366,38 +352,5 @@ function Subtotal({ label, amount }: { label: string; amount: number }) {
       <span className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-600">{label}</span>
       <span className="font-bold tabular-nums text-stone-900">{formatRupees(amount)}</span>
     </div>
-  )
-}
-
-function Num({ n }: { n: number }) {
-  return <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#f1ece4] text-xs font-bold" style={{ color: BRAND.dark }}>{n}</span>
-}
-
-function PaymentCard({ stages, total }: { stages: Quotation['paymentStages']; total: number }) {
-  const sum = stages.reduce((s, x) => s + x.percent, 0) || 1
-  const palette = [BRAND.dark, '#4c644d', BRAND.sage, '#a9ad95', BRAND.sand, '#e9e1d4']
-  return (
-    <Card title="Payment schedule">
-      <div className="flex h-8 gap-1 px-4 pt-4 sm:px-5" style={{ boxSizing: 'content-box' }}>
-        {stages.map((s, i) => (
-          <div
-            key={i} className="flex min-w-0 items-center justify-center rounded-md text-[10px] font-bold tabular-nums"
-            style={{ flex: Math.max(s.percent, 4) / sum, background: palette[i % palette.length], color: i < 3 ? '#fff' : BRAND.dark }}
-          >
-            {s.percent >= 15 ? `${s.percent}%` : ''}
-          </div>
-        ))}
-      </div>
-      <ul className="mt-3 divide-y divide-stone-100 border-t border-stone-100">
-        {stages.map((stage, i) => (
-          <li key={i} className="flex items-center gap-3 px-5 py-3 text-sm">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: palette[i % palette.length] }} />
-            <span className="min-w-0 flex-1 text-stone-800">{stage.label}</span>
-            <span className="w-12 shrink-0 text-right font-semibold tabular-nums">{stage.percent}%</span>
-            <span className="w-28 shrink-0 text-right font-semibold tabular-nums">{formatRupees((total * stage.percent) / 100)}</span>
-          </li>
-        ))}
-      </ul>
-    </Card>
   )
 }

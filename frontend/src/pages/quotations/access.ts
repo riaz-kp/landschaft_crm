@@ -14,7 +14,8 @@ import type { CommercialDoc, ModuleKey, Project, Quotation } from '../../domain/
  */
 export function useQuoteAccess() {
   const { can } = usePermissions()
-  const team = (kind: CommercialDoc): ModuleKey => (kind === 'BOQ' ? 'Design' : 'Execution')
+  // The scope proposal is the design team's too: it sets out the design consultancy and its fee.
+  const team = (kind: CommercialDoc): ModuleKey => (kind === 'Quotation' ? 'Execution' : 'Design')
   return {
     canCreate: (kind: CommercialDoc) => can('Accounts', 'create') || can(team(kind), 'create'),
     canEdit: (kind: CommercialDoc) => can('Accounts', 'edit') || can(team(kind), 'edit'),

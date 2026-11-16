@@ -5,14 +5,14 @@ import { SearchSelect } from '../../components/SearchSelect'
 import { projectOptions } from '../../components/pickerOptions'
 import { commercialDocs } from '../../domain/commercial'
 import { projectType } from '../../domain/progress'
-import { KIND_TITLE, kindRule } from '../../domain/quotation'
+import { KIND_NOUN, KIND_TITLE, kindRule } from '../../domain/quotation'
 import { formatDate } from '../../domain/format'
 import type { CommercialDoc, Project } from '../../domain/types'
 import { useCreateQuote, useQuoteAccess } from './access'
 
 /**
- * Starts a BOQ or quotation: the project, which document (only those its
- * services carry), and for a quotation whether to start from the project's BOQ.
+ * Starts a scope proposal, BOQ or quotation: the project, which document (only
+ * those its services carry), and for a quotation whether to start from the project's BOQ.
  */
 export function NewQuoteModal({ projectId, kind: wanted, onClose }: { projectId?: string; kind?: CommercialDoc; onClose: () => void }) {
   const db = useDb()
@@ -38,12 +38,12 @@ export function NewQuoteModal({ projectId, kind: wanted, onClose }: { projectId?
 
   return (
     <Modal
-      title={doc ? `New ${KIND_TITLE[doc]}` : 'New BOQ / Quotation'}
+      title={doc ? `New ${KIND_TITLE[doc]}` : 'New document'}
       onClose={onClose}
       size="lg"
       footer={<>
         <button onClick={onClose} className="btn-secondary">Cancel</button>
-        <button onClick={create} className="btn-primary" disabled={!doc}>Create {doc === 'BOQ' ? 'BOQ' : 'quotation'}</button>
+        <button onClick={create} className="btn-primary" disabled={!doc}>Create {doc ? KIND_NOUN[doc] : 'document'}</button>
       </>}
     >
       <div className="space-y-5">
@@ -64,8 +64,8 @@ export function NewQuoteModal({ projectId, kind: wanted, onClose }: { projectId?
         {project && (
           <div>
             <p className="label">Document</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {(['BOQ', 'Quotation'] as const).map((k) => {
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              {(['Scope', 'BOQ', 'Quotation'] as const).map((k) => {
                 const ok = allowed.includes(k)
                 const carried = commercialDocs(project.services).includes(k)
                 return (
@@ -117,7 +117,7 @@ export function NewQuoteModal({ projectId, kind: wanted, onClose }: { projectId?
           </div>
         )}
 
-        {choosable.length === 0 && <FormError message="There is no project you can create a BOQ or quotation for." />}
+        {choosable.length === 0 && <FormError message="There is no project you can create a scope proposal, BOQ or quotation for." />}
         <FormError message={error} />
       </div>
     </Modal>

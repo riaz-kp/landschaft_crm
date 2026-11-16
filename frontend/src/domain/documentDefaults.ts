@@ -1,4 +1,4 @@
-import type { DocumentSettings } from './types'
+import type { DocumentSettings, ScopeDefaults } from './types'
 
 const WELCOME = 'Thank you for considering Landschaft as your landscape consultancy partner. We appreciate the opportunity '
   + 'to collaborate on your project and are committed to delivering innovative, sustainable, and functional landscape '
@@ -47,12 +47,25 @@ export function defaultDocumentSettings(): DocumentSettings {
         ].join('\n\n'),
         signOff: 'Team Landschaft.',
       },
+      Scope: {
+        greeting: 'Dear Sir,',
+        body: [
+          WELCOME,
+          'Our scope of services is designed to provide end-to-end support - from site analysis and concept planning to '
+            + 'detailed design, project coordination, and post-completion guidance. By integrating creativity with technical '
+            + 'expertise, we aim to enhance the beauty, usability, and long-term value of your property.',
+          'Enclosed is the detailed Scope of Work, Work Schedule, and Fee Structure for your review. We request you to kindly '
+            + 'confirm the work order at your earliest convenience so that we may proceed with the assignment.',
+        ].join('\n\n'),
+        signOff: 'Team Landschaft.',
+      },
     },
     intros: {
       Quotation: 'We are pleased to submit the following Bill of Quantities for the proposed landscape works. The rates '
         + 'are based on the approved scope, specifications, and available site information.',
       BOQ: 'We are pleased to submit the following Bill of Quantities for the proposed landscape works. The quantities '
         + 'are based on the approved design, specifications, and available site information.',
+      Scope: '',
     },
     servicesTitle: 'Project Management, Planting, Soil Preparation & Logistics',
     services: [
@@ -121,7 +134,10 @@ export function defaultDocumentSettings(): DocumentSettings {
         + 'and authorise Landschaft to proceed subject to written work order and agreed advance.',
       BOQ: 'We confirm that we have reviewed this Bill of Quantities, including the plan, items and quantities for each '
         + 'area, and approve it as the basis for the landscape works.',
+      Scope: 'We confirm that we have reviewed this scope of services, work schedule, fee structure and the terms and conditions, '
+        + 'and authorise Landschaft to proceed with the consultancy on the agreed advance.',
     },
+    scope: defaultScope(),
     plantsAppUrl: 'https://plants.landschaft.in',
   }
 }
@@ -141,9 +157,193 @@ export function normalizeDocumentSettings(stored?: Partial<DocumentSettings> | n
     letters: {
       Quotation: { ...defaults.letters.Quotation, ...stored.letters?.Quotation },
       BOQ: { ...defaults.letters.BOQ, ...stored.letters?.BOQ },
+      Scope: { ...defaults.letters.Scope, ...stored.letters?.Scope },
     },
     intros: { ...defaults.intros, ...stored.intros },
     schedule: { ...defaults.schedule, ...stored.schedule },
     acceptance: { ...defaults.acceptance, ...stored.acceptance },
+    scope: {
+      ...defaults.scope,
+      ...stored.scope,
+      visits: { ...defaults.scope.visits, ...stored.scope?.visits },
+    },
+  }
+}
+
+/**
+ * What a new Scope of Services & Fee Proposal starts with: the company's own
+ * proposal (Mr. Mahesh, Apartment, Ernakulam, November 2026) word for word,
+ * without its fee, which is set on each proposal.
+ */
+export function defaultScope(): ScopeDefaults {
+  return {
+    subject: 'Landscape Consultancy',
+    services: [
+      {
+        title: 'Site Appraisal & Analysis',
+        points: [
+          'Preliminary site inspection and documentation.',
+          'Collection of topographical and dimensional data.',
+          'Soil quality assessment (composition, nutrients, and pH levels).',
+          'Study of architectural character, climatic influences, and client requirements.',
+          'Ecological and sustainability assessment for long-term viability.',
+        ],
+      },
+      {
+        title: 'Conceptual Design',
+        points: [
+          'Development of landscape concept plan reflecting client vision and project objectives.',
+          'Identification of functional zones, circulation patterns, and spatial character.',
+          'Preliminary planting strategy and thematic approach.',
+          'Concept sketches, mood boards, and initial visualizations.',
+        ],
+      },
+      {
+        title: 'Design Development',
+        points: [
+          'Preparation of detailed master landscape plan in coordination with architectural and structural design.',
+          'Grading and site formation plan.',
+          'Stormwater drainage integration.',
+          'Design of irrigation systems and lighting layouts. (LANDSCAPE MEP)',
+          'Selection of plant palettes and material finishes.',
+        ],
+      },
+      {
+        title: 'Technical Documentation',
+        points: [
+          'Working drawings for execution of softscape and hardscape works.',
+          'Irrigation system layout.',
+          'Electrical and lighting layout for landscape features.',
+          'Quantity take-offs and bill of quantities (BOQ).',
+          'Specifications for materials, plants, and finishes.',
+        ],
+      },
+      {
+        title: 'Project Management',
+        points: [
+          'Coordination with civil, MEP, and architectural consultants.',
+          'Technical guidance during procurement and material selection.',
+          'Quality checks during execution.',
+          'Review meetings with client/project team.',
+        ],
+      },
+      {
+        title: 'Execution Support',
+        note: 'If Landschaft is engaged for implementation',
+        points: [
+          'Deployment of execution team for hardscape and softscape works.',
+          'Planting, turfing, and installation of landscape features.',
+          'Coordination of irrigation and electrical installations.',
+          'Site finishing and handover.',
+        ],
+      },
+      {
+        title: 'Post-Completion Services (AMC)',
+        points: [
+          'Annual Maintenance Contract (AMC) tailored to property requirements, covering lawn care, plant health management, '
+            + 'irrigation upkeep, and seasonal treatments.',
+          'Training of in-house staff on basic landscape upkeep.',
+          'Performance audits and improvement recommendations.',
+        ],
+      },
+    ],
+    phases: [
+      {
+        title: 'Engagement & Data Collection',
+        points: [
+          'Confirmation of Work Order and advance payment.',
+          'Site survey (Client Part), soil testing, and documentation.',
+          'Requirement gathering and vision alignment meeting.',
+        ],
+      },
+      {
+        title: 'Conceptual & Schematic Design',
+        points: [
+          'Preparation of initial concept layouts, sketches, and visual references.',
+          'Client presentation & approval.',
+        ],
+      },
+      {
+        title: 'Design Development',
+        points: [
+          'Finalization of master landscape plan.',
+          'Detailed planting and hardscape design.',
+          'Irrigation, electrical, and drainage integration.',
+          'Detailed Civil working drawing for Separation walls, seaters, feature walls, Compound walls & Pool/Waterbodies '
+            + 'Design (whichever applicable)',
+        ],
+      },
+      {
+        title: 'Technical Documentation',
+        points: [
+          'Preparation of working drawings, BOQ, and specifications.',
+          'Tender/quotation assistance for execution if required.',
+        ],
+      },
+      {
+        title: 'Execution & Implementation',
+        note: 'if appointed',
+        points: [
+          'Site clearance & grading.',
+          'Irrigation & electrical installation.',
+          'Hardscape construction.',
+          'Softscape works (planting, turfing, etc.)',
+          'Quality checks & handover.',
+        ],
+      },
+      {
+        title: 'Maintenance & Aftercare',
+        points: [
+          'Post-installation monitoring for plant establishment.',
+          'AMC (if availed) for continuous upkeep and seasonal care.',
+        ],
+      },
+    ],
+    fees: [{ label: 'Design & Consulting charges', amount: 0 }],
+    visits: {
+      note: 'Site visits by Landschaft constitute periodic design review/inspection for the number of visits mentioned only '
+        + 'and shall not be construed as continuous or day-to-day supervision. Responsibility for construction methods, '
+        + 'workmanship, safety, labour, sequencing and daily site supervision remains with the appointed contractor/site '
+        + 'supervisor. Additional visits on request will be billed separately.',
+      included: '3 Visits by core team.',
+      rates: [
+        { label: 'Site Engineer / Supervisor Visit', rate: 5000 },
+        { label: 'Landscape Architect / Core Team Visit', rate: 10000 },
+      ],
+    },
+    executionNote: 'Quote will be given with respect to final design. As per approved quotation, payable in phased installments '
+      + 'aligned with work progress.',
+    amcNote: 'Custom pricing based on site size, plant selection, and service frequency. Proposal to be shared post-completion.',
+    terms: [
+      'Architectural/design services related to major buildings or built structures are not included within this scope of work.',
+      'The scope and professional fee are based on the currently specified project/land area. Any subsequent addition or '
+        + 'extension to the land/project area shall be considered additional scope and will be charged separately at the '
+        + 'applicable agreed rate.',
+      'The fee covers only the services listed in this proposal. Any additional work or major design revisions will be '
+        + 'charged separately with prior approval.',
+      'The Client shall provide required site information, drawings, surveys and approvals.',
+      'Specialist surveys, soil tests and statutory fees, if required, shall be arranged by the Client.',
+      'Site visits are for periodic design review and coordination only. Day-to-day supervision, workmanship, safety and '
+        + 'construction responsibility remain with the appointed contractor/site team.',
+      'Payments shall be made as per the agreed schedule. Invoices are payable within 7 days of issue.',
+      'All drawings and design documents remain the intellectual property of Landschaft until full payment is received.',
+      'Any significant change in the approved scope, project area, design brief or site conditions may require a revision '
+        + 'of the fee and schedule.',
+      'If the project is cancelled or suspended, fees for work completed up to that stage shall be payable.',
+      'Execution works, AMC and services not specifically included in this proposal will be quoted separately.',
+      'The quoted fee is based on completion of the consultancy within 12 months from the date of engagement. If the project '
+        + 'is delayed beyond this period for reasons beyond Landschaft’s control, the fee for the remaining services may be '
+        + 'reviewed mutually.',
+      'This proposal is valid for one month from the date of submission.',
+    ],
+    closing: 'We look forward to partnering with you to create an inspiring and sustainable landscape. Please confirm your '
+      + 'acceptance of this proposal so we may commence immediately.',
+    signOff: 'Thanks & Regards,\nLandschaft.',
+    paymentStages: [
+      { label: 'Advance, payable at the time of engagement', percent: 40 },
+      { label: 'Upon submission and approval of the Concept Plan', percent: 20 },
+      { label: 'At the Design Development stage', percent: 20 },
+      { label: 'Upon submission of the Final Design Package', percent: 20 },
+    ],
   }
 }
