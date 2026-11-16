@@ -191,7 +191,7 @@ export function AdminShell() {
 
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-[1440px] animate-fade-in" key={current?.label}>
-            {allowed && onListPage && visible!.children!.length > 1 && <SectionTabs section={visible} pathname={pathname} />}
+            {allowed && onListPage && visible && visible.children!.length > 1 && <SectionTabs section={visible} pathname={pathname} />}
             {allowed ? <Suspense fallback={<PageLoading />}><Outlet /></Suspense> : <NoAccess />}
           </div>
         </main>
