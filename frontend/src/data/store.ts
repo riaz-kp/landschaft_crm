@@ -3,7 +3,7 @@ import type {
   CalendarEvent, ChatMessage, Clarification, Client, Consultation, DailyWorkReport,
   DocumentRecord, Employee, ID, Issue, Lead, MaintenanceRecord, Payment, PaymentFollowUp,
   PaymentRequest, Project, Quotation, Settings, SiteAssignment, SiteVisit, AttendanceEntry,
-  Task, Worker, ProjectMessage, PayRecord, Reminder, ProjectLogEntry, ClientBrief,
+  Task, Worker, ProjectMessage, PayRecord, Reminder, ProjectLogEntry, ClientBrief, Material,
 } from '../domain/types'
 
 export interface DbShape {
@@ -37,6 +37,8 @@ export interface DbShape {
   chatReads: Record<string, string>
   /** Requirement checklists clients filled in through their link, one per project. */
   clientBriefs: ClientBrief[]
+  /** Materials added by hand to the library (the Materials page also lists those found on BOQs and quotations). */
+  materials: Material[]
   settings: Settings
 }
 
@@ -48,7 +50,7 @@ export function emptyDb(): DbShape {
     tasks: [], reports: [], issues: [], quotations: [], paymentRequests: [], payments: [], maintenance: [],
     documents: [], calendarEvents: [], clarifications: [], chatMessages: [], followUps: [], consultations: [],
     attendance: [], projectMessages: [], payRecords: [], reminders: [], projectLog: [], chatReads: {},
-    clientBriefs: [], settings: defaultSettings(),
+    clientBriefs: [], materials: [], settings: defaultSettings(),
   }
 }
 

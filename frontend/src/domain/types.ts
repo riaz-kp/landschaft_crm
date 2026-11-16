@@ -251,8 +251,12 @@ export interface SiteVisit {
 
 // ---------------------------------------------------------------- projects
 
-/** The four design phases from the structure document, in order. */
-export const DESIGN_PHASES = ['concept', 'threeD', 'civilWork', 'boq'] as const
+/**
+ * The five design phases, in order. Design detailing is done in two phases,
+ * each paid for on its own. Projects saved under the earlier four (concept,
+ * 3D, civil work, BOQ) are read in this shape — see domain/designPhases.
+ */
+export const DESIGN_PHASES = ['concept', 'presentation', 'detailing1', 'detailing2', 'documentation'] as const
 export type DesignPhaseKey = (typeof DESIGN_PHASES)[number]
 
 /** Execution phases. MEP is optional and has its own three sub-services. */
@@ -266,9 +270,10 @@ export type PhaseKey = DesignPhaseKey | ExecutionPhaseKey
 
 export const PHASE_LABELS: Record<PhaseKey, string> = {
   concept: 'Concept',
-  threeD: '3D Presentation',
-  civilWork: 'Civil Work',
-  boq: 'BOQ',
+  presentation: 'Presentation',
+  detailing1: 'Detailing Phase 1',
+  detailing2: 'Detailing Phase 2',
+  documentation: 'Documentation',
   hardscape: 'Hardscape',
   softscape: 'Softscape',
   mep: 'MEP',
@@ -301,6 +306,10 @@ export const PROJECT_STATUSES: ProjectStatus[] = ['Planning', 'In Progress', 'On
 export const PROJECT_CATEGORIES = ['Residential', 'Commercial', 'Hospitality', 'Institutional'] as const
 export type ProjectCategory = (typeof PROJECT_CATEGORIES)[number]
 
+/** Where the project sits in the market — the level of finish and spend it is designed to. */
+export const PROJECT_POSITIONINGS = ['Basic', 'Standard', 'Premium'] as const
+export type ProjectPositioning = (typeof PROJECT_POSITIONINGS)[number]
+
 /** Kerala sites are measured in square feet, or in cents and acres for land. */
 export const AREA_UNITS = ['sq ft', 'sq m', 'cents', 'acres'] as const
 export type AreaUnit = (typeof AREA_UNITS)[number]
@@ -313,8 +322,10 @@ export interface LatLng {
 /**
  * Commercial documents. Which ones a project carries follows its services:
  * Design only → BOQ, Execution only → Quotation, Design + Execution → both.
+ * A project with design also carries a Scope: the consultancy proposal of
+ * services, work schedule and design fee the client confirms first.
  */
-export type CommercialDoc = 'BOQ' | 'Quotation'
+export type CommercialDoc = 'BOQ' | 'Quotation' | 'Scope'
 
 export interface ChecklistTick {
   done: boolean
@@ -399,6 +410,8 @@ export interface Project {
   checklist?: Record<string, ChecklistTick>
   /** Residential, Commercial, Hospitality or Institutional. */
   category?: ProjectCategory
+  /** Basic, Standard or Premium. Projects opened before positioning was added have none. */
+  positioning?: ProjectPositioning
   /** Site area, in `areaUnit`. */
   area?: number
   areaUnit?: AreaUnit
@@ -445,6 +458,14 @@ export interface SiteAssignment {
 // ---------------------------------------------------------------- tasks
 
 export type TaskStatus = 'To Do' | 'In Progress' | 'Review' | 'Done'
+
+/** What each status is called on screen and in exports. The stored values stay as they are. */
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  'To Do': 'To begin',
+  'In Progress': 'In progress',
+  Review: 'Awaiting approval',
+  Done: 'Completed',
+}
 export type TaskPriority = 'Low' | 'Medium' | 'High'
 
 export interface Task {
@@ -723,7 +744,94 @@ export interface Quotation {
   schedule: WorkSchedule
   /** Lines from before documents had sections; see QuotationItem. */
   items?: QuotationItem[]
+  /** A Scope document's own content; see ScopeProposal. */
+  scope?: ScopeProposal
   createdBy?: ID
+}
+
+/**
+ * One lettered part of the scope of services ("A. Site Appraisal & Analysis"),
+ * or one phase of the work schedule ("Phase 1 – Engagement & Data Collection"),
+ * with its points.
+ */
+export interface ScopeGroup {
+  title: string
+  /** Printed after the title in italics: "(If Landschaft is engaged for implementation)". */
+  note?: string
+  points: string[]
+}
+
+/** A fee charged on a Scope: "Design & Consulting charges · ₹90,000". */
+export interface FeeLine {
+  label: string
+  amount: number
+}
+
+/** The charge for one extra site visit beyond those included: "Site Engineer / Supervisor Visit · ₹5,000". */
+export interface VisitRate {
+  label: string
+  rate: number
+}
+
+/**
+ * The consultancy proposal: Landscape Consultancy — Scope of Services & Fee
+ * Proposal. Stored on the document as `scope`; the cover letter, GST rate,
+ * payment stages and status are the document's own fields, as on a quotation.
+ */
+export interface ScopeProposal {
+  /** The subject on the cover, over the title: "Landscape Consultancy". */
+  subject: string
+  /** Scope of services, lettered A, B, C… */
+  services: ScopeGroup[]
+  /** Work schedule, numbered Phase 1, Phase 2… */
+  phases: ScopeGroup[]
+  /** The fee lines, added up; GST is charged on their total. */
+  fees: FeeLine[]
+  visits: {
+    /** What a site visit is and is not. */
+    note: string
+    /** "3 Visits by core team." */
+    included: string
+    rates: VisitRate[]
+  }
+  /** How execution works will be quoted. */
+  executionNote: string
+  /** How the annual maintenance contract will be priced. */
+  amcNote: string
+  /** Terms & conditions, numbered. */
+  terms: string[]
+  /** The closing paragraph before "Thanks & Regards". */
+  closing: string
+  signOff: string
+}
+
+/** What a new Scope starts with: the proposal and its payment terms. */
+export interface ScopeDefaults extends ScopeProposal {
+  paymentStages: PaymentStage[]
+}
+
+/**
+ * A material in the company's library, added by hand from the Materials page.
+ * The page also lists every item used on a BOQ or quotation; a material
+ * recorded here with the same name and size is shown as one row with them.
+ */
+export interface Material {
+  id: ID
+  name: string
+  /** Material specification and laying method, one point per line, as on a BOQ. */
+  specification?: string
+  /** Size, e.g. "1 x 4". */
+  dimension?: string
+  unit: string
+  /** The usual rate, in rupees per unit. */
+  rate?: number
+  /** A photo of the material: a stored file ("sb:…"), or a data URL until it is uploaded. */
+  image?: string
+  /** Projects it is used on, besides those whose BOQ or quotation already lists it. */
+  projectIds: ID[]
+  notes?: string
+  createdBy?: ID
+  createdAt?: string
 }
 
 /**
@@ -743,6 +851,8 @@ export interface DocumentSettings {
   paymentStages: PaymentStage[]
   schedule: WorkSchedule
   acceptance: Record<CommercialDoc, string>
+  /** What a new Scope (consultancy proposal) starts with. */
+  scope: ScopeDefaults
   /** Where the plants app is opened, for links to a project's plant list. */
   plantsAppUrl: string
 }
@@ -980,7 +1090,7 @@ export interface WorkHours {
  */
 export const MODULES = [
   'Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Projects', 'Tasks', 'Design', 'Execution', 'AMC',
-  'Accounts', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar', 'Reports', 'Settings',
+  'Accounts', 'Materials', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar', 'Reports', 'Settings',
 ] as const
 export type ModuleKey = (typeof MODULES)[number]
 

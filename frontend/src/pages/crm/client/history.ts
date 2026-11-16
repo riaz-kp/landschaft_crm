@@ -55,7 +55,7 @@ export function clientHistory(db: DbShape, clientId: ID): HistoryItem[] {
   for (const quote of db.quotations.filter((q) => q.clientId === clientId)) {
     const total = quoteValue(quote)
     items.push({
-      id: `q-${quote.id}`, date: quote.date, department: quote.kind === 'BOQ' ? 'Design' : 'Accounts', icon: 'doc',
+      id: `q-${quote.id}`, date: quote.date, department: quote.kind === 'Quotation' ? 'Accounts' : 'Design', icon: 'doc',
       title: `${quote.kind} ${quote.number} — ${quote.status}`,
       detail: total === undefined ? 'Quantities and plans, no prices' : formatCurrency(total),
       to: `/projects/${quote.projectId}/commercial/${quote.id}`,

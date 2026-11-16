@@ -3,7 +3,7 @@ import { useDb } from '../../state/useDb'
 import { computeProgress } from '../../domain/progress'
 import { isOnVisit } from '../../domain/siteVisits'
 import { formatDate, formatTime, pad2, today } from '../../domain/format'
-import { PHASE_LABELS, type Employee } from '../../domain/types'
+import { PHASE_LABELS, TASK_STATUS_LABELS, type Employee } from '../../domain/types'
 import {
   Section, Table, EmptyState, StatTile, StatusBadge, SiteName, ProgressBar, Badge,
 } from '../../components/ui'
@@ -54,7 +54,7 @@ export function EmployeeWorks({ employee }: { employee: Employee }) {
                   <td className="td">{task.phase ? PHASE_LABELS[task.phase] : '—'}</td>
                   <td className={`td tabular-nums ${overdue ? 'font-semibold text-red-700' : ''}`}>{formatDate(task.dueDate)}</td>
                   <td className="td">{task.priority}</td>
-                  <td className="td"><StatusBadge status={task.status} /></td>
+                  <td className="td"><StatusBadge status={task.status} label={TASK_STATUS_LABELS[task.status]} /></td>
                 </tr>
               )
             })}

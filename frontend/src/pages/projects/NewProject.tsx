@@ -5,12 +5,11 @@ import { useDb } from '../../state/useDb'
 import { addDays, today } from '../../domain/format'
 import { PageHeader, Section, Field, Badge } from '../../components/ui'
 import { newScope, scopeProblem, type ProjectScope } from '../../domain/projectScope'
-import { DesignPhasePicker, ExecutionPhasePicker, ServicePicker } from './ProjectScope'
+import { DesignPhasePicker, ExecutionPhasePicker, PositioningPicker, ServicePicker } from './ProjectScope'
 import { MapPicker } from '../../components/MapPicker'
 import { ClientPicker } from './ClientPicker'
 import { AmcFields, draftToRecord, emptyAmcDraft, endOf, validateAmc, type AmcDraft } from '../amc/AmcContractForm'
-import { CHECKLISTS, commercialDocs } from '../../domain/commercial'
-import { AREA_UNITS, PROJECT_CATEGORIES, type AreaUnit, type ClientDocKey, type LatLng, type ProjectCategory, type RoleKey } from '../../domain/types'
+import { AREA_UNITS, PROJECT_CATEGORIES, type AreaUnit, type ClientDocKey, type LatLng, type ProjectCategory, type ProjectPositioning, type RoleKey } from '../../domain/types'
 import { codeOwner, normaliseCode, suggestProjectCode } from '../../domain/projectInfo'
 import { ClientDocsPicker, type DocState, type DraftDocFile } from './ClientDocuments'
 import { useSession } from '../../state/session'
@@ -48,6 +47,7 @@ export function NewProject() {
   const [form, setForm] = useState({
     code: suggestProjectCode(db.projects),
     category: '' as ProjectCategory | '',
+    positioning: '' as ProjectPositioning | '',
     area: '',
     areaUnit: 'sq ft' as AreaUnit,
     name: '',
@@ -69,8 +69,6 @@ export function NewProject() {
 
   if (!can('Projects', 'create')) return <NoAccess />
 
-  const docs = commercialDocs({ design, execution, amc })
-
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim()) return setError('Enter a project name.')
@@ -78,6 +76,7 @@ export function NewProject() {
     const taken = codeOwner(db.projects, form.code)
     if (taken) return setError(`Project code ${normaliseCode(form.code)} is already used by “${taken.name}”.`)
     if (!form.category) return setError('Choose the project type — Residential, Commercial, Hospitality or Institutional.')
+    if (!form.positioning) return setError('Choose the project positioning — Basic, Standard or Premium.')
     if (form.area && !(Number(form.area) > 0)) return setError('The site area must be a number above zero, or left blank.')
     if (!form.clientId) return setError('Select a client.')
     if (!form.siteLocation.trim()) return setError('Enter the site location.')
@@ -93,7 +92,7 @@ export function NewProject() {
     if (badLink) return setError(`“${badLink.url}” is not a link. Paste the full address, e.g. a Google Drive share link.`)
 
     setError(null)
-    const { category, area, areaUnit, ...basics } = form
+    const { category, positioning, area, areaUnit, ...basics } = form
     const values = moneyFields({ ...money, designValue: design ? money.designValue : '', executionValue: execution ? money.executionValue : '' }, 0)
     const project = api.projects.create({
       ...basics,
@@ -108,6 +107,7 @@ export function NewProject() {
         .map((l) => ({ url: toLink(l.url)!, name: l.name.trim() || linkName(toLink(l.url)!) })),
       code: normaliseCode(form.code),
       category,
+      positioning: positioning || undefined,
       area: area ? Number(area) : undefined,
       areaUnit,
       clientDocs: Object.fromEntries(
@@ -145,10 +145,10 @@ export function NewProject() {
               />
             </Field>
           </div>
-          <Field label="Project Code" required hint="Suggested from the LS-year-number series. Change it to use your own.">
+          <Field label="Project Code" required hint="The next code in the LND series — LND, the year, then the running number (LND26101). Change it to use your own.">
             <div className="flex gap-2">
               <input
-                type="text" value={form.code} placeholder="e.g. LS-2026-009"
+                type="text" value={form.code} placeholder="e.g. LND26101"
                 onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
                 className="input font-mono uppercase tracking-wide"
               />
@@ -191,6 +191,9 @@ export function NewProject() {
                 </button>
               ))}
             </div>
+          </div>
+          <div className="sm:col-span-2">
+            <PositioningPicker value={form.positioning} onChange={(positioning) => setForm({ ...form, positioning })} required />
           </div>
           {/* Not a <label>: the picker holds its own buttons, which a label would re-trigger. */}
           <div>
@@ -358,39 +361,6 @@ export function NewProject() {
           ))}
         </div>
       </Section>
-
-      {/* Commercial documents follow the services chosen above. */}
-      {docs.length > 0 && (
-        <Section
-          title="BOQ & Quotation"
-          description={
-            design && execution ? 'Design + Execution carries both a BOQ and a Quotation.'
-              : design ? 'Design only carries a BOQ — no quotation.'
-              : execution ? 'Execution only carries a Quotation — no BOQ.' : 'An AMC is priced on a Quotation.'
-          }
-          className="mb-6"
-        >
-          <div className={`grid gap-4 px-5 py-5 ${docs.length === 2 ? 'sm:grid-cols-2' : ''}`}>
-            {docs.map((doc) => (
-              <div key={doc} className="rounded-xl border border-stone-200 bg-stone-50/60 p-4">
-                <p className="flex items-center gap-2 font-semibold text-stone-900">
-                  <Icon name="doc" className="h-4 w-4 text-brand-600" /> {doc} checklist
-                </p>
-                <ul className="mt-3 space-y-1.5">
-                  {CHECKLISTS[doc].map((item) => (
-                    <li key={item.id} className="flex items-center gap-2 text-sm text-stone-600">
-                      <span className="h-3.5 w-3.5 shrink-0 rounded border border-stone-300 bg-white" /> {item.label}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          <p className="border-t border-stone-100 px-5 py-3 text-xs text-stone-400">
-            Tick these off on the project's BOQ &amp; Quotation tab as the work moves along.
-          </p>
-        </Section>
-      )}
 
       {error && (
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4">

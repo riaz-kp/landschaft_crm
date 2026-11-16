@@ -11,6 +11,7 @@ import {
   PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, Pills,
 } from '../../components/ui'
 import { ProgressSummary } from '../../components/ProjectProgress'
+import { PositioningBadge } from './ProjectScope'
 
 const COPY = {
   all: {
@@ -19,7 +20,7 @@ const COPY = {
   },
   design: {
     title: 'Design Projects',
-    subtitle: 'Projects carrying the Design module — concept, 3D, civil work and BOQ.',
+    subtitle: 'Projects carrying the Design module — concept, presentation, design detailing and documentation.',
   },
   execution: {
     title: 'Execution Projects',
@@ -97,7 +98,7 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
                 </td>
                 <td className="td">
                   <span className="block text-sm font-medium text-stone-800">{project.category ?? <span className="text-stone-400">—</span>}</span>
-                  <span className="mt-0.5 inline-block"><Badge tone="stone">{projectType(project)}</Badge></span>
+                  <span className="mt-0.5 flex flex-wrap gap-1"><Badge tone="stone">{projectType(project)}</Badge><PositioningBadge value={project.positioning} /></span>
                 </td>
                 <td className="td">{managerName(project.projectManagerId)}</td>
                 {canSeeMoney && <td className="td tabular-nums">{formatCurrency(project.value, true)}</td>}

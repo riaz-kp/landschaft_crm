@@ -20,7 +20,7 @@ export interface ProjectScope {
 export function newScope(): ProjectScope {
   return {
     services: { design: true, execution: false, amc: false },
-    designPhases: { concept: true, threeD: true, civilWork: true, boq: true },
+    designPhases: { concept: true, presentation: true, detailing1: true, detailing2: true, documentation: true },
     executionPhases: { hardscape: true, softscape: true, mep: false, irrigation: false, electrical: false, drainage: false },
   }
 }
@@ -89,7 +89,7 @@ export function applyScope(scope: ProjectScope, current?: Pick<Project, 'design'
   }
 }
 
-/** "Concept, 3D Presentation, Hardscape, MEP (Irrigation)" — for the project history. */
+/** "Concept, Presentation, Hardscape, MEP (Irrigation)" — for the project history. */
 export function describePhases(project: Pick<Project, 'design' | 'execution'>): string {
   const design = DESIGN_PHASES.filter((key) => project.design[key].enabled).map((key) => PHASE_LABELS[key])
   const { hardscape, softscape, mep } = project.execution

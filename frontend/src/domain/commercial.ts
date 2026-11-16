@@ -25,16 +25,25 @@ export const CHECKLISTS: Record<CommercialDoc, ChecklistItem[]> = {
     { id: 'qt.sent', label: 'Sent to the client' },
     { id: 'qt.accepted', label: 'Accepted by the client' },
   ],
+  Scope: [
+    { id: 'sc.scope', label: 'Client requirements and site area noted' },
+    { id: 'sc.fee', label: 'Scope of services and fee drafted' },
+    { id: 'sc.review', label: 'Internal review by the Design Director' },
+    { id: 'sc.sent', label: 'Sent to the client' },
+    { id: 'sc.accepted', label: 'Work order confirmed by the client' },
+    { id: 'sc.advance', label: 'Advance received' },
+  ],
 }
 
 /**
  * Which documents a project carries follows its services:
  * Design only → BOQ, Execution only → Quotation, Design + Execution → both.
- * An AMC-only project carries a Quotation.
+ * An AMC-only project carries a Quotation. Design also carries the Scope of
+ * Services & Fee Proposal, which comes first.
  */
 export function commercialDocs(services: Project['services']): CommercialDoc[] {
   const docs: CommercialDoc[] = []
-  if (services.design) docs.push('BOQ')
+  if (services.design) docs.push('Scope', 'BOQ')
   // An AMC is priced on a quotation too, whether alone or alongside execution.
   if (services.execution || services.amc) docs.push('Quotation')
   return docs

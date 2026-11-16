@@ -19,6 +19,7 @@ const MyTasks = lazy(() => import('./pages/tasks/Tasks').then((m) => ({ default:
 const TeamTasks = lazy(() => import('./pages/tasks/Tasks').then((m) => ({ default: m.TeamTasks })))
 const TaskBoard = lazy(() => import('./pages/tasks/Tasks').then((m) => ({ default: m.TaskBoard })))
 const DesignPhasePage = lazy(() => import('./pages/design/DesignPhasePage').then((m) => ({ default: m.DesignPhasePage })))
+const Materials = lazy(() => import('./pages/materials/Materials').then((m) => ({ default: m.Materials })))
 const ExecutionProjects = lazy(() => import('./pages/execution/ExecutionProjects').then((m) => ({ default: m.ExecutionProjects })))
 const ExecutionPhasePage = lazy(() => import('./pages/execution/ExecutionPhasePage').then((m) => ({ default: m.ExecutionPhasePage })))
 const DailyWorkReports = lazy(() => import('./pages/execution/DailyWorkReports').then((m) => ({ default: m.DailyWorkReports })))
@@ -117,9 +118,16 @@ export function App() {
           <Route path="/tasks/board" element={<TaskBoard />} />
 
           <Route path="/design/concept" element={<DesignPhasePage phase="concept" />} />
-          <Route path="/design/3d" element={<DesignPhasePage phase="threeD" />} />
-          <Route path="/design/civil" element={<DesignPhasePage phase="civilWork" />} />
-          <Route path="/design/boq" element={<DesignPhasePage phase="boq" />} />
+          <Route path="/design/presentation" element={<DesignPhasePage phase="presentation" />} />
+          <Route path="/design/detailing-1" element={<DesignPhasePage phase="detailing1" />} />
+          <Route path="/design/detailing-2" element={<DesignPhasePage phase="detailing2" />} />
+          <Route path="/design/documentation" element={<DesignPhasePage phase="documentation" />} />
+          {/* The pages of the earlier four design phases. */}
+          <Route path="/design/3d" element={<Navigate to="/design/presentation" replace />} />
+          <Route path="/design/civil" element={<Navigate to="/design/detailing-1" replace />} />
+          <Route path="/design/boq" element={<Navigate to="/design/documentation" replace />} />
+
+          <Route path="/materials" element={<Materials />} />
 
           <Route path="/execution" element={<ExecutionProjects />} />
           <Route path="/execution/hardscape" element={<ExecutionPhasePage phase="hardscape" />} />

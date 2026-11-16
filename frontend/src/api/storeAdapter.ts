@@ -3,7 +3,7 @@ import { addDays, formatCurrency, formatDate, today } from '../domain/format'
 import type {
   ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, Employee, ID,
   Lead, MaintenanceRecord, MaintenanceVisit, PayRecord, PaymentFollowUp, Project, ProjectLogEntry, ProjectMessage, Quotation, Settings, SiteVisit,
-  Task, TaskStatus, Worker, Reminder,
+  Task, TaskStatus, Worker, Reminder, Material,
 } from '../domain/types'
 import type { Api, NewProjectInput, VisitReport } from './client'
 import { workerSkills } from '../domain/workers'
@@ -12,6 +12,7 @@ import { applyScope, describePhases } from '../domain/projectScope'
 import { projectType } from '../domain/progress'
 import { holders, paymentSchedule, stepFor, withCollection, type ScheduleRow } from '../domain/workflow'
 import { CLIENT_DOCS } from '../domain/clientDocs'
+import { KIND_PREFIX } from '../domain/quotation'
 
 type WithId = { id: ID }
 
@@ -105,6 +106,7 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
     { label: 'Name', value: (p) => p.name ?? '' },
     { label: 'Code', value: (p) => p.code ?? '' },
     { label: 'Project type', value: (p) => p.category ?? '' },
+    { label: 'Positioning', value: (p) => p.positioning ?? '' },
     { label: 'Area', value: (p) => formatArea(p) },
     { label: 'Status', value: (p) => p.status ?? '' },
     { label: 'Client', value: (p) => (p.clientId ? db.clients.find((c) => c.id === p.clientId)?.name ?? '' : '') },
@@ -135,6 +137,7 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
 const CHECKLIST_ON_STATUS: Record<Quotation['kind'], Partial<Record<Quotation['status'], string[]>>> = {
   BOQ: { Sent: ['boq.shared'], Accepted: ['boq.shared', 'boq.approved'] },
   Quotation: { Sent: ['qt.sent'], Accepted: ['qt.sent', 'qt.accepted'] },
+  Scope: { Sent: ['sc.sent'], Accepted: ['sc.sent', 'sc.accepted'] },
 }
 
 /** A visit report as stored on the visit. */
@@ -182,6 +185,7 @@ export const adapter: Api = {
         code: normaliseCode(input.code) || suggestProjectCode(store.db.projects),
         name: input.name,
         category: input.category,
+        positioning: input.positioning,
         area: input.area || undefined,
         areaUnit: input.area ? input.areaUnit ?? 'sq ft' : undefined,
         clientDocs: input.clientDocs,
@@ -871,10 +875,26 @@ export const adapter: Api = {
     },
   },
 
+  materials: {
+    create(input): Material {
+      const record: Material = { ...input, id: nextId('mat') }
+      store.update((db) => {
+        db.materials.push(record)
+      })
+      return record
+    },
+    update(materialId, patch) {
+      store.update((db) => patchIn(db.materials, materialId, patch))
+    },
+    remove(materialId) {
+      store.update((db) => removeFrom(db.materials, materialId))
+    },
+  },
+
   quotations: {
     create(input): Quotation {
       const year = input.date.slice(0, 4)
-      const prefix = input.kind === 'BOQ' ? 'BOQ' : 'QT'
+      const prefix = KIND_PREFIX[input.kind]
       // One past the highest number used that year, so a deleted one is never reissued.
       const used = store.db.quotations
         .filter((q) => q.number.startsWith(`${prefix}-${year}-`))

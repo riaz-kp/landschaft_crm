@@ -16,6 +16,7 @@ import { viewPath, useCreateQuote, useQuoteAccess } from './access'
 import { AreasEditor } from './AreasEditor'
 import { PlantsSection } from './PlantsSection'
 import { NumberInput, PaymentStagesEditor, SectionCard, ServicesEditor, Switch, TitledListEditor } from './editors'
+import { ScopeEditor } from './ScopeEditor'
 
 /** Opens the document named in the URL; keyed by id so moving to another document starts afresh. */
 export function QuoteEditorPage() {
@@ -26,6 +27,7 @@ export function QuoteEditorPage() {
   if (!quote || !project) {
     return <EmptyState title="Document not found." hint="It may have been deleted." icon="doc" />
   }
+  if (quote.kind === 'Scope') return <ScopeEditor key={quote.id} initial={quote} />
   return <QuoteEditor key={quote.id} initial={quote} />
 }
 

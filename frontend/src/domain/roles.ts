@@ -85,8 +85,9 @@ export interface NavSection {
 
 /**
  * The navigation tree. The sidebar lists only these main sections; each
- * section's sub-pages appear as tabs inside it. Materials, Inventory,
- * Purchasing and Vendors were removed by the client and appear nowhere.
+ * section's sub-pages appear as tabs inside it. Inventory, Purchasing and
+ * Vendors were removed by the client and appear nowhere. Materials came back
+ * as a library of what the BOQs and quotations use.
  */
 export const NAV: NavSection[] = [
   { label: 'Dashboard', path: '/dashboard', icon: 'grid' },
@@ -138,9 +139,10 @@ export const NAV: NavSection[] = [
     icon: 'pen',
     children: [
       { label: 'Concept', path: '/design/concept' },
-      { label: '3D Presentation', path: '/design/3d' },
-      { label: 'Civil Work', path: '/design/civil' },
-      { label: 'BOQ', path: '/design/boq' },
+      { label: 'Presentation', path: '/design/presentation' },
+      { label: 'Detailing Phase 1', path: '/design/detailing-1' },
+      { label: 'Detailing Phase 2', path: '/design/detailing-2' },
+      { label: 'Documentation', path: '/design/documentation' },
     ],
   },
   {
@@ -177,6 +179,7 @@ export const NAV: NavSection[] = [
       { label: 'Payments', path: '/accounts/payments' },
     ],
   },
+  { label: 'Materials', path: '/materials', icon: 'box' },
   {
     label: 'Employees',
     path: '/employees',
@@ -234,36 +237,36 @@ const DEFAULTS: Record<Exclude<RoleKey, 'super_admin' | 'ceo' | 'foreman'>, {
   view: ModuleKey[]; manage: ModuleKey[]; remove: ModuleKey[]
 }> = {
   design_director: {
-    view: ['Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Projects', 'Tasks', 'Design', 'Gallery', 'Documents', 'Calendar', 'Reports'],
-    manage: ['Consultations', 'Site Visits', 'CRM', 'Projects', 'Tasks', 'Design', 'Documents'],
-    remove: ['Site Visits', 'Tasks', 'Design', 'Documents'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Projects', 'Tasks', 'Design', 'Materials', 'Gallery', 'Documents', 'Calendar', 'Reports'],
+    manage: ['Consultations', 'Site Visits', 'CRM', 'Projects', 'Tasks', 'Design', 'Materials', 'Documents'],
+    remove: ['Site Visits', 'Tasks', 'Design', 'Materials', 'Documents'],
   },
   design_pm: {
-    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Design', 'Gallery', 'Documents', 'Calendar'],
-    manage: ['Consultations', 'Site Visits', 'Tasks', 'Design', 'Documents'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Design', 'Materials', 'Gallery', 'Documents', 'Calendar'],
+    manage: ['Consultations', 'Site Visits', 'Tasks', 'Design', 'Materials', 'Documents'],
     remove: ['Tasks'],
   },
   design_member: {
-    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Design', 'Documents'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Design', 'Materials', 'Documents'],
     manage: ['Consultations', 'Tasks', 'Documents'],
     remove: [],
   },
   execution_head: {
-    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar', 'Reports'],
-    manage: ['Consultations', 'Site Visits', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Attendance', 'Documents'],
-    remove: ['Site Visits', 'Tasks', 'Execution', 'AMC', 'Employees', 'Attendance'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Execution', 'AMC', 'Materials', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar', 'Reports'],
+    manage: ['Consultations', 'Site Visits', 'Projects', 'Tasks', 'Execution', 'AMC', 'Materials', 'Employees', 'Attendance', 'Documents'],
+    remove: ['Site Visits', 'Tasks', 'Execution', 'AMC', 'Materials', 'Employees', 'Attendance'],
   },
   execution_pm: {
     // Attendance is part of the execution PM's remit, so they may mark and correct it.
-    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Execution', 'AMC', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar'],
-    manage: ['Consultations', 'Site Visits', 'Tasks', 'Execution', 'AMC', 'Attendance', 'Documents'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'Projects', 'Tasks', 'Execution', 'AMC', 'Materials', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar'],
+    manage: ['Consultations', 'Site Visits', 'Tasks', 'Execution', 'AMC', 'Materials', 'Attendance', 'Documents'],
     remove: ['Tasks'],
   },
   accounts: {
     // Accounts read attendance for payroll but do not mark it.
-    view: ['Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Projects', 'Accounts', 'Attendance', 'Documents', 'Reports'],
-    manage: ['Consultations', 'CRM', 'Accounts', 'Documents'],
-    remove: ['Accounts'],
+    view: ['Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Projects', 'Accounts', 'Materials', 'Attendance', 'Documents', 'Reports'],
+    manage: ['Consultations', 'CRM', 'Accounts', 'Materials', 'Documents'],
+    remove: ['Accounts', 'Materials'],
   },
   marketing: {
     view: ['Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Calendar'],

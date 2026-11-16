@@ -259,11 +259,25 @@ export async function forgetOfflineCopy(): Promise<void> {
 
 // ---------------------------------------------------------------- loading
 
+/**
+ * Tables of newer collections that this database does not have yet (their
+ * migration has not been run). They load empty and get no live updates, so
+ * the rest of the app keeps working until the migration is applied.
+ */
+const missingTables = new Set<string>()
+
+const isMissingTable = (error: { code?: string; message?: string }) =>
+  error.code === 'PGRST205' || error.code === '42P01' || /could not find the table/i.test(error.message ?? '')
+
 async function fetchAll(table: string): Promise<Row[]> {
   const rows: Row[] = []
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase()
       .from(table).select('id, data').order('created_at').order('id').range(from, from + PAGE - 1)
+    if (error && tableSpecs.get(table)?.optional && isMissingTable(error)) {
+      missingTables.add(table)
+      return []
+    }
     if (error) throw new Error(`Could not load ${table.replace(/_/g, ' ')}: ${error.message}`)
     rows.push(...(data as Row[]))
     if (data.length < PAGE) return rows
@@ -745,6 +759,7 @@ async function resync() {
 function subscribe(current: Session) {
   const channel = supabase().channel('crm-db')
   for (const spec of COLLECTIONS) {
+    if (missingTables.has(spec.table)) continue
     channel.on('postgres_changes', { event: '*', schema: 'public', table: spec.table }, (payload) => onChange(spec, payload))
   }
   channel.subscribe((state) => {

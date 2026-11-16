@@ -5,7 +5,7 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
 import { addDays, formatDate, formatDateLong, today } from '../../domain/format'
-import { PHASE_LABELS, type ID, type Task, type TaskStatus } from '../../domain/types'
+import { PHASE_LABELS, TASK_STATUS_LABELS, type ID, type Task, type TaskStatus } from '../../domain/types'
 import {
   PageHeader, Section, StatusBadge, Table, EmptyState, Badge, Avatar, RowActions, ConfirmDialog,
   SearchInput, StatTile,
@@ -186,12 +186,63 @@ const WeeklyButton = ({ onClick }: { onClick: () => void }) => (
   </button>
 )
 
+// ---------------------------------------------------------------- list / board
+
+export type TaskView = 'list' | 'board'
+
+const VIEW_KEY = 'landschaft-tasks-view'
+const VIEWS: { key: TaskView; label: string; icon: string }[] = [
+  { key: 'list', label: 'List', icon: 'list' },
+  { key: 'board', label: 'Board', icon: 'board' },
+]
+
+function storedView(): TaskView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'board' ? 'board' : 'list'
+  } catch {
+    return 'list'
+  }
+}
+
+/** The task pages' list or board choice; remembered between visits in this browser. */
+function useTaskView(): [TaskView, (v: TaskView) => void] {
+  const [view, setViewState] = useState<TaskView>(storedView)
+  const setView = (v: TaskView) => {
+    setViewState(v)
+    try { localStorage.setItem(VIEW_KEY, v) } catch { /* private mode */ }
+  }
+  return [view, setView]
+}
+
+function ViewSwitch({ view, setView }: { view: TaskView; setView: (v: TaskView) => void }) {
+  return (
+    <div className="flex shrink-0 gap-1 rounded-xl bg-stone-100 p-1" role="group" aria-label="View">
+      {VIEWS.map((v) => (
+        <button
+          key={v.key}
+          type="button"
+          onClick={() => setView(v.key)}
+          aria-pressed={view === v.key}
+          title={`${v.label} view`}
+          className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition sm:text-sm ${
+            view === v.key ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          <Icon name={v.icon} className="h-4 w-4" /> {v.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function FilterBar({
-  filters, setFilters, sort, setSort, sortKeys, showAssignee, total, shown,
+  filters, setFilters, sort, setSort, sortKeys, showAssignee, total, shown, view, setView,
 }: {
   filters: Filters; setFilters: (f: Filters) => void
   sort: Sort; setSort: (s: Sort) => void; sortKeys: SortKey[]
   showAssignee?: boolean; total: number; shown: number
+  /** Given on the pages that offer both a list and a board. */
+  view?: TaskView; setView?: (v: TaskView) => void
 }) {
   const db = useDb()
   const set = (patch: Partial<Filters>) => setFilters({ ...filters, ...patch })
@@ -215,7 +266,10 @@ function FilterBar({
             </button>
           ))}
         </div>
-        <SearchInput value={filters.query} onChange={(query) => set({ query })} placeholder="Search tasks or projects…" className="xl:w-72" />
+        <div className="flex items-center gap-2">
+          <SearchInput value={filters.query} onChange={(query) => set({ query })} placeholder="Search tasks or projects…" className="min-w-0 flex-1 xl:w-72 xl:flex-none" />
+          {view && setView && <ViewSwitch view={view} setView={setView} />}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
@@ -274,7 +328,162 @@ function FilterBar({
   )
 }
 
-// ---------------------------------------------------------------- shared list page
+// ---------------------------------------------------------------- board
+
+const COLUMN_TONE: Record<TaskStatus, string> = {
+  'To Do': 'bg-stone-400',
+  'In Progress': 'bg-amber-500',
+  Review: 'bg-clay-500',
+  Done: 'bg-brand-500',
+}
+
+/**
+ * The tasks as four columns: To begin, In progress, Awaiting approval and
+ * Completed. A card is dragged between columns with a mouse; on a phone, where
+ * dragging is not available, each card carries a "move to" picker instead.
+ */
+function Board({
+  tasks, canEdit, canCreate, onOpen, onAdd, onMove,
+}: {
+  tasks: Task[]
+  canEdit: (t: Task) => boolean
+  canCreate: boolean
+  onOpen: (t: Task) => void
+  onAdd: (status: TaskStatus) => void
+  onMove: (t: Task, status: TaskStatus) => void
+}) {
+  const db = useDb()
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [over, setOver] = useState<TaskStatus | null>(null)
+  // On a phone the board shows one column at a time instead of scrolling sideways.
+  const [column, setColumn] = useState<TaskStatus>('To Do')
+  const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? ''
+
+  return (
+    <>
+      {/* Phone: pick a column. Tablet: two by two. Desktop: all four side by side. */}
+      <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-stone-200/60 p-1 md:hidden">
+        {TASK_STATUSES.map((status) => (
+          <button
+            key={status}
+            onClick={() => setColumn(status)}
+            aria-pressed={column === status}
+            className={`flex flex-col items-center justify-between gap-0.5 rounded-lg px-1 py-1.5 text-center text-[11px] font-semibold leading-tight transition ${
+              column === status ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${COLUMN_TONE[status]}`} />
+            <span>{TASK_STATUS_LABELS[status]}</span>
+            <span className="tabular-nums text-stone-400">{tasks.filter((t) => t.status === status).length}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {TASK_STATUSES.map((status) => {
+          const cards = tasks.filter((t) => t.status === status)
+          const label = TASK_STATUS_LABELS[status]
+          return (
+            <div
+              key={status}
+              onDragOver={(e) => { e.preventDefault(); setOver(status) }}
+              onDragLeave={() => setOver((o) => (o === status ? null : o))}
+              onDrop={(e) => {
+                e.preventDefault()
+                const task = tasks.find((t) => t.id === dragging)
+                if (task) onMove(task, status)
+                setDragging(null)
+                setOver(null)
+              }}
+              className={`${column === status ? '' : 'hidden md:block'} min-w-0 rounded-2xl p-3 transition ${
+                over === status ? 'bg-brand-100/70 ring-2 ring-brand-400' : 'bg-stone-200/50'
+              }`}
+            >
+              <h2 className="mb-3 flex items-center justify-between gap-2 px-1 text-sm font-bold text-stone-700">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${COLUMN_TONE[status]}`} /> <span className="truncate">{label}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className="rounded-full bg-white px-2 py-0.5 text-xs tabular-nums text-stone-500">{cards.length}</span>
+                  {canCreate && (
+                    <button onClick={() => onAdd(status)} className="btn-icon h-6 w-6" title={`Add a task to ${label}`} aria-label={`Add a task to ${label}`}>
+                      <Icon name="plus" className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </span>
+              </h2>
+              <div className="min-h-24 space-y-2">
+                {cards.map((task) => {
+                  const assignee = db.employees.find((e) => e.id === task.assigneeId)
+                  const overdue = task.status !== 'Done' && task.dueDate < today()
+                  const editable = canEdit(task)
+                  return (
+                    <article
+                      key={task.id}
+                      draggable={editable}
+                      onDragStart={(e) => {
+                        // Firefox only starts a drag once it has been given something to carry.
+                        e.dataTransfer.setData('text/plain', task.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                        setDragging(task.id)
+                      }}
+                      onDragEnd={() => { setDragging(null); setOver(null) }}
+                      onClick={() => editable && onOpen(task)}
+                      className={`group rounded-xl border border-stone-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                        editable ? 'cursor-pointer' : ''
+                      } ${dragging === task.id ? 'opacity-40' : ''}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className={`text-sm font-medium ${task.status === 'Done' ? 'text-stone-400 line-through' : 'text-stone-900'}`}>{task.title}</p>
+                        <Badge tone={task.priority === 'High' ? 'red' : task.priority === 'Medium' ? 'amber' : 'stone'}>{task.priority}</Badge>
+                      </div>
+                      <Link
+                        to={`/projects/${task.projectId}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-1 block truncate text-xs text-stone-400 hover:text-brand-700"
+                      >
+                        {projectName(task.projectId)}{task.phase && ` · ${PHASE_LABELS[task.phase]}`}
+                      </Link>
+                      <DoneNote task={task} />
+                      <div className="mt-2.5 flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-1.5 text-xs text-stone-500">
+                          <Avatar name={assignee?.name ?? '?'} size="sm" src={assignee?.photo} />
+                          <span className="truncate">{assignee?.name.split(' ')[0] ?? 'Unassigned'}</span>
+                        </span>
+                        <span className={`flex shrink-0 items-center gap-1 text-xs tabular-nums ${overdue ? 'font-semibold text-red-600' : task.dueDate === today() ? 'font-semibold text-amber-700' : 'text-stone-500'}`}>
+                          <Icon name="clock" className="h-3.5 w-3.5" />
+                          {task.dueDate === today() ? 'Today' : formatDate(task.dueDate).slice(0, 5)}
+                        </span>
+                      </div>
+                      {editable && (
+                        <select
+                          value={task.status}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => onMove(task, e.target.value as TaskStatus)}
+                          className="input mt-2.5 py-1 text-xs md:hidden"
+                          aria-label={`Move ${task.title} to`}
+                        >
+                          {TASK_STATUSES.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}
+                        </select>
+                      )}
+                    </article>
+                  )
+                })}
+                {cards.length === 0 && (
+                  <p className="rounded-xl border-2 border-dashed border-stone-300/70 px-1 py-6 text-center text-xs text-stone-400">
+                    {dragging ? 'Drop here' : 'Nothing here'}
+                  </p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------- shared task page
 
 /** Opens the task named in `?open=` (the header search links here). */
 function useOpenFromUrl(setEditing: (t: Task) => void) {
@@ -290,18 +499,25 @@ function useOpenFromUrl(setEditing: (t: Task) => void) {
 }
 
 function TaskList({
-  title, subtitle, scope, showAssignee, people,
+  title, subtitle, scope, showAssignee, people, reportLabel = title, boardOnly,
 }: {
   title: string; subtitle: string; scope: (t: Task) => boolean; showAssignee?: boolean
   /** Whose tasks the page shows, for the weekly report's hand-overs; unset means everyone. */
   people?: ID[]
+  /** What the weekly report calls this set of tasks; the page title unless given. */
+  reportLabel?: string
+  /** The Task Board page: always the board, with no list to switch to. */
+  boardOnly?: boolean
 }) {
   const db = useDb()
   const { user } = useSession()
   const { can } = usePermissions()
   const [filters, setFilters] = useState<Filters>(EMPTY)
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
-  const [editing, setEditing] = useState<Task | 'new' | null>(null)
+  const [chosenView, setView] = useTaskView()
+  const view: TaskView = boardOnly ? 'board' : chosenView
+  // A task being edited, or the column a new one was started from.
+  const [editing, setEditing] = useState<Task | { status: TaskStatus } | null>(null)
   const [deleting, setDeleting] = useState<Task | null>(null)
   const [finishing, setFinishing] = useState<Task | null>(null)
   const [reassigning, setReassigning] = useState<Task | null>(null)
@@ -311,9 +527,13 @@ function TaskList({
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? ''
   const personName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? ''
   const scoped = db.tasks.filter(scope)
-  const tasks = sortTasks(applyFilters(scoped, filters, projectName), sort, { project: projectName, person: personName })
-  const sortKeys: SortKey[] = ['due', 'priority', 'project', 'title', 'status', ...(showAssignee ? ['assignee' as const] : [])]
-  const th = (label: string, k: SortKey) => <SortHeader label={label} k={k} sort={sort} setSort={setSort} />
+  // The board's columns are the statuses, so sorting by status does nothing there.
+  const sortKeys: SortKey[] = [
+    'due', 'priority', 'project', 'title', ...(view === 'list' ? ['status' as const] : []), ...(showAssignee ? ['assignee' as const] : []),
+  ]
+  const activeSort = sortKeys.includes(sort.key) ? sort : DEFAULT_SORT
+  const tasks = sortTasks(applyFilters(scoped, filters, projectName), activeSort, { project: projectName, person: personName })
+  const th = (label: string, k: SortKey) => <SortHeader label={label} k={k} sort={activeSort} setSort={setSort} />
 
   const open = scoped.filter((t) => t.status !== 'Done')
   const overdue = open.filter((t) => t.dueDate < today())
@@ -322,6 +542,12 @@ function TaskList({
   const thisWeek = open.filter((t) => t.dueDate >= ws && t.dueDate <= we)
 
   const canEdit = (t: Task) => can('Tasks', 'edit') || t.assigneeId === user.id
+  /** Completing a task asks for its done note first. */
+  const move = (task: Task, status: TaskStatus) => {
+    if (status === task.status) return
+    if (status === 'Done') setFinishing(task)
+    else api.tasks.setStatus(task.id, status, user.id)
+  }
 
   return (
     <div>
@@ -331,108 +557,117 @@ function TaskList({
         actions={<>
           <WeeklyButton onClick={() => setWeekly(true)} />
           {can('Tasks', 'create') && (
-            <button onClick={() => setEditing('new')} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New task</button>
+            <button onClick={() => setEditing({ status: 'To Do' })} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New task</button>
           )}
         </>}
       />
 
-      <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile label="Open" value={open.length} icon="check" />
-        <StatTile label="Due Today" value={dueToday.length} tone={dueToday.length ? 'amber' : 'stone'} icon="clock" />
-        <StatTile label="Due This Week" value={thisWeek.length} tone="blue" icon="calendar" />
-        <StatTile label="Overdue" value={overdue.length} tone={overdue.length ? 'red' : 'green'} icon="alert" />
-      </div>
+      {!boardOnly && (
+        <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <StatTile label="Open" value={open.length} icon="check" />
+          <StatTile label="Due Today" value={dueToday.length} tone={dueToday.length ? 'amber' : 'stone'} icon="clock" />
+          <StatTile label="Due This Week" value={thisWeek.length} tone="blue" icon="calendar" />
+          <StatTile label="Overdue" value={overdue.length} tone={overdue.length ? 'red' : 'green'} icon="alert" />
+        </div>
+      )}
 
       <FilterBar
-        filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} sortKeys={sortKeys}
+        filters={filters} setFilters={setFilters} sort={activeSort} setSort={setSort} sortKeys={sortKeys}
         showAssignee={showAssignee} total={scoped.length} shown={tasks.length}
+        view={boardOnly ? undefined : view} setView={boardOnly ? undefined : setView}
       />
 
-      <Section>
-        {tasks.length === 0 ? (
-          <EmptyState title="No tasks match these filters." icon="check" />
-        ) : (
-          <Table
-            head={[
-              th('Task', 'title'), th('Project', 'project'), ...(showAssignee ? [th('Assignee', 'assignee')] : []),
-              th('Due', 'due'), th('Priority', 'priority'), th('Status', 'status'), '',
-            ]}
-          >
-            {tasks.map((task) => {
-              const overdueTask = task.status !== 'Done' && task.dueDate < today()
-              const assignee = db.employees.find((e) => e.id === task.assigneeId)
-              return (
-                <tr key={task.id} className="row-hover">
-                  <td className="td">
-                    <button onClick={() => canEdit(task) && setEditing(task)} className="text-left">
-                      <span className={`font-medium ${task.status === 'Done' ? 'text-stone-400 line-through' : 'text-stone-900'} hover:text-brand-700`}>{task.title}</span>
-                    </button>
-                    <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-stone-400">
-                      {task.phase && <span>{PHASE_LABELS[task.phase]}</span>}
-                      {task.fromReportId && <span>from daily report</span>}
-                    </span>
-                    <DoneNote task={task} />
-                  </td>
-                  <td className="td">
-                    <Link to={`/projects/${task.projectId}`} className="hover:text-brand-700">{projectName(task.projectId) || '—'}</Link>
-                  </td>
-                  {showAssignee && (
+      {view === 'board' ? (
+        <Board
+          tasks={tasks}
+          canEdit={canEdit}
+          canCreate={can('Tasks', 'create')}
+          onOpen={setEditing}
+          onAdd={(status) => setEditing({ status })}
+          onMove={move}
+        />
+      ) : (
+        <Section>
+          {tasks.length === 0 ? (
+            <EmptyState title="No tasks match these filters." icon="check" />
+          ) : (
+            <Table
+              head={[
+                th('Task', 'title'), th('Project', 'project'), ...(showAssignee ? [th('Assignee', 'assignee')] : []),
+                th('Due', 'due'), th('Priority', 'priority'), th('Status', 'status'), '',
+              ]}
+            >
+              {tasks.map((task) => {
+                const overdueTask = task.status !== 'Done' && task.dueDate < today()
+                const assignee = db.employees.find((e) => e.id === task.assigneeId)
+                return (
+                  <tr key={task.id} className="row-hover">
                     <td className="td">
-                      <span className="flex items-center gap-2 whitespace-nowrap">
-                        <Avatar name={assignee?.name ?? '?'} size="sm" src={assignee?.photo} />
-                        {assignee?.name ?? <span className="text-stone-400">Unassigned</span>}
+                      <button onClick={() => canEdit(task) && setEditing(task)} className="text-left">
+                        <span className={`font-medium ${task.status === 'Done' ? 'text-stone-400 line-through' : 'text-stone-900'} hover:text-brand-700`}>{task.title}</span>
+                      </button>
+                      <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-stone-400">
+                        {task.phase && <span>{PHASE_LABELS[task.phase]}</span>}
+                        {task.fromReportId && <span>from daily report</span>}
                       </span>
+                      <DoneNote task={task} />
                     </td>
-                  )}
-                  <td className="td whitespace-nowrap tabular-nums">
-                    <span className={overdueTask ? 'font-semibold text-red-700' : task.dueDate === today() ? 'font-semibold text-amber-700' : ''}>
-                      {task.dueDate === today() ? 'Today' : formatDate(task.dueDate)}
-                    </span>
-                    {overdueTask && <span className="ml-1.5"><Badge tone="red">Overdue</Badge></span>}
-                  </td>
-                  <td className="td">
-                    <Badge tone={task.priority === 'High' ? 'red' : task.priority === 'Medium' ? 'amber' : 'stone'}>{task.priority}</Badge>
-                  </td>
-                  <td className="td">
-                    <select
-                      value={task.status}
-                      disabled={!canEdit(task)}
-                      onChange={(e) => {
-                        const status = e.target.value as TaskStatus
-                        // Finishing a task asks for its done note first.
-                        if (status === 'Done') setFinishing(task)
-                        else api.tasks.setStatus(task.id, status, user.id)
-                      }}
-                      className="input w-32 py-1 text-xs"
-                      aria-label={`Status for ${task.title}`}
-                    >
-                      {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </td>
-                  <td className="td">
-                    <RowActions
-                      extra={canEdit(task) && task.status !== 'Done' && (
-                        <button type="button" onClick={() => setReassigning(task)} className="btn-icon" title="Reassign" aria-label={`Reassign ${task.title}`}>
-                          <Icon name="repeat" className="h-4 w-4" />
-                        </button>
-                      )}
-                      onEdit={canEdit(task) ? () => setEditing(task) : undefined}
-                      onDelete={can('Tasks', 'delete') ? () => setDeleting(task) : undefined}
-                    />
-                  </td>
-                </tr>
-              )
-            })}
-          </Table>
-        )}
-      </Section>
+                    <td className="td">
+                      <Link to={`/projects/${task.projectId}`} className="hover:text-brand-700">{projectName(task.projectId) || '—'}</Link>
+                    </td>
+                    {showAssignee && (
+                      <td className="td">
+                        <span className="flex items-center gap-2 whitespace-nowrap">
+                          <Avatar name={assignee?.name ?? '?'} size="sm" src={assignee?.photo} />
+                          {assignee?.name ?? <span className="text-stone-400">Unassigned</span>}
+                        </span>
+                      </td>
+                    )}
+                    <td className="td whitespace-nowrap tabular-nums">
+                      <span className={overdueTask ? 'font-semibold text-red-700' : task.dueDate === today() ? 'font-semibold text-amber-700' : ''}>
+                        {task.dueDate === today() ? 'Today' : formatDate(task.dueDate)}
+                      </span>
+                      {overdueTask && <span className="ml-1.5"><Badge tone="red">Overdue</Badge></span>}
+                    </td>
+                    <td className="td">
+                      <Badge tone={task.priority === 'High' ? 'red' : task.priority === 'Medium' ? 'amber' : 'stone'}>{task.priority}</Badge>
+                    </td>
+                    <td className="td">
+                      <select
+                        value={task.status}
+                        disabled={!canEdit(task)}
+                        onChange={(e) => move(task, e.target.value as TaskStatus)}
+                        className="input w-40 py-1 text-xs"
+                        aria-label={`Status for ${task.title}`}
+                      >
+                        {TASK_STATUSES.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}
+                      </select>
+                    </td>
+                    <td className="td">
+                      <RowActions
+                        extra={canEdit(task) && task.status !== 'Done' && (
+                          <button type="button" onClick={() => setReassigning(task)} className="btn-icon" title="Reassign" aria-label={`Reassign ${task.title}`}>
+                            <Icon name="repeat" className="h-4 w-4" />
+                          </button>
+                        )}
+                        onEdit={canEdit(task) ? () => setEditing(task) : undefined}
+                        onDelete={can('Tasks', 'delete') ? () => setDeleting(task) : undefined}
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
+            </Table>
+          )}
+        </Section>
+      )}
 
       {editing && (
         <TaskFormModal
-          task={editing === 'new' ? undefined : editing}
-          defaults={{ assigneeId: showAssignee ? undefined : user.id }}
+          task={'id' in editing ? editing : undefined}
+          defaults={'id' in editing ? undefined : { status: editing.status, assigneeId: showAssignee ? undefined : user.id }}
           onClose={() => setEditing(null)}
-          onDelete={editing !== 'new' && can('Tasks', 'delete') ? () => { setDeleting(editing); setEditing(null) } : undefined}
+          onDelete={'id' in editing && can('Tasks', 'delete') ? () => { setDeleting(editing); setEditing(null) } : undefined}
         />
       )}
       {deleting && (
@@ -447,7 +682,7 @@ function TaskList({
       {reassigning && <TaskReassignModal task={reassigning} onClose={() => setReassigning(null)} />}
       {weekly && (
         <WeeklyTaskReportModal
-          scope={reportScope(scoped, filters, title, { project: projectName, person: personName }, people)}
+          scope={reportScope(scoped, filters, reportLabel, { project: projectName, person: personName }, people)}
           onClose={() => setWeekly(false)}
         />
       )}
@@ -497,180 +732,16 @@ export function AllTasks() {
   )
 }
 
-// ---------------------------------------------------------------- board
-
-const COLUMN_TONE: Record<TaskStatus, string> = {
-  'To Do': 'bg-stone-400',
-  'In Progress': 'bg-amber-500',
-  Review: 'bg-clay-500',
-  Done: 'bg-brand-500',
-}
-
 export function TaskBoard() {
-  const db = useDb()
-  const { user } = useSession()
-  const { can } = usePermissions()
-  const [filters, setFilters] = useState<Filters>(EMPTY)
-  const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
-  const [editing, setEditing] = useState<Task | { status: TaskStatus } | null>(null)
-  const [deleting, setDeleting] = useState<Task | null>(null)
-  const [finishing, setFinishing] = useState<Task | null>(null)
-  const [weekly, setWeekly] = useState(false)
-  const [dragging, setDragging] = useState<string | null>(null)
-  const [over, setOver] = useState<TaskStatus | null>(null)
-  // On a phone the board shows one column at a time instead of scrolling sideways.
-  const [column, setColumn] = useState<TaskStatus>('To Do')
-
-  const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? ''
-  const personName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? ''
-  const tasks = sortTasks(applyFilters(db.tasks, filters, projectName), sort, { project: projectName, person: personName })
-  const canEdit = (t: Task) => can('Tasks', 'edit') || t.assigneeId === user.id
-
   return (
-    <div>
-      <PageHeader
-        title="Task Board"
-        subtitle="Every task by stage. Drag a card to move it; click it to edit. Dropping a card on Done asks for its done note."
-        actions={<>
-          <WeeklyButton onClick={() => setWeekly(true)} />
-          {can('Tasks', 'create') && (
-            <button onClick={() => setEditing({ status: 'To Do' })} className="btn-primary"><Icon name="plus" className="h-4 w-4" /> New task</button>
-          )}
-        </>}
-      />
-
-      <FilterBar
-        filters={filters} setFilters={setFilters} sort={sort} setSort={setSort}
-        sortKeys={['due', 'priority', 'project', 'title', 'assignee']}
-        showAssignee total={db.tasks.length} shown={tasks.length}
-      />
-
-      {/* Phone: pick a column. Tablet: two by two. Desktop: all four side by side. */}
-      <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-stone-200/60 p-1 md:hidden">
-        {TASK_STATUSES.map((status) => (
-          <button
-            key={status}
-            onClick={() => setColumn(status)}
-            className={`flex flex-col items-center rounded-lg px-1 py-1.5 text-[11px] font-semibold leading-tight transition ${
-              column === status ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'
-            }`}
-          >
-            <span className="flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${COLUMN_TONE[status]}`} />{status}</span>
-            <span className="tabular-nums text-stone-400">{tasks.filter((t) => t.status === status).length}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {TASK_STATUSES.map((status) => {
-          const cards = tasks.filter((t) => t.status === status)
-          return (
-            <div
-              key={status}
-              onDragOver={(e) => { e.preventDefault(); setOver(status) }}
-              onDragLeave={() => setOver((o) => (o === status ? null : o))}
-              onDrop={(e) => {
-                e.preventDefault()
-                const task = db.tasks.find((t) => t.id === dragging)
-                if (task && task.status !== status) {
-                  if (status === 'Done') setFinishing(task)
-                  else api.tasks.setStatus(task.id, status, user.id)
-                }
-                setDragging(null)
-                setOver(null)
-              }}
-              className={`${column === status ? '' : 'hidden md:block'} min-w-0 rounded-2xl p-3 transition ${
-                over === status ? 'bg-brand-100/70 ring-2 ring-brand-400' : 'bg-stone-200/50'
-              }`}
-            >
-              <h2 className="mb-3 flex items-center justify-between px-1 text-sm font-bold text-stone-700">
-                <span className="flex items-center gap-2">
-                  <span className={`h-2.5 w-2.5 rounded-full ${COLUMN_TONE[status]}`} /> {status}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="rounded-full bg-white px-2 py-0.5 text-xs tabular-nums text-stone-500">{cards.length}</span>
-                  {can('Tasks', 'create') && (
-                    <button onClick={() => setEditing({ status })} className="btn-icon h-6 w-6" aria-label={`Add task to ${status}`}>
-                      <Icon name="plus" className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </span>
-              </h2>
-              <div className="min-h-24 space-y-2">
-                {cards.map((task) => {
-                  const assignee = db.employees.find((e) => e.id === task.assigneeId)
-                  const overdue = task.status !== 'Done' && task.dueDate < today()
-                  return (
-                    <article
-                      key={task.id}
-                      draggable={canEdit(task)}
-                      onDragStart={() => setDragging(task.id)}
-                      onDragEnd={() => { setDragging(null); setOver(null) }}
-                      onClick={() => canEdit(task) && setEditing(task)}
-                      className={`group cursor-pointer rounded-xl border border-stone-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                        dragging === task.id ? 'opacity-40' : ''
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className={`text-sm font-medium ${task.status === 'Done' ? 'text-stone-400 line-through' : 'text-stone-900'}`}>{task.title}</p>
-                        <Badge tone={task.priority === 'High' ? 'red' : task.priority === 'Medium' ? 'amber' : 'stone'}>{task.priority}</Badge>
-                      </div>
-                      <Link
-                        to={`/projects/${task.projectId}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="mt-1 block truncate text-xs text-stone-400 hover:text-brand-700"
-                      >
-                        {projectName(task.projectId)}{task.phase && ` · ${PHASE_LABELS[task.phase]}`}
-                      </Link>
-                      <DoneNote task={task} />
-                      <div className="mt-2.5 flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-1.5 text-xs text-stone-500">
-                          <Avatar name={assignee?.name ?? '?'} size="sm" src={assignee?.photo} />
-                          <span className="truncate">{assignee?.name.split(' ')[0]}</span>
-                        </span>
-                        <span className={`flex items-center gap-1 text-xs tabular-nums ${overdue ? 'font-semibold text-red-600' : task.dueDate === today() ? 'font-semibold text-amber-700' : 'text-stone-500'}`}>
-                          <Icon name="clock" className="h-3.5 w-3.5" />
-                          {task.dueDate === today() ? 'Today' : formatDate(task.dueDate).slice(0, 5)}
-                        </span>
-                      </div>
-                    </article>
-                  )
-                })}
-                {cards.length === 0 && (
-                  <p className="rounded-xl border-2 border-dashed border-stone-300/70 px-1 py-6 text-center text-xs text-stone-400">
-                    {dragging ? 'Drop here' : 'Nothing here'}
-                  </p>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {editing && (
-        <TaskFormModal
-          task={'id' in editing ? editing : undefined}
-          defaults={'id' in editing ? undefined : { status: editing.status }}
-          onClose={() => setEditing(null)}
-          onDelete={'id' in editing && can('Tasks', 'delete') ? () => { setDeleting(editing); setEditing(null) } : undefined}
-        />
-      )}
-      {deleting && (
-        <ConfirmDialog
-          title="Delete this task?"
-          message={<>“{deleting.title}” will be removed from {projectName(deleting.projectId) || 'its project'}.</>}
-          onClose={() => setDeleting(null)}
-          onConfirm={() => api.tasks.remove(deleting.id, user.id)}
-        />
-      )}
-      {finishing && <TaskDoneModal task={finishing} onClose={() => setFinishing(null)} />}
-      {weekly && (
-        <WeeklyTaskReportModal
-          scope={reportScope(db.tasks, filters, 'All tasks', { project: projectName, person: personName })}
-          onClose={() => setWeekly(false)}
-        />
-      )}
-    </div>
+    <TaskList
+      title="Task Board"
+      subtitle="Every task by stage. Drag a card to move it; click it to edit. Dropping a card on Completed asks for its done note."
+      scope={() => true}
+      showAssignee
+      reportLabel="All tasks"
+      boardOnly
+    />
   )
 }
 

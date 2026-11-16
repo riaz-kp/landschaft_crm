@@ -95,8 +95,9 @@ const STATUS_TONES: Record<string, Tone> = {
   Present: 'green', 'Half Day': 'amber', Leave: 'blue', Absent: 'red',
 }
 
-export function StatusBadge({ status }: { status: string }) {
-  return <Badge tone={STATUS_TONES[status] ?? 'stone'}>{status}</Badge>
+/** `label` replaces the text when a status is shown under another name, as task statuses are. */
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
+  return <Badge tone={STATUS_TONES[status] ?? 'stone'}>{label ?? status}</Badge>
 }
 
 // ---------------------------------------------------------------- stats

@@ -50,7 +50,7 @@ export function DesignDashboard() {
     <div>
       <PageHeader
         title={`Good day, ${user.name}`}
-        subtitle="Design Dashboard — concept through to BOQ."
+        subtitle="Design Dashboard — concept through to documentation."
         actions={<PeriodSwitch />}
       />
 
@@ -58,7 +58,7 @@ export function DesignDashboard() {
         <StatTile label="Design Projects" value={pad2(mine.length)} to="/projects/design" />
         <StatTile label="My Open Tasks" value={pad2(myTasks.length)} to="/tasks/mine" />
         <StatTile
-          label="In Review" value={pad2(inReview.length)}
+          label="Awaiting Approval" value={pad2(inReview.length)}
           tone={inReview.length ? 'amber' : 'green'} to="/tasks/board"
         />
         <StatTile
