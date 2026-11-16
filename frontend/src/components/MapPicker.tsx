@@ -92,7 +92,18 @@ export function MapPicker({
 
   useEffect(() => {
     if (!el.current || map.current) return
-    const m = L.map(el.current, { scrollWheelZoom: editable, zoomControl: true, attributionControl: true })
+    // The wheel never zooms: scrolling the page past a map must keep scrolling the page.
+    // A read-only map is a still picture — tapping it opens Google Maps instead.
+    const m = L.map(el.current, {
+      scrollWheelZoom: false,
+      zoomControl: editable,
+      attributionControl: true,
+      dragging: editable,
+      touchZoom: editable,
+      doubleClickZoom: editable,
+      boxZoom: editable,
+      keyboard: editable,
+    })
       .setView(value ?? KERALA, value ? 15 : 7)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -186,11 +197,24 @@ export function MapPicker({
           )}
         </div>
       )}
-      <div ref={el} style={{ height }} className="w-full overflow-hidden rounded-xl border border-stone-200 bg-stone-100" />
+      <div className="relative isolate">
+        <div ref={el} style={{ height }} className="w-full overflow-hidden rounded-xl border border-stone-200 bg-stone-100" />
+        {!editable && value && (
+          <a
+            href={mapsUrl(value)} target="_blank" rel="noreferrer"
+            className="group absolute inset-0 z-[400] flex items-start justify-end rounded-xl p-2"
+            aria-label="Open in Google Maps"
+          >
+            <span className="inline-flex items-center gap-1 rounded-lg bg-white/95 px-2 py-1 text-xs font-semibold text-stone-700 shadow-sm ring-1 ring-stone-200 group-hover:text-brand-700">
+              <Icon name="map" className="h-3.5 w-3.5" /> Open in Google Maps
+            </span>
+          </a>
+        )}
+      </div>
       {message && <p className="text-xs font-medium text-amber-700">{message}</p>}
       {editable && (
         <p className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
-          <span>Click the map or drag the pin to the exact site.</span>
+          <span>Tap the map or drag the pin to the exact site. Zoom with + and −.</span>
           {value && <span className="tabular-nums">{value.lat.toFixed(5)}, {value.lng.toFixed(5)}</span>}
         </p>
       )}

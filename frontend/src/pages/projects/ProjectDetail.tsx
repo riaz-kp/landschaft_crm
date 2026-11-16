@@ -6,7 +6,7 @@ import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
 import { commercialDocs } from '../../domain/commercial'
 import { CommercialTab } from '../quotations/CommercialTab'
-import { MapPicker, mapsUrl } from '../../components/MapPicker'
+import { MapPicker } from '../../components/MapPicker'
 import { PhotoGallery } from '../gallery/Gallery'
 import { AmcContractCard } from '../amc/AmcContractCard'
 import { AmcContractModal } from '../amc/AmcContractForm'
@@ -19,7 +19,7 @@ import { MEP_LABELS, MEP_SERVICES, PHASE_LABELS, TASK_STATUS_LABELS, type PhaseK
 import { clientDocProgress } from '../../domain/clientDocs'
 import { formatArea } from '../../domain/projectInfo'
 import {
-  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, ProgressBar, Tabs, RowActions,
+  PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, Badge, ProgressBar, Tabs, RowActions, Pills, Modal,
 } from '../../components/ui'
 import { ProjectEditModal } from './ProjectEditModal'
 import { PositioningBadge } from './ProjectScope'
@@ -35,7 +35,7 @@ import { PeoplePicker } from '../../components/PeoplePicker'
 import { PaymentSchedule, WorkflowTab } from './WorkflowTab'
 import { nextStep, workflowFor } from '../../domain/workflow'
 
-type Tab = 'overview' | 'workflow' | 'remarks' | 'phases' | 'tasks' | 'documents' | 'brief' | 'reports' | 'photos' | 'commercial' | 'accounts' | 'maintenance' | 'history'
+type Tab = 'overview' | 'workflow' | 'remarks' | 'phases' | 'tasks' | 'documents' | 'brief' | 'reports' | 'commercial' | 'accounts' | 'maintenance' | 'history'
 
 export function ProjectDetail() {
   const { projectId = '' } = useParams()
@@ -47,12 +47,16 @@ export function ProjectDetail() {
   // A bell notice opens a tab directly (/projects/p1?tab=tasks), also when this project is already open.
   const [searchParams] = useSearchParams()
   const location = useLocation()
-  const linkedTab = searchParams.get('tab') as Tab | null
+  // Site Photos live inside Daily Reports; an old ?tab=photos link still lands on them.
+  const rawTab = searchParams.get('tab')
+  const linkedTab = (rawTab === 'photos' ? 'reports' : rawTab) as Tab | null
   const [tab, setTab] = useState<Tab>(linkedTab ?? 'overview')
+  const [reportView, setReportView] = useState<'reports' | 'photos'>(rawTab === 'photos' ? 'photos' : 'reports')
   const [arrival, setArrival] = useState(location.key)
   if (arrival !== location.key) {
     setArrival(location.key)
     if (linkedTab) setTab(linkedTab)
+    if (rawTab === 'photos') setReportView('photos')
   }
   const [editingDetails, setEditingDetails] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | 'new' | null>(null)
@@ -107,7 +111,6 @@ export function ProjectDetail() {
     ...(project.services.execution
       ? [
           { key: 'reports' as Tab, label: 'Daily Reports', count: reports.length },
-          { key: 'photos' as Tab, label: 'Site Photos', count: photoCount },
         ]
       : []),
     { key: 'commercial', label: docs.join(' & '), count: db.quotations.filter((q) => q.projectId === project.id).length },
@@ -246,6 +249,30 @@ export function ProjectDetail() {
                 <ProjectProgressPanel project={project} />
               </div>
             </Section>
+            <Section
+              title="Site on the Map"
+              actions={editable && (
+                <button onClick={() => setPinning(true)} className="text-xs font-semibold text-brand-700">
+                  {project.siteCoords ? 'Move pin' : 'Pin the site'}
+                </button>
+              )}
+            >
+              <div className="p-4">
+                {project.siteCoords ? (
+                  <MapPicker key={`${project.siteCoords.lat},${project.siteCoords.lng}`} value={project.siteCoords} height={170} />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-stone-300 px-4 py-6 text-center">
+                    <Icon name="map" className="h-6 w-6 text-stone-300" />
+                    <p className="text-sm text-stone-500">Not pinned on the map yet.</p>
+                    {editable && (
+                      <button onClick={() => setPinning(true)} className="btn-secondary py-1.5 text-xs">
+                        <Icon name="pin" className="h-3.5 w-3.5" /> Pin the site
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Section>
           </div>
 
           {project.services.execution && (
@@ -275,46 +302,10 @@ export function ProjectDetail() {
             </Section>
           )}
 
-          <Section
-            title="Site on the Map"
-            description={<SiteName name={project.siteLocation} />}
-            className="lg:col-span-3"
-            actions={
-              <div className="flex flex-wrap gap-2">
-                {project.siteCoords && (
-                  <a href={mapsUrl(project.siteCoords)} target="_blank" rel="noreferrer" className="btn-secondary py-1.5">
-                    <Icon name="map" className="h-4 w-4" /> Open in Google Maps
-                  </a>
-                )}
-                {editable && !pinning && (
-                  <button onClick={() => setPinning(true)} className="btn-secondary py-1.5">
-                    <Icon name="pin" className="h-4 w-4" /> {project.siteCoords ? 'Move pin' : 'Pin the site'}
-                  </button>
-                )}
-                {pinning && <button onClick={() => setPinning(false)} className="btn-primary py-1.5">Done</button>}
-              </div>
-            }
-          >
-            <div className="p-4">
-              {project.siteCoords || pinning ? (
-                <MapPicker
-                  key={pinning ? 'edit' : 'view'}
-                  value={project.siteCoords}
-                  onChange={pinning ? (siteCoords) => api.projects.update(project.id, { siteCoords }) : undefined}
-                  initialQuery={project.siteLocation}
-                  height={300}
-                />
-              ) : (
-                <EmptyState title="The site has not been pinned on the map yet." hint={editable ? 'Use “Pin the site” to drop a pin.' : undefined} icon="map" />
-              )}
-            </div>
-          </Section>
         </div>
       )}
 
       {tab === 'workflow' && <WorkflowTab project={project} />}
-
-      {tab === 'photos' && <PhotoGallery projectId={project.id} />}
 
       {tab === 'remarks' && <ProjectChat projectId={project.id} />}
 
@@ -421,6 +412,21 @@ export function ProjectDetail() {
       {tab === 'history' && <ProjectHistory projectId={project.id} />}
 
       {tab === 'reports' && (
+        <div className="mb-4">
+          <Pills
+            options={[
+              { key: 'reports' as const, label: 'Reports', count: reports.length },
+              { key: 'photos' as const, label: 'Site Photos', count: photoCount },
+            ]}
+            active={reportView}
+            onChange={setReportView}
+          />
+        </div>
+      )}
+
+      {tab === 'reports' && reportView === 'photos' && <PhotoGallery projectId={project.id} />}
+
+      {tab === 'reports' && reportView === 'reports' && (
         <Section title="Daily Work Reports">
           {reports.length === 0 ? (
             <EmptyState title="No daily reports filed on this site yet." />
@@ -520,6 +526,21 @@ export function ProjectDetail() {
         </div>
       )}
 
+      {pinning && (
+        <Modal
+          title="Pin the site on the map"
+          size="lg"
+          onClose={() => setPinning(false)}
+          footer={<button onClick={() => setPinning(false)} className="btn-primary">Done</button>}
+        >
+          <MapPicker
+            value={project.siteCoords}
+            onChange={(siteCoords) => api.projects.update(project.id, { siteCoords })}
+            initialQuery={project.siteLocation}
+            height={340}
+          />
+        </Modal>
+      )}
       {editingDetails && <ProjectEditModal project={project} onClose={() => setEditingDetails(false)} />}
       {editingTask && (
         <TaskFormModal

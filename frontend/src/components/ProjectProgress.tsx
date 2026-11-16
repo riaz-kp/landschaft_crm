@@ -170,10 +170,10 @@ export function PhaseStrip({ project }: { project: Project }) {
   ]
 
   return (
-    <div className="scroll-x -mx-1 px-1 pb-2">
-      <div className="flex gap-3">
+    // An even grid that wraps, so every phase is on screen without scrolling sideways.
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2 sm:gap-3">
         {phases.map((p) => (
-          <div key={p.key} className="w-36 shrink-0 rounded-lg border border-stone-200 bg-stone-50 p-3">
+          <div key={p.key} className="min-w-0 rounded-lg border border-stone-200 bg-stone-50 p-3">
             <p className="truncate text-xs font-medium text-stone-600" title={p.label}>{p.label}</p>
             <p className={`mt-1 text-xl font-bold tabular-nums ${p.counted ? 'text-stone-900' : 'text-stone-400'}`}>
               {p.progress}%
@@ -183,7 +183,6 @@ export function PhaseStrip({ project }: { project: Project }) {
             </div>
           </div>
         ))}
-      </div>
     </div>
   )
 }

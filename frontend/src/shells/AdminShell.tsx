@@ -69,6 +69,8 @@ export function AdminShell() {
   const tab = current && activeChild(current, pathname)
   // The same section with only the tabs this role may open.
   const visible = sections.find((s) => s.label === current?.label)
+  // The tabs belong to the list pages; an opened record (a project, a client…) has its own.
+  const onListPage = Boolean(visible?.children?.some((c) => c.path === pathname))
 
   // Close the drawer and return to the top whenever the page changes.
   useEffect(() => {
@@ -189,7 +191,7 @@ export function AdminShell() {
 
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-[1440px] animate-fade-in" key={current?.label}>
-            {allowed && visible?.children && visible.children.length > 1 && <SectionTabs section={visible} pathname={pathname} />}
+            {allowed && onListPage && visible!.children!.length > 1 && <SectionTabs section={visible} pathname={pathname} />}
             {allowed ? <Suspense fallback={<PageLoading />}><Outlet /></Suspense> : <NoAccess />}
           </div>
         </main>
