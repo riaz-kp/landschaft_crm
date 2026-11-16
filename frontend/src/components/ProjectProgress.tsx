@@ -157,36 +157,6 @@ export function ProjectProgressPanel({ project }: { project: Project }) {
   )
 }
 
-/**
- * The scrollable phase strip the client asked to keep — every phase side by
- * side, scrolling horizontally when a project carries many of them.
- */
-export function PhaseStrip({ project }: { project: Project }) {
-  const progress = computeProgress(project)
-  const phases = [
-    ...(progress.design?.phases ?? []),
-    ...(progress.execution?.phases ?? []),
-    ...(progress.amc ? [{ key: 'amc', label: 'AMC term', progress: progress.amc.overall, counted: !progress.design && !progress.execution }] : []),
-  ]
-
-  return (
-    // An even grid that wraps, so every phase is on screen without scrolling sideways.
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2 sm:gap-3">
-        {phases.map((p) => (
-          <div key={p.key} className="min-w-0 rounded-lg border border-stone-200 bg-stone-50 p-3">
-            <p className="truncate text-xs font-medium text-stone-600" title={p.label}>{p.label}</p>
-            <p className={`mt-1 text-xl font-bold tabular-nums ${p.counted ? 'text-stone-900' : 'text-stone-400'}`}>
-              {p.progress}%
-            </p>
-            <div className="mt-2">
-              <ProgressBar value={p.progress} tone={p.counted ? toneFor(p.progress) : 'stone'} size="sm" />
-            </div>
-          </div>
-        ))}
-    </div>
-  )
-}
-
 /** Compact two-bar summary used in project lists. */
 export function ProgressSummary({ project }: { project: Project }) {
   const progress = computeProgress(project)
