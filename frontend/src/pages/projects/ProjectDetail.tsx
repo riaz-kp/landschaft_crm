@@ -28,7 +28,7 @@ import { ClientBriefTab } from './ClientBriefTab'
 import { briefFor } from '../../domain/clientBrief'
 import { ProjectHistory } from './ProjectHistory'
 import { TASK_STATUSES, TaskDoneModal, TaskFormModal, TaskReassignModal } from '../tasks/TaskForm'
-import { PhaseStrip, ProgressCell, ProjectProgressPanel } from '../../components/ProjectProgress'
+import { ProgressCell, ProjectProgressPanel } from '../../components/ProjectProgress'
 import { RepeaterView } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
 import { PeoplePicker } from '../../components/PeoplePicker'
@@ -142,10 +142,6 @@ export function ProjectDetail() {
           </div>
         }
       />
-
-      <div className="mb-6">
-        <PhaseStrip project={project} />
-      </div>
 
       <Tabs<Tab> tabs={tabs} active={tab} onChange={setTab} />
 
