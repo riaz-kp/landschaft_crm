@@ -491,7 +491,7 @@ export interface Task {
 
 export type ProjectLogKind =
   | 'task-created' | 'task-reassigned' | 'task-done' | 'task-reopened' | 'task-deleted'
-  | 'project-edited' | 'workflow-step' | 'payment-due'
+  | 'project-edited' | 'workflow-step' | 'payment-due' | 'payment-removed'
 
 /**
  * One entry in a project's history. Task hand-overs, completions and edits are
@@ -879,6 +879,9 @@ export interface Payment {
   method: 'Bank Transfer' | 'Cheque' | 'UPI' | 'Cash'
   reference: string
   requestId?: ID
+  /** Who in Accounts recorded it. Older records, entered before this, have none. */
+  byId?: ID
+  note?: string
 }
 
 // ---------------------------------------------------------------- maintenance

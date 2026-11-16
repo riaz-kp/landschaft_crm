@@ -8,7 +8,7 @@
  */
 import type {
   AttendanceEntry, ChatMessage, Clarification, Client, Consultation, ConsultationStatus,
-  DailyWorkReport, DocumentRecord, Employee, ID, Issue, LatLng, Lead, MaintenanceRecord, PayRecord, PaymentFollowUp, PersonKind,
+  DailyWorkReport, DocumentRecord, Employee, ID, Issue, LatLng, Lead, MaintenanceRecord, PayRecord, Payment, PaymentFollowUp, PersonKind,
   ProjectMessage, Reminder, AreaUnit, ClientDocKey, ClientDocTick, ProjectCategory, ProjectPositioning, FeeBasis, NextAction, WorkflowStepKey,
   Project, Quotation, Settings, DesignPhaseKey, Material, SiteVisit, Task, Worker, VisitFile, VisitPhoto,
 } from '../domain/types'
@@ -114,6 +114,17 @@ export interface Api {
   }
   chat: { post(input: Omit<ChatMessage, 'id' | 'at'>): ChatMessage }
   followUps: { create(input: Omit<PaymentFollowUp, 'id'>): PaymentFollowUp }
+  payments: {
+    /**
+     * Records money the client paid on a project. It is set against the payment
+     * schedule in order, and the CEO, the rest of Accounts, the project manager
+     * and the head of each stage it pays for are told — with the amount only if
+     * they may see Accounts.
+     */
+    record(input: Omit<Payment, 'id' | 'clientId' | 'byId'>, by: ID): Payment
+    /** Takes back a payment recorded by mistake, noting it in the project's history. */
+    remove(paymentId: ID, by: ID): void
+  }
   documents: { create(input: Omit<DocumentRecord, 'id'>): DocumentRecord }
   employees: Crud<Employee>
   workers: Crud<Worker> & {

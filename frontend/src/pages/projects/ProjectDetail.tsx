@@ -493,7 +493,10 @@ export function ProjectDetail() {
           </Section>
 
           {(project.services.design || project.services.execution) && (
-            <PaymentSchedule project={project} received={received} canEdit={can('Accounts', 'edit')} />
+            <PaymentSchedule
+              project={project} received={received} canEdit={can('Accounts', 'edit')}
+              canRecord={can('Accounts', 'create')} canRemove={can('Accounts', 'delete')}
+            />
           )}
         </div>
       )}

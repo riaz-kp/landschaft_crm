@@ -2,7 +2,7 @@ import { nextId, nowTime, store, type DbShape } from '../data/store'
 import { addDays, formatCurrency, formatDate, today } from '../domain/format'
 import type {
   ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, Employee, ID,
-  Lead, MaintenanceRecord, MaintenanceVisit, PayRecord, PaymentFollowUp, Project, ProjectLogEntry, ProjectMessage, Quotation, Settings, SiteVisit,
+  Lead, MaintenanceRecord, MaintenanceVisit, PayRecord, Payment, PaymentFollowUp, Project, ProjectLogEntry, ProjectMessage, Quotation, Settings, SiteVisit,
   Task, TaskStatus, Worker, Reminder, Material,
 } from '../domain/types'
 import type { Api, NewProjectInput, VisitReport } from './client'
@@ -10,9 +10,10 @@ import { workerSkills } from '../domain/workers'
 import { formatArea, normaliseCode, suggestProjectCode } from '../domain/projectInfo'
 import { applyScope, describePhases } from '../domain/projectScope'
 import { projectType } from '../domain/progress'
-import { holders, paymentSchedule, stepFor, withCollection, type ScheduleRow } from '../domain/workflow'
+import { holders, paymentSchedule, stepFor, withCollection, type CollectionRow, type ScheduleRow } from '../domain/workflow'
 import { CLIENT_DOCS } from '../domain/clientDocs'
 import { KIND_PREFIX } from '../domain/quotation'
+import { hasPermission } from '../domain/roles'
 
 type WithId = { id: ID }
 
@@ -98,6 +99,50 @@ function flagPaymentsDue(db: DbShape, project: Project, before: ScheduleRow[], b
       detail: [row.dueWhen, told.length && `told ${told.map((e) => e.name).join(', ')}`].filter(Boolean).join(' · '),
     })
   }
+}
+
+/**
+ * Tells people a payment came in. Those who may see Accounts get the amount,
+ * the slabs it settled and what is still due; everyone else only hears that an
+ * amount was collected, against which slab, with no figures. `before` is the
+ * schedule with what was collected before this payment.
+ */
+function notifyPaymentReceived(db: DbShape, project: Project, payment: Payment, before: CollectionRow[], by: ID) {
+  const received = db.payments.filter((p) => p.projectId === project.id).reduce((sum, p) => sum + p.amount, 0)
+  const after = withCollection(paymentSchedule(project, db.settings), received)
+  const was = new Map(before.map((row) => [row.key, row]))
+  // The slabs this payment put money towards, and whether it finished them.
+  const touched = after.filter((row) => row.outstanding !== undefined && row.outstanding < (was.get(row.key)?.outstanding ?? row.outstanding))
+  const slab = (row: CollectionRow) => `${row.stage.toLowerCase()} ${row.label}`
+  const towards = touched.map((row) => (row.collected ? slab(row) : `part of ${slab(row)}`)).join(', ')
+
+  const stages = new Set(touched.map((row) => row.stage))
+  const people = [
+    ...holders(db.employees, ['ceo', 'accounts']),
+    ...db.employees.filter((e) => e.id === project.projectManagerId),
+    ...(stages.has('Design') ? holders(db.employees, ['design_director']) : []),
+    ...(stages.has('Execution') ? holders(db.employees, ['execution_head']) : []),
+  ]
+  const told = [...new Map(people.filter((e) => e.id !== by).map((e) => [e.id, e])).values()]
+  const seesMoney = (e: Employee) => hasPermission(db.settings.permissions, e.role, 'Accounts', 'view')
+  const withMoney = told.filter(seesMoney)
+  const withoutMoney = told.filter((e) => !seesMoney(e))
+
+  const stillDue = after.filter((row) => row.reached && !row.collected && row.outstanding !== undefined)
+    .reduce((sum, row) => sum + (row.outstanding ?? 0), 0)
+  notify(db, {
+    to: withMoney, by, projectId: project.id, link: `/projects/${project.id}?tab=accounts`,
+    title: `${project.code} · Payment received: ${formatCurrency(payment.amount)}${towards ? ` towards ${towards}` : ''}`,
+    notes: [
+      project.name, `${payment.method}${payment.reference ? ` ${payment.reference}` : ''}`,
+      stillDue >= 0.5 ? `${formatCurrency(stillDue)} still due` : 'nothing due now', `recorded by ${nameOf(db, by)}`,
+    ].join(' · '),
+  })
+  notify(db, {
+    to: withoutMoney, by, projectId: project.id, link: `/projects/${project.id}`,
+    title: `${project.code} · Amount collected${towards ? ` — ${towards}` : ''}`,
+    notes: project.name,
+  })
 }
 
 /** "Status: In Progress → Completed · Area: — → 4,500 sq ft" for the fields a project edit changed. */
@@ -574,6 +619,34 @@ export const adapter: Api = {
         db.chatMessages.push(message)
       })
       return message
+    },
+  },
+
+  payments: {
+    record(input, by): Payment {
+      const project = store.db.projects.find((p) => p.id === input.projectId)
+      const payment: Payment = { ...input, id: nextId('pay'), clientId: project?.clientId ?? '', byId: by }
+      store.update((db) => {
+        const project = db.projects.find((p) => p.id === input.projectId)
+        const received = db.payments.filter((p) => p.projectId === input.projectId).reduce((sum, p) => sum + p.amount, 0)
+        const before = project ? withCollection(paymentSchedule(project, db.settings), received) : []
+        db.payments.push(payment)
+        if (project) notifyPaymentReceived(db, project, payment, before, by)
+      })
+      return payment
+    },
+
+    remove(paymentId, by) {
+      store.update((db) => {
+        const payment = db.payments.find((p) => p.id === paymentId)
+        if (!payment) return
+        removeFrom(db.payments, paymentId)
+        log(db, {
+          projectId: payment.projectId, kind: 'payment-removed', byId: by,
+          title: `${formatCurrency(payment.amount)} of ${formatDate(payment.date)}`,
+          detail: [payment.method, payment.reference].filter(Boolean).join(' · '),
+        })
+      })
     },
   },
 
