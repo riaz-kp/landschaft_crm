@@ -18,7 +18,6 @@ import { Icon } from '../../components/Icon'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions } from '../../components/pickerOptions'
 import { IntakeFields, MoneyFields, intakeOf, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
-import { linkName, toLink } from '../../components/docLinks'
 
 /** Roles that manage projects — who a new project is given to by default. */
 const MANAGER_ROLES: RoleKey[] = ['design_pm', 'execution_pm', 'design_director', 'execution_head']
@@ -39,7 +38,6 @@ export function NewProject() {
   const [siteCoords, setSiteCoords] = useState<LatLng | undefined>()
   const [intake, setIntake] = useState(intakeOf)
   const [money, setMoney] = useState(moneyOf)
-  const [links, setLinks] = useState<{ name: string; url: string }[]>([])
 
   const [form, setForm] = useState({
     code: suggestProjectCode(db.projects),
@@ -82,8 +80,6 @@ export function NewProject() {
     }
     const moneyIssue = moneyProblem(money)
     if (moneyIssue) return setError(moneyIssue)
-    const badLink = links.find((l) => l.url.trim() && !toLink(l.url))
-    if (badLink) return setError(`“${badLink.url}” is not a link. Paste the full address, e.g. a Google Drive share link.`)
 
     setError(null)
     const { category, positioning, area, areaUnit, ...basics } = form
@@ -98,9 +94,6 @@ export function NewProject() {
       siteVisitRequired: design && intake.siteVisitRequired,
       feeBasis: intake.feeBasis || undefined,
       nextAction: intake.nextAction || undefined,
-      documentLinks: links
-        .filter((l) => toLink(l.url))
-        .map((l) => ({ url: toLink(l.url)!, name: l.name.trim() || linkName(toLink(l.url)!) })),
       code,
       category: category || undefined,
       positioning: positioning || undefined,
@@ -310,32 +303,6 @@ export function NewProject() {
           </div>
         </Section>
       )}
-
-      <Section
-        title="Other Document Links"
-        description="Briefs, references, reports — anything kept in Google Drive, Dropbox or elsewhere. They show on the project's Client Documents tab, where client documents are marked received later."
-        className="mb-6"
-        actions={<button type="button" onClick={() => setLinks([...links, { name: '', url: '' }])} className="btn-secondary py-1.5"><Icon name="link" className="h-4 w-4" /> Add link</button>}
-      >
-        <div className="space-y-3 px-5 py-4">
-          {links.length === 0 && <p className="text-sm text-stone-400">No links yet.</p>}
-          {links.map((link, i) => (
-            <div key={i} className="flex flex-col gap-2 sm:flex-row">
-              <input
-                className="input sm:w-56" value={link.name} placeholder="Name (optional)" aria-label="Link name"
-                onChange={(e) => setLinks(links.map((l, j) => (j === i ? { ...l, name: e.target.value } : l)))}
-              />
-              <input
-                className="input min-w-0 flex-1" value={link.url} placeholder="https://drive.google.com/…" aria-label="Link address"
-                onChange={(e) => setLinks(links.map((l, j) => (j === i ? { ...l, url: e.target.value } : l)))}
-              />
-              <button type="button" onClick={() => setLinks(links.filter((_, j) => j !== i))} className="btn-icon self-end sm:self-auto" aria-label="Remove link">
-                <Icon name="trash" className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </Section>
 
       {error && (
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4">
