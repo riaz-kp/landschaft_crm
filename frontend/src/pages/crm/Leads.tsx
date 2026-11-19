@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
@@ -8,7 +8,7 @@ import { formatDate } from '../../domain/format'
 import type { Lead, LeadStatus } from '../../domain/types'
 import {
   PageHeader, Section, Table, EmptyState, Badge, Pills, SearchInput, Toolbar, RowActions, ConfirmDialog,
-  Modal, Field, FormError, StatTile,
+  Modal, Field, FormError, StatTile, Drawer,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { ContactNumbers, PhoneWhatsAppFields } from '../../components/ContactFields'
@@ -18,6 +18,21 @@ import { employeeOptions } from '../../components/pickerOptions'
 const STATUSES: LeadStatus[] = ['New', 'Contacted', 'Site Visit', 'Quoted', 'Won', 'Lost']
 const SOURCES: Lead['source'][] = ['Instagram', 'Referral', 'Website', 'Walk-in', 'Google', 'Exhibition']
 
+const STATUS_DOT: Record<LeadStatus, string> = {
+  New: 'bg-sky-500', Contacted: 'bg-stone-400', 'Site Visit': 'bg-amber-500', Quoted: 'bg-clay-500', Won: 'bg-brand-500', Lost: 'bg-red-400',
+}
+
+type LeadView = 'list' | 'board'
+const VIEW_KEY = 'landschaft-leads-view'
+
+function storedView(): LeadView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'board' ? 'board' : 'list'
+  } catch {
+    return 'list'
+  }
+}
+
 /** Leads → Clients → Site Visits is the first of the five connected systems. */
 export function Leads() {
   const db = useDb()
@@ -26,7 +41,15 @@ export function Leads() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Lead | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Lead | null>(null)
+  // The lead open in the reading panel on the right.
+  const [viewing, setViewing] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
+  // List or board, remembered in this browser.
+  const [view, setViewState] = useState<LeadView>(storedView)
+  const setView = (v: LeadView) => {
+    setViewState(v)
+    try { localStorage.setItem(VIEW_KEY, v) } catch { /* private mode */ }
+  }
 
   // The header search links to ?open=<lead id>.
   const openId = params.get('open')
@@ -39,7 +62,7 @@ export function Leads() {
 
   const q = query.trim().toLowerCase()
   const leads = db.leads.filter((l) =>
-    (filter === 'All' || l.status === filter)
+    (view === 'board' || filter === 'All' || l.status === filter)
     && (!q || [l.name, l.phone, l.whatsapp ?? '', l.location, l.requirement, l.email ?? ''].some((v) => v.toLowerCase().includes(q))))
   const ownerName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
   const open = db.leads.filter((l) => !['Won', 'Lost'].includes(l.status))
@@ -64,16 +87,35 @@ export function Leads() {
       </div>
 
       <Toolbar>
-        <Pills<LeadStatus | 'All'>
-          active={filter}
-          onChange={setFilter}
-          options={(['All', ...STATUSES] as const).map((s) => ({
-            key: s, label: s, count: s === 'All' ? db.leads.length : db.leads.filter((l) => l.status === s).length,
-          }))}
-        />
-        <SearchInput value={query} onChange={setQuery} placeholder="Search leads…" className="lg:w-72" />
+        {view === 'list' ? (
+          <Pills<LeadStatus | 'All'>
+            active={filter}
+            onChange={setFilter}
+            options={(['All', ...STATUSES] as const).map((s) => ({
+              key: s, label: s, count: s === 'All' ? db.leads.length : db.leads.filter((l) => l.status === s).length,
+            }))}
+          />
+        ) : <span className="text-sm text-stone-500">Drag a card to move it along; click it to open.</span>}
+        <div className="flex items-center gap-2">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search leads…" className="min-w-0 flex-1 lg:w-72 lg:flex-none" />
+          <div className="flex shrink-0 gap-1 rounded-xl bg-stone-100 p-1" role="group" aria-label="View">
+            {([['list', 'List', 'list'], ['board', 'Board', 'board']] as const).map(([key, label, icon]) => (
+              <button
+                key={key} type="button" onClick={() => setView(key)} aria-pressed={view === key} title={`${label} view`}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition sm:text-sm ${
+                  view === key ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                <Icon name={icon} className="h-4 w-4" /> {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </Toolbar>
 
+      {view === 'board' ? (
+        <LeadBoard leads={leads} canEdit={can('CRM', 'edit')} canCreateClient={can('CRM', 'create')} onOpen={(lead) => setViewing(lead.id)} />
+      ) : (
       <Section>
         {leads.length === 0 ? (
           <EmptyState title="No leads match." icon="users" />
@@ -121,7 +163,17 @@ export function Leads() {
           </Table>
         )}
       </Section>
+      )}
 
+      {viewing && (
+        <LeadDrawer
+          leadId={viewing}
+          canEdit={can('CRM', 'edit')}
+          canCreateClient={can('CRM', 'create')}
+          onEdit={(lead) => { setViewing(null); setEditing(lead) }}
+          onClose={() => setViewing(null)}
+        />
+      )}
       {editing && <LeadFormModal lead={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
       {deleting && (
         <ConfirmDialog
@@ -134,6 +186,206 @@ export function Leads() {
           </>}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * A lead opened from the board: read it in a panel on the right, move its
+ * status there, and open the full form with Edit.
+ */
+function LeadDrawer({
+  leadId, canEdit, canCreateClient, onEdit, onClose,
+}: {
+  leadId: string; canEdit: boolean; canCreateClient: boolean
+  onEdit: (lead: Lead) => void; onClose: () => void
+}) {
+  const db = useDb()
+  const lead = db.leads.find((l) => l.id === leadId)
+  if (!lead) return null
+  const owner = db.employees.find((e) => e.id === lead.ownerId)
+  const visits = db.siteVisits.filter((v) => v.leadId === lead.id).sort((a, b) => b.date.localeCompare(a.date))
+
+  const row = (label: string, value: ReactNode) => (
+    <div className="flex items-start justify-between gap-4 py-2.5">
+      <dt className="shrink-0 text-xs font-semibold uppercase tracking-wider text-stone-400">{label}</dt>
+      <dd className="min-w-0 text-right text-sm text-stone-800">{value}</dd>
+    </div>
+  )
+
+  return (
+    <Drawer
+      title={lead.name}
+      subtitle={<>Lead since {formatDate(lead.createdAt)}</>}
+      onClose={onClose}
+      footer={<>
+        {lead.clientId ? (
+          <Link to={`/crm/clients/${lead.clientId}`} onClick={onClose} className="btn-secondary mr-auto">View client</Link>
+        ) : lead.status === 'Won' && canCreateClient ? (
+          <button onClick={() => api.leads.convert(lead.id)} className="btn-secondary mr-auto">Create client</button>
+        ) : null}
+        {canEdit && <button onClick={() => onEdit(lead)} className="btn-primary"><Icon name="edit" className="h-4 w-4" /> Edit</button>}
+      </>}
+    >
+      <div className="space-y-6">
+        <div>
+          <p className="label mb-2">Status</p>
+          <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Status">
+            {STATUSES.map((status) => (
+              <button
+                key={status} type="button" role="radio" aria-checked={lead.status === status}
+                disabled={!canEdit}
+                onClick={() => status !== lead.status && api.leads.setStatus(lead.id, status)}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition disabled:cursor-default ${
+                  lead.status === status ? 'bg-stone-900 text-white shadow-sm' : 'border border-stone-200 bg-white text-stone-600 enabled:hover:bg-stone-50'
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} /> {status}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <dl className="divide-y divide-stone-100 border-y border-stone-100">
+          {row('Phone', lead.phone || lead.whatsapp ? <ContactNumbers phone={lead.phone} whatsapp={lead.whatsapp} /> : <span className="text-stone-400">Not given</span>)}
+          {lead.email && row('Email', <a href={`mailto:${lead.email}`} className="hover:text-brand-700">{lead.email}</a>)}
+          {row('Location', lead.location || <span className="text-stone-400">Not given</span>)}
+          {row('Source', <Badge tone="stone">{lead.source}</Badge>)}
+          {row('Owner', owner?.name ?? '—')}
+        </dl>
+
+        <div>
+          <p className="label mb-1">Requirement</p>
+          <p className="whitespace-pre-line text-sm text-stone-700">{lead.requirement || <span className="text-stone-400">Not written yet.</span>}</p>
+        </div>
+
+        {lead.notes && (
+          <div>
+            <p className="label mb-1">Notes</p>
+            <p className="whitespace-pre-line text-sm text-stone-700">{lead.notes}</p>
+          </div>
+        )}
+
+        {visits.length > 0 && (
+          <div>
+            <p className="label mb-2">Site visits</p>
+            <ul className="space-y-1.5">
+              {visits.map((v) => (
+                <li key={v.id}>
+                  <Link to="/consultations/site-visits" onClick={onClose} className="flex items-center justify-between gap-3 rounded-lg bg-stone-50 px-3 py-2 text-sm hover:bg-stone-100">
+                    <span className="min-w-0 truncate text-stone-700">{formatDate(v.date)} · {v.location}</span>
+                    <Badge tone={v.status === 'Completed' ? 'green' : v.status === 'Cancelled' ? 'stone' : 'amber'}>{v.status}</Badge>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </Drawer>
+  )
+}
+
+/**
+ * The leads as a column per status, from New to Won and Lost. A card is
+ * dragged between columns with a mouse; on a phone the columns scroll sideways
+ * and each card carries a "move to" picker instead.
+ */
+function LeadBoard({
+  leads, canEdit, canCreateClient, onOpen,
+}: { leads: Lead[]; canEdit: boolean; canCreateClient: boolean; onOpen: (lead: Lead) => void }) {
+  const db = useDb()
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [over, setOver] = useState<LeadStatus | null>(null)
+  const ownerName = (id: string) => db.employees.find((e) => e.id === id)?.name.split(' ')[0] ?? '—'
+
+  return (
+    <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:snap-none lg:grid-cols-6 lg:gap-3 lg:overflow-visible lg:px-0">
+      {STATUSES.map((status) => {
+        const cards = leads.filter((l) => l.status === status)
+        return (
+          <div
+            key={status}
+            onDragOver={(e) => { if (canEdit) { e.preventDefault(); setOver(status) } }}
+            onDragLeave={() => setOver((o) => (o === status ? null : o))}
+            onDrop={(e) => {
+              e.preventDefault()
+              const lead = leads.find((l) => l.id === dragging)
+              if (lead && lead.status !== status) api.leads.setStatus(lead.id, status)
+              setDragging(null)
+              setOver(null)
+            }}
+            className={`w-[78%] max-w-xs shrink-0 snap-start rounded-2xl p-3 transition lg:w-auto lg:max-w-none lg:min-w-0 ${
+              over === status ? 'bg-brand-100/70 ring-2 ring-brand-400' : 'bg-stone-200/50'
+            }`}
+          >
+            <h2 className="mb-3 flex items-center justify-between gap-2 px-1 text-sm font-bold text-stone-700">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${STATUS_DOT[status]}`} /> <span className="truncate">{status}</span>
+              </span>
+              <span className="rounded-full bg-white px-2 py-0.5 text-xs tabular-nums text-stone-500">{cards.length}</span>
+            </h2>
+            <div className="min-h-24 space-y-2">
+              {cards.map((lead) => (
+                <article
+                  key={lead.id}
+                  draggable={canEdit}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', lead.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                    setDragging(lead.id)
+                  }}
+                  onDragEnd={() => { setDragging(null); setOver(null) }}
+                  onClick={() => onOpen(lead)}
+                  className={`cursor-pointer rounded-xl border border-stone-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                    dragging === lead.id ? 'opacity-40' : ''
+                  }`}
+                >
+                  <p className="text-sm font-medium text-stone-900">{lead.name}</p>
+                  {lead.location && <p className="mt-0.5 truncate text-xs text-stone-500">{lead.location}</p>}
+                  {lead.requirement && <p className="mt-1.5 line-clamp-2 text-xs text-stone-600">{lead.requirement}</p>}
+                  <div className="mt-2.5 flex items-center justify-between gap-2 text-xs text-stone-500">
+                    <Badge tone="stone">{lead.source}</Badge>
+                    <span className="truncate">{ownerName(lead.ownerId)}</span>
+                  </div>
+                  {lead.phone && <p className="mt-1.5 truncate text-xs tabular-nums text-stone-400">{lead.phone}</p>}
+                  {lead.clientId ? (
+                    <Link
+                      to={`/crm/clients/${lead.clientId}`} onClick={(e) => e.stopPropagation()}
+                      className="mt-2 inline-block text-xs font-semibold text-brand-700 hover:text-brand-800"
+                    >
+                      View client
+                    </Link>
+                  ) : lead.status === 'Won' && canCreateClient ? (
+                    <button
+                      type="button" onClick={(e) => { e.stopPropagation(); api.leads.convert(lead.id) }}
+                      className="btn-secondary mt-2 w-full py-1 text-xs"
+                    >
+                      Create client
+                    </button>
+                  ) : null}
+                  {canEdit && (
+                    <select
+                      value={lead.status}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => api.leads.setStatus(lead.id, e.target.value as LeadStatus)}
+                      className="input mt-2.5 py-1 text-xs lg:hidden"
+                      aria-label={`Move ${lead.name} to`}
+                    >
+                      {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
+                </article>
+              ))}
+              {cards.length === 0 && (
+                <p className="rounded-xl border-2 border-dashed border-stone-300/70 px-1 py-6 text-center text-xs text-stone-400">
+                  {dragging ? 'Drop here' : 'Nothing here'}
+                </p>
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
