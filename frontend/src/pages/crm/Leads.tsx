@@ -158,8 +158,6 @@ function LeadFormModal({ lead, onClose }: { lead?: Lead; onClose: () => void }) 
 
   const save = () => {
     if (!form.name.trim()) return setError('Enter the lead’s name.')
-    if (!form.phone.trim()) return setError('Enter a phone number.')
-    if (!form.requirement.trim()) return setError('Describe what they are looking for.')
     const values = {
       name: form.name.trim(),
       phone: form.phone.trim(),
@@ -193,7 +191,6 @@ function LeadFormModal({ lead, onClose }: { lead?: Lead; onClose: () => void }) 
           <input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} autoFocus />
         </Field>
         <PhoneWhatsAppFields
-          required
           phone={form.phone}
           whatsapp={form.whatsapp}
           onChange={(numbers) => set(numbers)}
@@ -225,7 +222,7 @@ function LeadFormModal({ lead, onClose }: { lead?: Lead; onClose: () => void }) 
             />
           </Field>
         </div>
-        <Field label="Requirement" required>
+        <Field label="Requirement">
           <textarea rows={2} className="input" value={form.requirement} placeholder="e.g. Terrace garden, approx 1200 sq ft" onChange={(e) => set({ requirement: e.target.value })} />
         </Field>
         <Field label="Notes">

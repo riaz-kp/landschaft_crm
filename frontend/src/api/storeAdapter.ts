@@ -668,6 +668,9 @@ export const adapter: Api = {
       })
       return record
     },
+    remove(documentId) {
+      store.update((db) => removeFrom(db.documents, documentId))
+    },
   },
 
   employees: {

@@ -9,9 +9,8 @@ import { DesignPhasePicker, ExecutionPhasePicker, PositioningPicker, ServicePick
 import { MapPicker } from '../../components/MapPicker'
 import { ClientPicker } from './ClientPicker'
 import { AmcFields, draftToRecord, emptyAmcDraft, endOf, validateAmc, type AmcDraft } from '../amc/AmcContractForm'
-import { AREA_UNITS, PROJECT_CATEGORIES, type AreaUnit, type ClientDocKey, type LatLng, type ProjectCategory, type ProjectPositioning, type RoleKey } from '../../domain/types'
+import { AREA_UNITS, PROJECT_CATEGORIES, type AreaUnit, type LatLng, type ProjectCategory, type ProjectPositioning, type RoleKey } from '../../domain/types'
 import { codeOwner, normaliseCode, suggestProjectCode } from '../../domain/projectInfo'
-import { ClientDocsPicker, type DocState, type DraftDocFile } from './ClientDocuments'
 import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
 import { NoAccess } from '../misc/Fallbacks'
@@ -38,11 +37,9 @@ export function NewProject() {
   const { user } = useSession()
   const [error, setError] = useState<string | null>(null)
   const [siteCoords, setSiteCoords] = useState<LatLng | undefined>()
-  const [clientDocs, setClientDocs] = useState<Partial<Record<ClientDocKey, DocState>>>({})
   const [intake, setIntake] = useState(intakeOf)
   const [money, setMoney] = useState(moneyOf)
   const [links, setLinks] = useState<{ name: string; url: string }[]>([])
-  const [docFiles, setDocFiles] = useState<DraftDocFile[]>([])
 
   const [form, setForm] = useState({
     code: suggestProjectCode(db.projects),
@@ -71,15 +68,12 @@ export function NewProject() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.name.trim()) return setError('Enter a project name.')
-    if (!normaliseCode(form.code)) return setError('Enter a project code.')
-    const taken = codeOwner(db.projects, form.code)
-    if (taken) return setError(`Project code ${normaliseCode(form.code)} is already used by “${taken.name}”.`)
-    if (!form.category) return setError('Choose the project type — Residential, Commercial, Hospitality or Institutional.')
-    if (!form.positioning) return setError('Choose the project positioning — Basic, Standard or Premium.')
+    // Everything here is optional: a project can be opened with what is known and filled in later.
+    // Only what would clash or cannot be read is stopped. A blank code takes the next in the series.
+    const code = normaliseCode(form.code) || suggestProjectCode(db.projects)
+    const taken = codeOwner(db.projects, code)
+    if (taken) return setError(`Project code ${code} is already used by “${taken.name}”.`)
     if (form.area && !(Number(form.area) > 0)) return setError('The site area must be a number above zero, or left blank.')
-    if (!form.clientId) return setError('Select a client.')
-    if (!form.siteLocation.trim()) return setError('Enter the site location.')
     const problem = scopeProblem(scope)
     if (problem) return setError(problem)
     if (amc) {
@@ -93,28 +87,25 @@ export function NewProject() {
 
     setError(null)
     const { category, positioning, area, areaUnit, ...basics } = form
+    // A project opened without a name goes by its code until it is given one.
     const values = moneyFields({ ...money, designValue: design ? money.designValue : '', executionValue: execution ? money.executionValue : '' }, 0)
     const project = api.projects.create({
       ...basics,
+      name: form.name.trim() || code,
+      siteLocation: form.siteLocation.trim(),
       ...values,
       requirement: intake.requirement,
       siteVisitRequired: design && intake.siteVisitRequired,
       feeBasis: intake.feeBasis || undefined,
       nextAction: intake.nextAction || undefined,
-      clientDocFiles: docFiles,
       documentLinks: links
         .filter((l) => toLink(l.url))
         .map((l) => ({ url: toLink(l.url)!, name: l.name.trim() || linkName(toLink(l.url)!) })),
-      code: normaliseCode(form.code),
-      category,
+      code,
+      category: category || undefined,
       positioning: positioning || undefined,
       area: area ? Number(area) : undefined,
       areaUnit,
-      clientDocs: Object.fromEntries(
-        Object.entries(clientDocs)
-          .filter(([, state]) => state !== 'Pending')
-          .map(([key, state]) => [key, { status: state as 'Received' | 'Not Needed', by: user.id, on: today() }]),
-      ),
       siteCoords,
       ...scope,
       amc: amc ? draftToRecord(amcDraft) : undefined,
@@ -137,7 +128,7 @@ export function NewProject() {
       <Section title="Basic Information" className="mb-6">
         <div className="grid gap-5 px-5 py-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Field label="Project Name" required>
+            <Field label="Project Name" hint="Optional — left blank, the project goes by its code until it is named.">
               <input
                 type="text" value={form.name} placeholder="e.g. Residence Landscape Design"
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -145,7 +136,7 @@ export function NewProject() {
               />
             </Field>
           </div>
-          <Field label="Project Code" required hint="The next code in the LND series — LND, the year, then the running number (LND26101). Change it to use your own.">
+          <Field label="Project Code" hint="The next code in the LND series — LND, the year, then the running number (LND26101). Change it to use your own.">
             <div className="flex gap-2">
               <input
                 type="text" value={form.code} placeholder="e.g. LND26101"
@@ -179,7 +170,7 @@ export function NewProject() {
           </Field>
           {/* Not a <label>: it holds a row of buttons. */}
           <div className="sm:col-span-2">
-            <span className="label">Project Type<span className="ml-0.5 text-red-500">*</span></span>
+            <span className="label">Project Type</span>
             <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {PROJECT_CATEGORIES.map((c) => (
                 <button
@@ -193,16 +184,16 @@ export function NewProject() {
             </div>
           </div>
           <div className="sm:col-span-2">
-            <PositioningPicker value={form.positioning} onChange={(positioning) => setForm({ ...form, positioning })} required />
+            <PositioningPicker value={form.positioning} onChange={(positioning) => setForm({ ...form, positioning })} />
           </div>
           {/* Not a <label>: the picker holds its own buttons, which a label would re-trigger. */}
           <div>
-            <span className="label">Client<span className="ml-0.5 text-red-500">*</span></span>
+            <span className="label">Client</span>
             <div className="mt-1.5">
               <ClientPicker value={form.clientId} onChange={(clientId) => setForm((f) => ({ ...f, clientId }))} />
             </div>
           </div>
-          <Field label="Site Location" required>
+          <Field label="Site Location">
             <input
               type="text" value={form.siteLocation} placeholder="e.g. Kovalam, Thiruvananthapuram"
               onChange={(e) => setForm({ ...form, siteLocation: e.target.value })}
@@ -321,24 +312,8 @@ export function NewProject() {
       )}
 
       <Section
-        title="Client Documents Received"
-        description="Mark what the client has already handed over, and attach the files or paste links to them. Attaching either marks the document received. The rest stays pending on the project's Client Documents tab."
-        className="mb-6"
-        actions={<Badge tone="stone">{Object.values(clientDocs).filter((s) => s === 'Received').length} received</Badge>}
-      >
-        <div className="px-5 py-2">
-          <ClientDocsPicker
-            value={clientDocs}
-            onChange={(key, state) => setClientDocs((docs) => ({ ...docs, [key]: state }))}
-            files={docFiles}
-            onFilesChange={setDocFiles}
-          />
-        </div>
-      </Section>
-
-      <Section
         title="Other Document Links"
-        description="Anything that is not one of the client documents above — briefs, references, reports — kept in Google Drive, Dropbox or elsewhere. They are filed under the project's documents."
+        description="Briefs, references, reports — anything kept in Google Drive, Dropbox or elsewhere. They show on the project's Client Documents tab, where client documents are marked received later."
         className="mb-6"
         actions={<button type="button" onClick={() => setLinks([...links, { name: '', url: '' }])} className="btn-secondary py-1.5"><Icon name="link" className="h-4 w-4" /> Add link</button>}
       >
