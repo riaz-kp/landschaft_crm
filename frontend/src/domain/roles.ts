@@ -103,11 +103,12 @@ export const NAV: NavSection[] = [
   },
   {
     label: 'CRM',
-    path: '/crm/leads',
+    // Opens on Clients; Leads is the second tab.
+    path: '/crm/clients',
     icon: 'users',
     children: [
-      { label: 'Leads', path: '/crm/leads' },
       { label: 'Clients', path: '/crm/clients' },
+      { label: 'Leads', path: '/crm/leads' },
     ],
   },
   {

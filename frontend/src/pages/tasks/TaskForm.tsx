@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
@@ -353,7 +354,12 @@ export function TaskDrawer({
   return (
     <Drawer
       title={<span className={task.status === 'Done' ? 'text-stone-500 line-through' : ''}>{task.title}</span>}
-      subtitle={project ? <>{project.name} · <span className="font-mono text-xs">{project.code}</span></> : undefined}
+      subtitle={project ? (
+        <Link to={`/projects/${project.id}?tab=tasks`} onClick={onClose} className="inline-flex items-center gap-1 hover:text-brand-700">
+          {project.name} · <span className="font-mono text-xs">{project.code}</span>
+          <Icon name="chevron" className="h-3.5 w-3.5" />
+        </Link>
+      ) : undefined}
       onClose={onClose}
       footer={canEdit && <>
         {task.status !== 'Done' && (
@@ -419,7 +425,11 @@ export function TaskDrawer({
         </div>
 
         <dl className="divide-y divide-stone-100 border-y border-stone-100">
-          {row('Project', project?.name ?? '—')}
+          {row('Project', project ? (
+            <Link to={`/projects/${project.id}?tab=tasks`} onClick={onClose} className="font-medium text-brand-700 hover:text-brand-800 hover:underline">
+              {project.name}
+            </Link>
+          ) : '—')}
           {row('Phase', task.phase ? PHASE_LABELS[task.phase] : 'General')}
           {row('Assigned to', (
             <span className="inline-flex items-center gap-2">

@@ -96,6 +96,7 @@ export function App() {
           <Route path="/consultations" element={<Consultations />} />
           <Route path="/consultations/site-visits" element={<SiteVisits />} />
 
+          <Route path="/crm" element={<Navigate to="/crm/clients" replace />} />
           <Route path="/crm/leads" element={<Leads />} />
           <Route path="/crm/clients" element={<Clients />} />
           <Route path="/crm/clients/:clientId" element={<ClientDetail />} />

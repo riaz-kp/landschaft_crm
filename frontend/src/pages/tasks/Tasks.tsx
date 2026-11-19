@@ -339,8 +339,8 @@ const COLUMN_TONE: Record<TaskStatus, string> = {
 
 /**
  * The tasks as four columns: To begin, In progress, Awaiting approval and
- * Completed. A card is dragged between columns with a mouse; on a phone, where
- * dragging is not available, each card carries a "move to" picker instead.
+ * Completed. A card is dragged between columns with a mouse; on a phone the
+ * columns scroll sideways, and each card carries a "move to" picker instead.
  */
 function Board({
   tasks, canEdit, canCreate, onOpen, onAdd, onMove,
@@ -355,31 +355,12 @@ function Board({
   const db = useDb()
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<TaskStatus | null>(null)
-  // On a phone the board shows one column at a time instead of scrolling sideways.
-  const [column, setColumn] = useState<TaskStatus>('To Do')
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? ''
 
   return (
     <>
-      {/* Phone: pick a column. Tablet: two by two. Desktop: all four side by side. */}
-      <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-stone-200/60 p-1 md:hidden">
-        {TASK_STATUSES.map((status) => (
-          <button
-            key={status}
-            onClick={() => setColumn(status)}
-            aria-pressed={column === status}
-            className={`flex flex-col items-center justify-between gap-0.5 rounded-lg px-1 py-1.5 text-center text-[11px] font-semibold leading-tight transition ${
-              column === status ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'
-            }`}
-          >
-            <span className={`h-2 w-2 rounded-full ${COLUMN_TONE[status]}`} />
-            <span>{TASK_STATUS_LABELS[status]}</span>
-            <span className="tabular-nums text-stone-400">{tasks.filter((t) => t.status === status).length}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Phone: the columns side by side, scrolled sideways. Tablet: two by two. Desktop: all four in a row. */}
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 md:mx-0 md:grid md:snap-none md:grid-cols-2 md:gap-4 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-4">
         {TASK_STATUSES.map((status) => {
           const cards = tasks.filter((t) => t.status === status)
           const label = TASK_STATUS_LABELS[status]
@@ -395,7 +376,7 @@ function Board({
                 setDragging(null)
                 setOver(null)
               }}
-              className={`${column === status ? '' : 'hidden md:block'} min-w-0 rounded-2xl p-3 transition ${
+              className={`w-[82%] max-w-xs shrink-0 snap-start rounded-2xl p-3 transition md:w-auto md:max-w-none md:min-w-0 ${
                 over === status ? 'bg-brand-100/70 ring-2 ring-brand-400' : 'bg-stone-200/50'
               }`}
             >
