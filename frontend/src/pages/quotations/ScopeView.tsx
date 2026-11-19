@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Icon } from '../../components/Icon'
 import { BrandMark } from '../../components/Logo'
 import { BRAND } from '../../components/brand'
@@ -16,8 +16,6 @@ import { CREAM, Card, Num, PaymentCard } from './viewKit'
  * editor; PDF view shows the A4 pages to print or save.
  */
 export function ScopeView({ quote, project, client, settings }: { quote: Quotation; project: Project; client?: Client; settings: DocumentSettings }) {
-  const location = useLocation()
-  const navigate = useNavigate()
   const { canEdit } = useQuoteAccess()
   const scope = quote.scope
   const totals = scopeTotals(quote)
@@ -30,15 +28,10 @@ export function ScopeView({ quote, project, client, settings }: { quote: Quotati
   const terms = shows(quote, 'terms') ? (scope?.terms ?? []).map((t) => t.trim()).filter(Boolean) : []
   const signOff = (scope?.signOff ?? '').split('\n').map((l) => l.trim()).filter(Boolean)
 
-  const back = () => {
-    if (location.key !== 'default') navigate(-1)
-    else navigate(`/projects/${project.id}?tab=commercial`)
-  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 pb-16">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <button type="button" onClick={back} className="btn-ghost -ml-2 py-1.5"><Icon name="back" className="h-4 w-4" /> Back</button>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <div className="flex flex-wrap items-center gap-2">
           {canEdit(quote.kind) && <Link to={editPath(quote)} className="btn-secondary"><Icon name="edit" className="h-4 w-4" /> Edit</Link>}
           <Link to={pdfPath(quote)} className="btn-primary"><Icon name="doc" className="h-4 w-4" /> PDF view</Link>

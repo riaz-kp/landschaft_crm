@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { Icon } from '../../components/Icon'
 import { BrandMark } from '../../components/Logo'
@@ -37,8 +37,6 @@ export function QuoteViewPage() {
  * Edit goes to its editor, and PDF view shows the A4 pages to print or save.
  */
 function QuoteView({ quote, project, client, settings }: { quote: Quotation; project: Project; client?: Client; settings: DocumentSettings }) {
-  const location = useLocation()
-  const navigate = useNavigate()
   const { canEdit } = useQuoteAccess()
   const priced = isPriced(quote.kind)
   const plans = showsPlans(quote.kind, project.services)
@@ -53,16 +51,10 @@ function QuoteView({ quote, project, client, settings }: { quote: Quotation; pro
   const stages = shows(quote, 'payment') ? quote.paymentStages.filter((s) => s.label.trim() || s.percent) : []
   const paragraphs = quote.letter.body.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
 
-  // Back to wherever the document was opened from; straight from a link, to the project's documents.
-  const back = () => {
-    if (location.key !== 'default') navigate(-1)
-    else navigate(`/projects/${project.id}?tab=commercial`)
-  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 pb-16">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <button type="button" onClick={back} className="btn-ghost -ml-2 py-1.5"><Icon name="back" className="h-4 w-4" /> Back</button>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <div className="flex flex-wrap items-center gap-2">
           {canEdit(quote.kind) && <Link to={editPath(quote)} className="btn-secondary"><Icon name="edit" className="h-4 w-4" /> Edit</Link>}
           <Link to={pdfPath(quote)} className="btn-primary"><Icon name="doc" className="h-4 w-4" /> PDF view</Link>

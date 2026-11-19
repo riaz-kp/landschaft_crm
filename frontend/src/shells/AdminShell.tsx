@@ -13,6 +13,7 @@ import { SyncIndicator } from '../components/SyncIndicator'
 import { GlobalSearch } from '../components/GlobalSearch'
 import { NotificationBell } from '../components/NotificationBell'
 import { NoAccess, PageLoading } from '../pages/misc/Fallbacks'
+import { PageTrail, buildCrumbs } from '../components/Breadcrumbs'
 
 function Logo() {
   return (
@@ -60,7 +61,8 @@ function SectionTabs({ section, pathname }: { section: NavSection; pathname: str
 /** Desktop CRM shell. Foremen never reach this — they are routed to /field. */
 export function AdminShell() {
   const { user, roleKey } = useSession()
-  const { settings } = useDb()
+  const db = useDb()
+  const { settings } = db
   const { canView } = usePermissions()
   const { pathname } = useLocation()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -71,6 +73,9 @@ export function AdminShell() {
   const visible = sections.find((s) => s.label === current?.label)
   // The tabs belong to the list pages; an opened record (a project, a client…) has its own.
   const onListPage = Boolean(visible?.children?.some((c) => c.path === pathname))
+  // Back and the breadcrumb trail on every page but the dashboard, which is home.
+  const crumbs = pathname === '/dashboard' ? [] : buildCrumbs(pathname, db, current, visible?.path, visible && activeChild(visible, pathname))
+  const parentTo = [...crumbs].reverse().find((c) => c.to)?.to ?? '/dashboard'
 
   // Close the drawer and return to the top whenever the page changes.
   useEffect(() => {
@@ -162,21 +167,6 @@ export function AdminShell() {
               </svg>
             </button>
 
-            {current && (
-              <p className="hidden min-w-0 items-center gap-2 text-sm md:flex">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-                  <Icon name={current.icon} className="h-4 w-4" />
-                </span>
-                <span className="font-semibold text-stone-800">{current.label}</span>
-                {tab && current.children && (
-                  <>
-                    <Icon name="chevron" className="h-3.5 w-3.5 text-stone-300" />
-                    <span className="truncate text-stone-500">{tab.label}</span>
-                  </>
-                )}
-              </p>
-            )}
-
             <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
               <SyncIndicator />
               <GlobalSearch />
@@ -191,6 +181,7 @@ export function AdminShell() {
 
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-[1440px] animate-fade-in" key={current?.label}>
+            {crumbs.length > 0 && <PageTrail crumbs={crumbs} parentTo={parentTo} />}
             {allowed && onListPage && visible && visible.children!.length > 1 && <SectionTabs section={visible} pathname={pathname} />}
             {allowed ? <Suspense fallback={<PageLoading />}><Outlet /></Suspense> : <NoAccess />}
           </div>
