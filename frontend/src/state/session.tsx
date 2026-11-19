@@ -6,6 +6,7 @@ import {
   DEMO_MODE, forgetStoredLogin, isNetworkError, staffAccounts, storedLoginUserId, supabase, supabaseConfigured,
 } from '../lib/supabase'
 import { closeSession, flushNow, forgetOfflineCopy, offlineCopyFor, openSession } from '../data/sync'
+import { forgetPushOnThisDevice, refreshPush } from '../lib/push'
 import { openDemo } from '../data/demo'
 import { useDb } from './useDb'
 import {
@@ -108,7 +109,10 @@ function SupabaseSession({ children }: { children: ReactNode }) {
 
   const open = useCallback(async (userId: string, employeeId: string) => {
     await openSession(userId, employeeId)
-    if (loadedFor.current === userId) setPhase({ kind: 'ready', employeeId })
+    if (loadedFor.current === userId) {
+      setPhase({ kind: 'ready', employeeId })
+      void refreshPush()
+    }
   }, [])
 
   const begin = useCallback(async (user: User) => {
@@ -153,6 +157,7 @@ function SupabaseSession({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await flushNow()
+    await forgetPushOnThisDevice()
     // The copy of the data on this device goes first, whether or not the server can be reached.
     await forgetOfflineCopy()
     const { error } = await supabase().auth.signOut()

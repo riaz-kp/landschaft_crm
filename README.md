@@ -33,13 +33,14 @@ a "Not configured" screen rather than running against nothing.
    (SQL editor, or `supabase db push`). It creates one table per collection,
    row-level security on every table, the triggers that guard roles, pay and
    Settings, and the private `files` bucket for photos and documents.
-2. **Functions.** Deploy all three with JWT verification off
+2. **Functions.** Deploy all four with JWT verification off
    (`supabase functions deploy staff-accounts --no-verify-jwt`, and the same for
-   `client-portal` and `plants`). `staff-accounts` checks the caller's token itself; it is
+   `client-portal`, `plants` and `push`). `staff-accounts` checks the caller's token itself; it is
    how admins create logins. `client-portal` serves the client links (below),
    whose callers have no login at all. `plants` reads plant lists from the
    plants app for BOQs and quotations; it needs the plants app's login saved as
-   secrets — see *Plants from the plants app* below.
+   secrets — see *Plants from the plants app* below. `push` sends notifications
+   (see *Push notifications* below); it needs no secrets.
 3. **Auth settings** (Supabase → Authentication): turn **off** "Allow new users
    to sign up" — staff logins are created by an admin, never by sign-up.
 4. **Hosting.** `frontend/vercel.json` serves the SPA on Vercel. The build
@@ -506,6 +507,35 @@ project (Ashraf, Kondotty) reproduces the company's quotation: plants
 
 The data version moved to v6, so browser data is replaced by the new seed on
 first load.
+
+## Push notifications
+
+What the header bell shows also reaches the device's notification panel, with
+the CRM open or closed: Windows, macOS and Android in Chrome, Edge, Firefox or
+Safari, and iPhone/iPad once the CRM is added to the Home Screen (iOS 16.4+;
+iOS never allows it in a Safari tab). Each person turns it on per device from
+the bell panel (**Turn on**, which sends a test); signing out turns it off on
+that device so the next person does not get their notifications.
+
+- **Reminders** at their time on the day, or 9:00 AM when they have none.
+  Hand-off notices (new task, payment due…) go out within a minute.
+- **Site visits** at 8:00 AM on the day the reminder opens, and at 8:00 AM on
+  the day of the visit.
+- **Consultations** at 6:00 PM the day before and an hour before they start.
+
+Times are India time. Something whose time came earlier today still goes out
+until midnight; nothing is sent twice.
+
+How it works: the browser subscribes with the CRM's public key and registers
+the device (`push_subscribe`, table `push_subscriptions`). pg_cron calls the
+`push` function every minute; it works out what is due
+(`supabase/functions/push/schedule.ts`, kept in step with the bell) and sends
+standard Web Push, encrypted and signed with plain WebCrypto
+(`webpush.ts`). The key pair is made by the function on its first run and kept
+in Vault with the cron secret, so there is nothing to configure. The service
+worker (`frontend/src/sw.js`) shows the notification and opens the right page
+on a tap. It needs the built app, so it is not available in `npm run dev` or
+the demo.
 
 ## What the document asked to keep configurable
 
