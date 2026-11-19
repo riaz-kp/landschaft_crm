@@ -56,7 +56,11 @@ async function expand(raw: unknown): Promise<string> {
   } catch {
     throw new Refusal('That is not a link.')
   }
-  if (!SHORT_HOSTS.has(url.hostname.toLowerCase())) throw new Refusal('Only Google Maps share links can be expanded.')
+  const host = url.hostname.toLowerCase()
+  const isMapShare = host === 'maps.app.goo.gl'
+    || (host === 'goo.gl' && url.pathname.startsWith('/maps'))
+    || (host === 'g.co' && url.pathname.startsWith('/kgs'))
+  if (!isMapShare) throw new Refusal('Only Google Maps share links can be expanded.')
   url.protocol = 'https:'
 
   for (let hop = 0; hop < MAX_HOPS; hop++) {
