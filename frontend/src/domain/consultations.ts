@@ -1,3 +1,4 @@
+import { addDays } from './format'
 import type { Client, Consultation, Employee, ID, Lead, RoleKey } from './types'
 
 /** Who keeps a consultation diary: the CEO, the Design Director and the Head of Execution. */
@@ -22,6 +23,24 @@ export function hostsOf(c: Consultation, employees: Employee[]): ID[] {
 /** The consultations on one person's diary — what a new booking must not clash with. */
 export function onDiary(list: Consultation[], hostId: ID | undefined, employees: Employee[]): Consultation[] {
   return list.filter((c) => hostId !== undefined && hostsOf(c, employees).includes(hostId))
+}
+
+/** Everyone on a consultation: its consultants, the team members in it, and whoever booked it. */
+export function consultationPeople(c: Consultation, employees: Employee[]): ID[] {
+  return [...new Set([...hostsOf(c, employees), ...(c.attendeeIds ?? []), c.bookedBy])]
+}
+
+/**
+ * Scheduled consultations a person is on, for their reminders: from the day
+ * before until the day itself. They drop off once completed, cancelled or
+ * moved to a later date. Soonest first.
+ */
+export function dueConsultationReminders(list: Consultation[], personId: ID, employees: Employee[], today: string): Consultation[] {
+  const tomorrow = addDays(today, 1)
+  return list
+    .filter((c) => c.status === 'Scheduled' && c.date >= today && c.date <= tomorrow)
+    .filter((c) => consultationPeople(c, employees).includes(personId))
+    .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
 }
 
 /** The consultations on any of several diaries: a booking with more than one consultant must fit all of them. */
