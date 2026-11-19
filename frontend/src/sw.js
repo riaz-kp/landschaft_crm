@@ -52,6 +52,47 @@ self.addEventListener('fetch', (event) => {
 })
 
 /**
+ * A reminder, site visit or consultation from the push function
+ * (supabase/functions/push), shown in the device's notification panel whether
+ * or not the CRM is open. Browsers require every push to show something.
+ */
+self.addEventListener('push', (event) => {
+  let message = {}
+  try {
+    message = event.data ? event.data.json() : {}
+  } catch {
+    message = { body: event.data ? event.data.text() : '' }
+  }
+  event.waitUntil(self.registration.showNotification(message.title || 'Landschaft CRM', {
+    body: message.body || '',
+    icon: '/icon-192.png',
+    // The same reminder again replaces the old one instead of stacking up.
+    tag: message.tag,
+    data: { url: message.url || '/' },
+  }))
+})
+
+/** A tap opens the page it is about: in the CRM window already open, or a new one. */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = new URL(event.notification.data?.url || '/', self.location.origin).href
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    const open = windows.find((w) => new URL(w.url).origin === self.location.origin && !new URL(w.url).pathname.startsWith('/portal/'))
+    if (open) {
+      await open.focus()
+      try {
+        await open.navigate(url)
+        return
+      } catch {
+        // Not controlled by this worker yet; a new window below does the job.
+      }
+    }
+    await self.clients.openWindow(url)
+  })())
+})
+
+/**
  * Fetches this build's files. Hashed files under /assets/ never change, so one
  * already held from the last build is copied over instead of downloaded again.
  */

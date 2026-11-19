@@ -8,6 +8,7 @@ import { occurrencesBetween, visibleTo } from '../domain/reminders'
 import { dueVisitReminders, visitPeople, visitSubject } from '../domain/siteVisits'
 import { dueConsultationReminders, endOf, hostsOf, partyName } from '../domain/consultations'
 import { Icon } from './Icon'
+import { PushSwitch } from './PushSwitch'
 import { ReminderModal } from './ReminderModal'
 import { useClickOutside } from './useClickOutside'
 
@@ -146,6 +147,7 @@ export function NotificationBell() {
                 </>
               )}
             </div>
+            <PushSwitch />
             <Link to="/calendar" onClick={() => setOpen(false)} className="block border-t border-stone-100 px-4 py-2.5 text-center text-xs font-semibold text-brand-700 hover:bg-stone-50">
               Open calendar
             </Link>
