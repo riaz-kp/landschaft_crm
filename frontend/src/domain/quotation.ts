@@ -26,8 +26,22 @@ export const KIND_TITLE: Record<CommercialDoc, string> = {
 /** The document's name in a sentence: "New BOQ", "Delete quotation", "No scope proposal yet". */
 export const KIND_NOUN: Record<CommercialDoc, string> = { BOQ: 'BOQ', Quotation: 'quotation', Scope: 'scope proposal' }
 
-/** BOQ-2026-004, QT-2026-011, SC-2026-002. */
-export const KIND_PREFIX: Record<CommercialDoc, string> = { BOQ: 'BOQ', Quotation: 'QT', Scope: 'SC' }
+/** BQ-LND26100-01, QT-LND26100-01, SC-LND26100-01: kind, project code, then a count per project. */
+export const KIND_PREFIX: Record<CommercialDoc, string> = { BOQ: 'BQ', Quotation: 'QT', Scope: 'SC' }
+
+/**
+ * The next serial number for a document on a project: one past the highest of
+ * that kind already on it, so a deleted one is never reissued. A project
+ * without a code falls back to the year.
+ */
+export function nextDocNumber(kind: CommercialDoc, projectCode: string | undefined, date: string, existing: Pick<Quotation, 'number'>[]): string {
+  const stem = `${KIND_PREFIX[kind]}-${projectCode?.trim() || date.slice(0, 4)}-`
+  const used = existing
+    .filter((q) => q.number.toUpperCase().startsWith(stem.toUpperCase()))
+    .map((q) => Number(q.number.slice(stem.length)))
+    .filter((n) => Number.isFinite(n))
+  return `${stem}${String(Math.max(0, ...used) + 1).padStart(2, '0')}`
+}
 
 /** The badge colour each kind is shown with in lists. */
 export const KIND_TONE: Record<CommercialDoc, 'blue' | 'green' | 'amber'> = { BOQ: 'blue', Quotation: 'green', Scope: 'amber' }

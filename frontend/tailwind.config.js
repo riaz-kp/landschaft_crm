@@ -29,9 +29,11 @@ export default {
       },
       keyframes: {
         'fade-in': { from: { opacity: '0', transform: 'translateY(4px)' }, to: { opacity: '1', transform: 'none' } },
+        'slide-in': { from: { opacity: '0.4', transform: 'translateX(24px)' }, to: { opacity: '1', transform: 'none' } },
       },
       animation: {
         'fade-in': 'fade-in 180ms ease-out',
+        'slide-in': 'slide-in 200ms ease-out',
       },
     },
   },

@@ -301,7 +301,7 @@ export function OverviewDashboard() {
                   </p>
                   <p className="mt-0.5 text-sm font-medium text-stone-800">{c.purpose}</p>
                   <p className="text-xs text-stone-400">
-                    {partyName(c, db.clients, db.leads)} · booked by {db.employees.find((e) => e.id === c.bookedBy)?.name}
+                    {partyName(c, db.clients, db.leads, db.employees)} · booked by {db.employees.find((e) => e.id === c.bookedBy)?.name}
                   </p>
                 </li>
               ))}

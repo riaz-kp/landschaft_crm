@@ -52,13 +52,9 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
   const droppedService = (was.design && !scope.services.design) || (was.execution && !scope.services.execution)
 
   const save = () => {
-    if (!form.name.trim()) return setError('Enter a project name.')
-    if (!normaliseCode(form.code)) return setError('Enter a project code.')
+    // Name, type, positioning, client and site are all optional; only clashes and unreadable values are stopped.
     if (taken) return setError(`Project code ${normaliseCode(form.code)} is already used by “${taken.name}”.`)
-    if (!form.category) return setError('Choose the project type.')
-    if (!form.clientId) return setError('Choose the client.')
     if (form.area && !(Number(form.area) > 0)) return setError('The site area must be a number above zero, or left blank.')
-    if (!form.siteLocation.trim()) return setError('Enter the site location.')
     if (form.expectedCompletion < form.startDate) return setError('Expected completion cannot be before the start date.')
     const problem = scopeProblem(scope)
     if (problem) return setError(problem)
@@ -69,9 +65,10 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
     }
     api.projects.update(project.id, {
       ...applyScope(scope, project),
-      name: form.name.trim(),
-      code: normaliseCode(form.code),
-      category: form.category,
+      // A blank code keeps the one it had; a blank name goes by the code.
+      code: normaliseCode(form.code) || project.code,
+      name: form.name.trim() || normaliseCode(form.code) || project.code,
+      category: form.category || undefined,
       positioning: form.positioning || undefined,
       area: form.area ? Number(form.area) : undefined,
       areaUnit: form.area ? form.areaUnit : undefined,
@@ -105,11 +102,11 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <Field label="Project Name" required>
+          <Field label="Project Name">
             <input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} />
           </Field>
         </div>
-        <Field label="Project Code" required>
+        <Field label="Project Code">
           <input
             className="input font-mono uppercase tracking-wide" value={form.code}
             onChange={(e) => set({ code: e.target.value.toUpperCase() })}
@@ -122,7 +119,7 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
           </select>
         </Field>
         <div className="sm:col-span-2">
-          <span className="label">Project Type<span className="ml-0.5 text-red-500">*</span></span>
+          <span className="label">Project Type</span>
           <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {PROJECT_CATEGORIES.map((c) => (
               <button
@@ -140,7 +137,7 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
         </div>
         {/* Not a <label>: the picker holds its own buttons, which a label would re-trigger. */}
         <div className="sm:col-span-2">
-          <span className="label">Client<span className="ml-0.5 text-red-500">*</span></span>
+          <span className="label">Client</span>
           <div className="mt-1.5">
             <ClientPicker value={form.clientId} onChange={(clientId) => set({ clientId })} />
           </div>
@@ -159,7 +156,7 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
             </select>
           </div>
         </Field>
-        <Field label="Site Location" required>
+        <Field label="Site Location">
           <input className="input" value={form.siteLocation} onChange={(e) => set({ siteLocation: e.target.value })} />
         </Field>
         <Field label="Project Manager">

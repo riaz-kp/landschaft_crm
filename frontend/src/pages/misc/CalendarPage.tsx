@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { addDays, formatDate, formatDateLong, formatTime, today } from '../../domain/format'
-import { partyName } from '../../domain/consultations'
+import { consultationPeople, partyName } from '../../domain/consultations'
 import { visitPeople } from '../../domain/siteVisits'
 import { occurrencesBetween, visibleTo } from '../../domain/reminders'
 import { ReminderModal } from '../../components/ReminderModal'
@@ -93,8 +93,8 @@ export function CalendarPage() {
       id: `renew-${m.id}`, title: `AMC renewal — ${projectName(m.projectId)}`, date: m.renewalDate!, type: 'AMC Visit', people: [], to: '/amc/renewals',
     })),
     ...db.consultations.filter((c) => c.status === 'Scheduled').map((c): CalEvent => ({
-      id: c.id, title: `Consultation · ${c.purpose} — ${partyName(c, db.clients, db.leads)}`, date: c.date, time: c.start,
-      type: 'Consultation', people: [c.bookedBy, db.employees.find((e) => e.role === 'ceo')?.id ?? ''], to: '/consultations',
+      id: c.id, title: `Consultation · ${c.purpose} — ${partyName(c, db.clients, db.leads, db.employees)}`, date: c.date, time: c.start,
+      type: 'Consultation', people: consultationPeople(c, db.employees), to: '/consultations',
     })),
     ...db.projects.filter((p) => p.status !== 'Completed').map((p): CalEvent => ({
       id: `due-${p.id}`, title: `${p.name} due`, date: p.expectedCompletion, type: 'Project Due',

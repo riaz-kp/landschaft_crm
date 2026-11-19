@@ -1,3 +1,4 @@
+import { addDays } from './format'
 import type { Client, Consultation, Employee, ID, Lead, RoleKey } from './types'
 
 /** Who keeps a consultation diary: the CEO, the Design Director and the Head of Execution. */
@@ -12,9 +13,39 @@ export function hostOf(c: Consultation, employees: Employee[]): ID | undefined {
   return c.hostId ?? employees.find((e) => e.role === 'ceo')?.id
 }
 
+/** Every consultant a consultation is with. */
+export function hostsOf(c: Consultation, employees: Employee[]): ID[] {
+  if (c.hostIds?.length) return c.hostIds
+  const host = hostOf(c, employees)
+  return host ? [host] : []
+}
+
 /** The consultations on one person's diary — what a new booking must not clash with. */
 export function onDiary(list: Consultation[], hostId: ID | undefined, employees: Employee[]): Consultation[] {
-  return list.filter((c) => hostOf(c, employees) === hostId)
+  return list.filter((c) => hostId !== undefined && hostsOf(c, employees).includes(hostId))
+}
+
+/** Everyone on a consultation: its consultants, the team members in it, and whoever booked it. */
+export function consultationPeople(c: Consultation, employees: Employee[]): ID[] {
+  return [...new Set([...hostsOf(c, employees), ...(c.attendeeIds ?? []), c.bookedBy])]
+}
+
+/**
+ * Scheduled consultations a person is on, for their reminders: from the day
+ * before until the day itself. They drop off once completed, cancelled or
+ * moved to a later date. Soonest first.
+ */
+export function dueConsultationReminders(list: Consultation[], personId: ID, employees: Employee[], today: string): Consultation[] {
+  const tomorrow = addDays(today, 1)
+  return list
+    .filter((c) => c.status === 'Scheduled' && c.date >= today && c.date <= tomorrow)
+    .filter((c) => consultationPeople(c, employees).includes(personId))
+    .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
+}
+
+/** The consultations on any of several diaries: a booking with more than one consultant must fit all of them. */
+export function onDiaries(list: Consultation[], hostIds: ID[], employees: Employee[]): Consultation[] {
+  return list.filter((c) => hostsOf(c, employees).some((id) => hostIds.includes(id)))
 }
 
 /** Consultation hours. */
@@ -63,11 +94,15 @@ export function firstFreeSlot(existing: Consultation[], date: string, durationMi
   )
 }
 
-/** Who the consultation is with — the client, the lead, or the free-text attendee. */
-export function partyName(c: Consultation, clients: Client[], leads: Lead[]): string {
+/** Who the consultation is with — the client, the lead, or the team members and others in an internal meeting. */
+export function partyName(c: Consultation, clients: Client[], leads: Lead[], employees: Employee[] = []): string {
   if (c.clientId) return clients.find((x) => x.id === c.clientId)?.name ?? 'Client'
   if (c.leadId) return `${leads.find((x) => x.id === c.leadId)?.name ?? 'Lead'} (lead)`
-  return c.attendee || 'Internal'
+  const names = [
+    ...(c.attendeeIds ?? []).map((id) => employees.find((e) => e.id === id)?.name).filter(Boolean),
+    ...(c.attendee ? [c.attendee] : []),
+  ]
+  return names.length ? names.join(', ') : 'Internal'
 }
 
 /**

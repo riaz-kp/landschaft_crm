@@ -9,7 +9,7 @@ import { remindLabel, visitPeople, visitSubject } from '../../domain/siteVisits'
 import { clientSite, consultationPlace, visitPlace } from '../../domain/places'
 import { addDays, formatDate, formatDateLong, formatTime, timeRange, today } from '../../domain/format'
 import {
-  DAY_END, DAY_START, DURATIONS, SLOT_MINUTES, consultants, endOf, findClash, firstFreeSlot, hostOf, layoutLanes, onDiary,
+  DAY_END, DAY_START, DURATIONS, SLOT_MINUTES, consultants, endOf, findClash, firstFreeSlot, hostsOf, layoutLanes, onDiaries, onDiary,
   partyName, slotTimes, toMinutes,
 } from '../../domain/consultations'
 import type { Consultation, LatLng, SiteVisit } from '../../domain/types'
@@ -72,7 +72,7 @@ export function Consultations() {
   // Someone who keeps a diary opens on their own; everyone else sees all of them.
   const [hostId, setHostId] = useState<string>(() => (hosts.some((h) => h.id === user.id) ? user.id : 'all'))
   const diary = hostId === 'all' ? db.consultations : onDiary(db.consultations, hostId, db.employees)
-  const hostName = (c: Consultation) => db.employees.find((e) => e.id === hostOf(c, db.employees))?.name ?? '—'
+  const hostName = (c: Consultation) => hostsOf(c, db.employees).map((id) => db.employees.find((e) => e.id === id)?.name).filter(Boolean).join(', ') || '—'
   // Monday to Saturday — Sunday is the weekly off.
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
   // A phone shows one day of the week at a time rather than a grid to scroll sideways.
@@ -90,7 +90,7 @@ export function Consultations() {
   const bookedMinutes = thisWeek.reduce((s, c) => s + c.durationMins, 0)
   const capacity = 6 * (DAY_END - DAY_START)
 
-  const name = (c: Consultation) => partyName(c, db.clients, db.leads)
+  const name = (c: Consultation) => partyName(c, db.clients, db.leads, db.employees)
   const staffName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
   const opened = db.consultations.find((c) => c.id === openId)
   const openedVisit = db.siteVisits.find((v) => v.id === visitId)
@@ -438,7 +438,7 @@ export function Consultations() {
       {opened && (
         <DetailsModal
           consultation={opened}
-          canManage={can.manageConsultations(roleKey) || hostOf(opened, db.employees) === user.id}
+          canManage={can.manageConsultations(roleKey) || hostsOf(opened, db.employees).includes(user.id)}
           isBooker={opened.bookedBy === user.id}
           onClose={() => setOpenId(null)}
         />
@@ -500,7 +500,7 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
   const { user } = useSession()
   const hosts = consultants(db.employees)
   const [form, setForm] = useState({
-    hostId: draft.hostId ?? hosts[0]?.id ?? '',
+    hostIds: [draft.hostId ?? hosts[0]?.id].filter(Boolean) as string[],
     date: draft.date,
     start: draft.start,
     durationMins: 60,
@@ -509,6 +509,7 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
     clientId: '',
     leadId: '',
     attendee: '',
+    attendeeIds: [] as string[],
     purpose: '',
     mode: 'Office' as Consultation['mode'],
     location: '',
@@ -521,7 +522,14 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
   const projectSite = form.party === 'Client' ? clientSite(form.clientId, db.projects) : undefined
   const suggestedPlace = projectSite?.label ?? (form.party === 'Lead' ? db.leads.find((l) => l.id === form.leadId)?.location : undefined) ?? ''
 
-  const clash = findClash(onDiary(db.consultations, form.hostId, db.employees), form.date, form.start, form.durationMins)
+  const clash = findClash(onDiaries(db.consultations, form.hostIds, db.employees), form.date, form.start, form.durationMins)
+  const clashWith = clash && hostsOf(clash, db.employees).filter((id) => form.hostIds.includes(id))
+    .map((id) => db.employees.find((e) => e.id === id)?.name).filter(Boolean).join(' & ')
+  // Anyone in the office can be ticked into an internal meeting, apart from the consultants already taking it.
+  const teamMembers = db.employees
+    .filter((e) => e.role !== 'super_admin' && !form.hostIds.includes(e.id))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id])
   const overruns = toMinutes(form.start) + form.durationMins > DAY_END
 
   const save = () => {
@@ -529,19 +537,23 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
     if (form.date < today()) return setError('Pick today or a later date.')
     if (isSunday(form.date)) return setError('Sunday is the weekly off — pick another day.')
     if (overruns) return setError('That runs past 6:00 PM. Pick an earlier time or a shorter slot.')
-    if (clash) return setError(`Clashes with "${clash.purpose}" (${timeRange(clash.start, endOf(clash))}).`)
+    if (hosts.length && !form.hostIds.length) return setError('Tick who the consultation is with.')
+    if (clash) return setError(`Clashes with "${clash.purpose}" on ${clashWith || 'the diary'} (${timeRange(clash.start, endOf(clash))}).`)
     if (form.party === 'Client' && !form.clientId) return setError('Pick the client.')
     if (form.party === 'Lead' && !form.leadId) return setError('Pick the lead.')
-    if (form.party === 'Other' && !form.attendee.trim()) return setError('Enter who the meeting is with.')
+    if (form.party === 'Other' && !form.attendeeIds.length && !form.attendee.trim()) return setError('Tick who from the team is in it, or name who it is with.')
+    const attendeeIds = teamMembers.filter((e) => form.attendeeIds.includes(e.id)).map((e) => e.id)
     api.consultations.create({
-      hostId: form.hostId || undefined,
+      hostId: form.hostIds[0],
+      hostIds: form.hostIds.length ? form.hostIds : undefined,
+      attendeeIds: form.party === 'Other' && attendeeIds.length ? attendeeIds : undefined,
       date: form.date,
       start: form.start,
       durationMins: form.durationMins,
       purpose: form.purpose.trim(),
       clientId: form.party === 'Client' ? form.clientId : undefined,
       leadId: form.party === 'Lead' ? form.leadId : undefined,
-      attendee: form.party === 'Other' ? form.attendee.trim() : undefined,
+      attendee: form.party === 'Other' ? form.attendee.trim() || undefined : undefined,
       mode: form.mode,
       location: form.mode === 'Site' ? (form.location.trim() || suggestedPlace || undefined) : undefined,
       coords: form.mode === 'Site' ? form.coords : undefined,
@@ -563,16 +575,23 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
       <div className="space-y-4">
         {hosts.length > 1 && (
           <div>
-            <p className="label">Consultation with</p>
-            <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Consultation with">
-              {hosts.map((h) => (
-                <button
-                  key={h.id} type="button" role="radio" aria-checked={form.hostId === h.id} onClick={() => set({ hostId: h.id })}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium ${form.hostId === h.id ? 'bg-brand-600 text-white' : 'border border-stone-300 bg-white text-stone-600 hover:bg-stone-50'}`}
-                >
-                  {h.name}
-                </button>
-              ))}
+            <p className="label">Consultation with <span className="font-normal normal-case tracking-normal text-stone-400">· tick one or more</span></p>
+            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Consultation with">
+              {hosts.map((h) => {
+                const on = form.hostIds.includes(h.id)
+                return (
+                  <button
+                    key={h.id} type="button" role="checkbox" aria-checked={on}
+                    onClick={() => set({ hostIds: toggle(form.hostIds, h.id), attendeeIds: form.attendeeIds.filter((id) => id !== h.id) })}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${on ? 'bg-brand-600 text-white' : 'border border-stone-300 bg-white text-stone-600 hover:bg-stone-50'}`}
+                  >
+                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${on ? 'border-white bg-white text-brand-700' : 'border-stone-400'}`}>
+                      {on && <Icon name="check" className="h-3 w-3" />}
+                    </span>
+                    {h.name}
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}
@@ -594,7 +613,7 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
         {(clash || overruns) && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
             {clash
-              ? <>Taken: <strong>{clash.purpose}</strong> runs {timeRange(clash.start, endOf(clash))}.</>
+              ? <>Taken{clashWith && <> for {clashWith}</>}: <strong>{clash.purpose}</strong> runs {timeRange(clash.start, endOf(clash))}.</>
               : 'This slot runs past 6:00 PM.'}
           </p>
         )}
@@ -633,7 +652,25 @@ function BookingModal({ draft, onClose }: { draft: Draft; onClose: () => void })
               />
             )}
             {form.party === 'Other' && (
-              <input className="input" placeholder="e.g. Arshad, Anaswara" value={form.attendee} onChange={(e) => set({ attendee: e.target.value })} aria-label="Attendee" />
+              <div className="space-y-2">
+                <div className="max-h-52 overflow-y-auto rounded-xl border border-stone-200 p-1.5">
+                  <div className="grid gap-0.5 sm:grid-cols-2">
+                    {teamMembers.map((e) => {
+                      const on = form.attendeeIds.includes(e.id)
+                      return (
+                        <label key={e.id} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${on ? 'bg-brand-50 text-brand-900' : 'text-stone-700 hover:bg-stone-50'}`}>
+                          <input
+                            type="checkbox" className="h-4 w-4 rounded accent-brand-600" checked={on}
+                            onChange={() => set({ attendeeIds: toggle(form.attendeeIds, e.id) })}
+                          />
+                          <span className="truncate">{e.name}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+                <input className="input" placeholder="Anyone from outside the team (optional)" value={form.attendee} onChange={(e) => set({ attendee: e.target.value })} aria-label="Others attending" />
+              </div>
             )}
           </div>
         </div>
@@ -707,8 +744,8 @@ function DetailsModal({
       <dl className="grid gap-4 sm:grid-cols-2">
         {[
           ['When', `${formatDateLong(c.date)} · ${timeRange(c.start, endOf(c))}`],
-          ['Diary', staffName(hostOf(c, db.employees) ?? '')],
-          ['With', partyName(c, db.clients, db.leads)],
+          [hostsOf(c, db.employees).length > 1 ? 'Diaries' : 'Diary', hostsOf(c, db.employees).map(staffName).join(', ') || '—'],
+          ['With', partyName(c, db.clients, db.leads, db.employees)],
           ['Where', c.mode === 'Site' && (c.location || place) ? `Site · ${c.location || place!.label}` : c.mode],
           ['Booked by', staffName(c.bookedBy)],
         ].map(([label, value]) => (
@@ -792,7 +829,7 @@ function PostponeModal({
     return d
   })()
   const [date, setDate] = useState(firstDay)
-  const sameDiary = onDiary(db.consultations, hostOf(c, db.employees), db.employees)
+  const sameDiary = onDiaries(db.consultations, hostsOf(c, db.employees), db.employees)
   const [start, setStart] = useState(() => firstFreeSlot(sameDiary.filter((x) => x.id !== c.id), firstDay, c.durationMins) ?? c.start)
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)

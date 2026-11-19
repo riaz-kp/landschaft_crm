@@ -362,6 +362,40 @@ export function Modal({
   )
 }
 
+/**
+ * A panel that slides in from the right, over the page, for reading a record
+ * without leaving the list. Full width on a phone.
+ */
+export function Drawer({
+  title, subtitle, onClose, children, footer,
+}: { title: ReactNode; subtitle?: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-stone-950/40 backdrop-blur-[1px]" onClick={onClose} />
+      <aside role="dialog" aria-modal="true" className="relative flex h-full w-full max-w-md animate-slide-in flex-col bg-white shadow-2xl">
+        <header className="flex items-start justify-between gap-4 border-b border-stone-100 px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-stone-900">{title}</h2>
+            {subtitle && <div className="mt-0.5 text-sm text-stone-500">{subtitle}</div>}
+          </div>
+          <button onClick={onClose} className="btn-icon -mr-2 shrink-0" aria-label="Close">
+            <Icon name="x" className="h-5 w-5" />
+          </button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">{children}</div>
+        {footer && <footer className="flex flex-wrap justify-end gap-2 border-t border-stone-100 bg-stone-50/60 px-5 py-3">{footer}</footer>}
+      </aside>
+    </div>,
+    document.body,
+  )
+}
+
 /** "Are you sure?" before anything is deleted. */
 export function ConfirmDialog({
   title, message, confirmLabel = 'Delete', onConfirm, onClose, blocked,

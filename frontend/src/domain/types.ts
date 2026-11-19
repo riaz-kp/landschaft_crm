@@ -203,15 +203,19 @@ export interface Postponement {
  */
 export interface Consultation {
   id: ID
-  /** Whose diary it is on. Older bookings have none and belong to the CEO. */
+  /** Whose diary it is on — the first of `hostIds`. Older bookings have none and belong to the CEO. */
   hostId?: ID
+  /** Every consultant taking it (Ashfaq, Anees, Thameem…); it sits on each one's diary. Older bookings have only `hostId`. */
+  hostIds?: ID[]
+  /** Employees in an internal meeting, ticked when booking. */
+  attendeeIds?: ID[]
   date: string
   start: string
   durationMins: number
   purpose: string
   clientId?: ID
   leadId?: ID
-  /** Free-text attendee when the meeting is with neither a client nor a lead. */
+  /** Free-text attendee when the meeting is with neither a client nor a lead (people outside the team). */
   attendee?: string
   mode: 'Office' | 'Site' | 'Phone' | 'Video'
   /** Where a site consultation is held, and its pin on the map. */
@@ -478,6 +482,8 @@ export interface Task {
   status: TaskStatus
   priority: TaskPriority
   dueDate: string
+  /** How far along it is, 0–100, set from the task panel. Missing on tasks nobody has updated. */
+  progress?: number
   /** Set when the task was generated from a foreman's Next Day Plan. */
   fromReportId?: ID
   /** What was done, written when the task is marked Done. Cleared if it is reopened. */

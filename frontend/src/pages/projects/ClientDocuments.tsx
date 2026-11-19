@@ -5,7 +5,7 @@ import { useSession } from '../../state/session'
 import { formatDate, today } from '../../domain/format'
 import { CLIENT_DOCS, clientDocProgress, type ClientDocItem } from '../../domain/clientDocs'
 import type { ClientDocKey, ClientDocTick, DocumentRecord, Project } from '../../domain/types'
-import { Badge, ProgressBar, Section } from '../../components/ui'
+import { Badge, ConfirmDialog, ProgressBar, Section } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { FileLink, LinkField, uploadDocument } from '../../components/FileLink'
 import { linkName } from '../../components/docLinks'
@@ -58,141 +58,6 @@ function DocLabel({ item }: { item: ClientDocItem }) {
       <span className="text-sm font-medium text-stone-800">{item.label}</span>
       <span className="ml-2 rounded bg-stone-100 px-1.5 py-0.5 text-[11px] font-medium text-stone-500">{item.format}</span>
     </span>
-  )
-}
-
-/** A file or link attached on New Project, before the project exists. Filed under its document once it is created. */
-export interface DraftDocFile {
-  key: ClientDocKey
-  name: string
-  file?: string
-  sizeKb?: number
-}
-
-/**
- * On New Project: mark what the client has already handed over, and attach
- * the files or paste links to them — as on the project's Client Documents tab.
- * Attaching either marks the document received.
- */
-export function ClientDocsPicker({
-  value, onChange, files, onFilesChange,
-}: {
-  value: Partial<Record<ClientDocKey, DocState>>
-  onChange: (key: ClientDocKey, state: DocState) => void
-  files: DraftDocFile[]
-  onFilesChange: (files: DraftDocFile[]) => void
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [uploadFor, setUploadFor] = useState<ClientDocItem | null>(null)
-  const [uploading, setUploading] = useState<ClientDocKey | null>(null)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [linkFor, setLinkFor] = useState<ClientDocKey | null>(null)
-
-  const add = (added: DraftDocFile[]) => {
-    if (!added.length) return
-    onFilesChange([...files, ...added])
-    onChange(added[0].key, 'Received')
-  }
-
-  // Uploaded straight away, so a file too large or a failed upload shows before the project is created.
-  const upload = async (list: FileList | null) => {
-    const item = uploadFor
-    if (!list || !item) return
-    setUploadFor(null)
-    setUploading(item.key)
-    setUploadError(null)
-    const stored: DraftDocFile[] = []
-    for (const file of Array.from(list)) {
-      try {
-        const ref = await uploadDocument(file, 'projects/new')
-        stored.push({ key: item.key, name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), file: ref })
-      } catch (e) {
-        setUploadError((e as Error).message)
-      }
-    }
-    setUploading(null)
-    add(stored)
-  }
-
-  return (
-    <div className="divide-y divide-stone-100">
-      <input
-        ref={inputRef} type="file" multiple className="hidden"
-        onChange={(e) => { void upload(e.target.files); e.target.value = '' }}
-      />
-      {uploadError && <p role="alert" className="my-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{uploadError}</p>}
-      {groupedDocs().map(({ group, items }) => (
-        <div key={group ?? items[0].key} className="py-2">
-          {group && <p className="px-1 pb-1 pt-1 text-xs font-bold uppercase tracking-wider text-stone-400">{group}</p>}
-          {items.map((item) => {
-            const attached = files.filter((f) => f.key === item.key)
-            return (
-              <div key={item.key} className={`py-1.5 ${group ? 'pl-3' : ''}`}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <DocLabel item={item} />
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setUploadFor(item); inputRef.current?.click() }}
-                      disabled={uploading !== null}
-                      className="btn-icon h-8 w-8 disabled:opacity-50" title={`Attach the ${item.label.toLowerCase()}`} aria-label={`Attach ${item.label}`}
-                    >
-                      {uploading === item.key
-                        ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-                        : <Icon name="clip" className="h-4 w-4" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLinkFor(linkFor === item.key ? null : item.key)}
-                      className={`btn-icon h-8 w-8 ${linkFor === item.key ? 'bg-stone-100 text-stone-800' : ''}`}
-                      title={`Add a link to the ${item.label.toLowerCase()} — Google Drive, Dropbox…`} aria-label={`Add a link to the ${item.label}`}
-                      aria-expanded={linkFor === item.key}
-                    >
-                      <Icon name="link" className="h-4 w-4" />
-                    </button>
-                    <DocStateToggle
-                      label={item.label}
-                      value={value[item.key] ?? 'Pending'}
-                      onChange={(s) => onChange(item.key, s)}
-                    />
-                  </div>
-                </div>
-
-                {linkFor === item.key && (
-                  <div className="mt-2">
-                    <LinkField
-                      onAdd={(link) => { add([{ key: item.key, name: link.name, file: link.url }]); setLinkFor(null) }}
-                      onCancel={() => setLinkFor(null)}
-                      defaultName={(url) => `${item.label} — ${linkName(url)}`}
-                    />
-                  </div>
-                )}
-
-                {attached.length > 0 && (
-                  <ul className="mt-2 flex flex-wrap gap-1.5">
-                    {attached.map((f) => (
-                      <li key={files.indexOf(f)} className="flex items-center gap-1.5 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-600 ring-1 ring-inset ring-stone-200">
-                        <Icon name={isLink(f.file) ? 'link' : 'doc'} className="h-3.5 w-3.5 text-stone-400" />
-                        <FileLink file={f.file} name={f.name} className="max-w-[220px] truncate" />
-                        {f.sizeKb !== undefined && (
-                          <span className="text-stone-400">{f.sizeKb >= 1024 ? `${(f.sizeKb / 1024).toFixed(1)} MB` : `${f.sizeKb} KB`}</span>
-                        )}
-                        <button
-                          type="button" onClick={() => onFilesChange(files.filter((x) => x !== f))}
-                          className="text-stone-400 hover:text-red-600" aria-label={`Remove ${f.name}`}
-                        >
-                          <Icon name="x" className="h-3.5 w-3.5" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      ))}
-    </div>
   )
 }
 
@@ -259,116 +124,185 @@ export function ClientDocumentsTab({ project, canEdit }: { project: Project; can
   }
 
   return (
-    <Section
-      title="Client Documents Received"
-      description="What the client has handed over to start the work. Mark each one as it comes in, or as not needed on this project."
-      actions={<Badge tone={received === applicable ? 'green' : received ? 'amber' : 'stone'}>{received} / {applicable} received</Badge>}
-    >
-      <input
-        ref={inputRef} type="file" multiple className="hidden"
-        onChange={(e) => { void upload(e.target.files); e.target.value = '' }}
-      />
-      {uploadError && <p role="alert" className="mx-5 mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{uploadError}</p>}
-      <div className="px-5 pt-4"><ProgressBar value={applicable ? (received / applicable) * 100 : 100} tone={received === applicable ? 'green' : 'amber'} /></div>
-      <div className="divide-y divide-stone-100 px-5 py-2">
-        {groupedDocs().map(({ group, items }) => (
-          <div key={group ?? items[0].key} className="py-2">
-            {group && <p className="pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-stone-400">{group}</p>}
-            {items.map((item) => {
-              const tick = project.clientDocs?.[item.key]
-              const state: DocState = tick?.status ?? 'Pending'
-              const attached = files.filter((f) => f.clientDoc === item.key)
-              const by = tick?.by && db.employees.find((e) => e.id === tick.by)?.name
-              return (
-                <div key={item.key} className={`py-2.5 ${group ? 'pl-3' : ''}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <DocLabel item={item} />
-                    <div className="flex items-center gap-2">
-                      {canEdit && (
-                        <button
-                          type="button"
-                          onClick={() => { setUploadFor(item); inputRef.current?.click() }}
-                          disabled={uploading !== null}
-                          className="btn-icon h-8 w-8 disabled:opacity-50" title={`Attach the ${item.label.toLowerCase()}`} aria-label={`Attach ${item.label}`}
-                        >
-                          {uploading === item.key
-                            ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-                            : <Icon name="clip" className="h-4 w-4" />}
-                        </button>
-                      )}
-                      {canEdit && (
-                        <button
-                          type="button"
-                          onClick={() => setLinkFor(linkFor === item.key ? null : item.key)}
-                          className={`btn-icon h-8 w-8 ${linkFor === item.key ? 'bg-stone-100 text-stone-800' : ''}`}
-                          title={`Add a link to the ${item.label.toLowerCase()} — Google Drive, Dropbox…`} aria-label={`Add a link to the ${item.label}`}
-                          aria-expanded={linkFor === item.key}
-                        >
-                          <Icon name="link" className="h-4 w-4" />
-                        </button>
-                      )}
-                      <DocStateToggle label={item.label} value={state} disabled={!canEdit} onChange={(s) => setState(item.key, s, tick)} />
+    <div className="space-y-6">
+      <Section
+        title="Client Documents Received"
+        description="What the client has handed over to start the work. Mark each one as it comes in, or as not needed on this project."
+        actions={<Badge tone={received === applicable ? 'green' : received ? 'amber' : 'stone'}>{received} / {applicable} received</Badge>}
+      >
+        <input
+          ref={inputRef} type="file" multiple className="hidden"
+          onChange={(e) => { void upload(e.target.files); e.target.value = '' }}
+        />
+        {uploadError && <p role="alert" className="mx-5 mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{uploadError}</p>}
+        <div className="px-5 pt-4"><ProgressBar value={applicable ? (received / applicable) * 100 : 100} tone={received === applicable ? 'green' : 'amber'} /></div>
+        <div className="divide-y divide-stone-100 px-5 py-2">
+          {groupedDocs().map(({ group, items }) => (
+            <div key={group ?? items[0].key} className="py-2">
+              {group && <p className="pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-stone-400">{group}</p>}
+              {items.map((item) => {
+                const tick = project.clientDocs?.[item.key]
+                const state: DocState = tick?.status ?? 'Pending'
+                const attached = files.filter((f) => f.clientDoc === item.key)
+                const by = tick?.by && db.employees.find((e) => e.id === tick.by)?.name
+                return (
+                  <div key={item.key} className={`py-2.5 ${group ? 'pl-3' : ''}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <DocLabel item={item} />
+                      <div className="flex items-center gap-2">
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => { setUploadFor(item); inputRef.current?.click() }}
+                            disabled={uploading !== null}
+                            className="btn-icon h-8 w-8 disabled:opacity-50" title={`Attach the ${item.label.toLowerCase()}`} aria-label={`Attach ${item.label}`}
+                          >
+                            {uploading === item.key
+                              ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                              : <Icon name="clip" className="h-4 w-4" />}
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => setLinkFor(linkFor === item.key ? null : item.key)}
+                            className={`btn-icon h-8 w-8 ${linkFor === item.key ? 'bg-stone-100 text-stone-800' : ''}`}
+                            title={`Add a link to the ${item.label.toLowerCase()} — Google Drive, Dropbox…`} aria-label={`Add a link to the ${item.label}`}
+                            aria-expanded={linkFor === item.key}
+                          >
+                            <Icon name="link" className="h-4 w-4" />
+                          </button>
+                        )}
+                        <DocStateToggle label={item.label} value={state} disabled={!canEdit} onChange={(s) => setState(item.key, s, tick)} />
+                      </div>
                     </div>
-                  </div>
 
-                  {linkFor === item.key && (
-                    <div className="mt-2">
-                      <LinkField
-                        onAdd={(link) => addLink(item, link)}
-                        onCancel={() => setLinkFor(null)}
-                        defaultName={(url) => `${item.label} — ${linkName(url)}`}
-                      />
-                    </div>
-                  )}
+                    {linkFor === item.key && (
+                      <div className="mt-2">
+                        <LinkField
+                          onAdd={(link) => addLink(item, link)}
+                          onCancel={() => setLinkFor(null)}
+                          defaultName={(url) => `${item.label} — ${linkName(url)}`}
+                        />
+                      </div>
+                    )}
 
-                  {tick?.status === 'Received' && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                      <span className="flex items-center gap-1.5">
-                        Received
+                    {tick?.status === 'Received' && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                        <span className="flex items-center gap-1.5">
+                          Received
+                          {canEdit ? (
+                            <input
+                              type="date" value={tick.on ?? ''} max={today()}
+                              onChange={(e) => e.target.value && api.projects.setClientDoc(project.id, item.key, { ...tick, on: e.target.value }, tick.by ?? user.id)}
+                              className="input w-auto px-2 py-0.5 text-xs" aria-label={`Date the ${item.label} was received`}
+                            />
+                          ) : <span className="tabular-nums">{tick.on ? formatDate(tick.on) : '—'}</span>}
+                          {by && <span>· logged by {by}</span>}
+                        </span>
                         {canEdit ? (
                           <input
-                            type="date" value={tick.on ?? ''} max={today()}
-                            onChange={(e) => e.target.value && api.projects.setClientDoc(project.id, item.key, { ...tick, on: e.target.value }, tick.by ?? user.id)}
-                            className="input w-auto px-2 py-0.5 text-xs" aria-label={`Date the ${item.label} was received`}
+                            key={tick.note ?? ''}
+                            defaultValue={tick.note ?? ''}
+                            onBlur={(e) => e.target.value.trim() !== (tick.note ?? '') && api.projects.setClientDoc(project.id, item.key, { ...tick, note: e.target.value.trim() || undefined }, tick.by ?? user.id)}
+                            placeholder="Note — revision, how it came in…"
+                            className="input min-w-0 flex-1 px-2 py-0.5 text-xs sm:max-w-sm"
+                            aria-label={`Note on the ${item.label}`}
                           />
-                        ) : <span className="tabular-nums">{tick.on ? formatDate(tick.on) : '—'}</span>}
-                        {by && <span>· logged by {by}</span>}
-                      </span>
-                      {canEdit ? (
-                        <input
-                          key={tick.note ?? ''}
-                          defaultValue={tick.note ?? ''}
-                          onBlur={(e) => e.target.value.trim() !== (tick.note ?? '') && api.projects.setClientDoc(project.id, item.key, { ...tick, note: e.target.value.trim() || undefined }, tick.by ?? user.id)}
-                          placeholder="Note — revision, how it came in…"
-                          className="input min-w-0 flex-1 px-2 py-0.5 text-xs sm:max-w-sm"
-                          aria-label={`Note on the ${item.label}`}
-                        />
-                      ) : tick.note && <span className="text-stone-600">· {tick.note}</span>}
-                    </div>
-                  )}
+                        ) : tick.note && <span className="text-stone-600">· {tick.note}</span>}
+                      </div>
+                    )}
 
-                  {attached.length > 0 && (
-                    <ul className="mt-2 flex flex-wrap gap-1.5">
-                      {attached.map((f) => (
-                        <li key={f.id} className="flex items-center gap-1.5 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-600 ring-1 ring-inset ring-stone-200">
-                          <Icon name={isLink(f.file) ? 'link' : 'doc'} className="h-3.5 w-3.5 text-stone-400" />
-                          <FileLink file={f.file} name={f.name} className="max-w-[220px] truncate" />
-                          {f.sizeKb !== undefined && (
-                            <span className="text-stone-400">{f.sizeKb >= 1024 ? `${(f.sizeKb / 1024).toFixed(1)} MB` : `${f.sizeKb} KB`}</span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                    {attached.length > 0 && (
+                      <ul className="mt-2 flex flex-wrap gap-1.5">
+                        {attached.map((f) => (
+                          <li key={f.id} className="flex items-center gap-1.5 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-600 ring-1 ring-inset ring-stone-200">
+                            <Icon name={isLink(f.file) ? 'link' : 'doc'} className="h-3.5 w-3.5 text-stone-400" />
+                            <FileLink file={f.file} name={f.name} className="max-w-[220px] truncate" />
+                            {f.sizeKb !== undefined && (
+                              <span className="text-stone-400">{f.sizeKb >= 1024 ? `${(f.sizeKb / 1024).toFixed(1)} MB` : `${f.sizeKb} KB`}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+        <p className="border-t border-stone-100 px-5 py-3 text-xs text-stone-400">
+          Attached files and links also appear under Documents and on the client's {project.services.design ? 'Design' : 'Execution'} tab. Attaching either marks the document received.
+        </p>
+      </Section>
+      <OtherDocumentLinks project={project} canEdit={canEdit} />
+    </div>
+  )
+}
+
+/**
+ * Links to anything that is not one of the client documents — briefs,
+ * references, reports — kept in Google Drive, Dropbox or elsewhere. Filed under
+ * the project's documents (category Other), as links added on New Project are.
+ */
+function OtherDocumentLinks({ project, canEdit }: { project: Project; canEdit: boolean }) {
+  const db = useDb()
+  const { user } = useSession()
+  const [adding, setAdding] = useState(false)
+  const [removing, setRemoving] = useState<DocumentRecord | null>(null)
+  const links = db.documents.filter((d) => d.projectId === project.id && !d.clientDoc && isLink(d.file))
+
+  const add = (link: { name: string; url: string }) => {
+    api.documents.create({
+      name: link.name, file: link.url, projectId: project.id, clientId: project.clientId || undefined,
+      category: 'Other', uploadedBy: user.id, uploadedAt: today(),
+    })
+    setAdding(false)
+  }
+
+  return (
+    <Section
+      title="Other Document Links"
+      description="Briefs, references, reports — anything kept in Google Drive, Dropbox or elsewhere that is not one of the client documents above."
+      actions={canEdit && !adding && (
+        <button type="button" onClick={() => setAdding(true)} className="btn-secondary py-1.5"><Icon name="link" className="h-4 w-4" /> Add link</button>
+      )}
+    >
+      <div className="space-y-3 px-5 py-4">
+        {adding && <LinkField onAdd={add} onCancel={() => setAdding(false)} />}
+        {links.length === 0 && !adding && <p className="text-sm text-stone-400">No links yet.</p>}
+        {links.length > 0 && (
+          <ul className="divide-y divide-stone-100">
+            {links.map((d) => {
+              const by = db.employees.find((e) => e.id === d.uploadedBy)?.name
+              return (
+                <li key={d.id} className="flex items-center gap-3 py-2.5">
+                  <Icon name="link" className="h-4 w-4 shrink-0 text-stone-400" />
+                  <div className="min-w-0 flex-1">
+                    <FileLink file={d.file} name={d.name} className="block truncate text-sm font-medium" />
+                    <p className="text-xs text-stone-400">Added {formatDate(d.uploadedAt)}{by && ` by ${by}`}</p>
+                  </div>
+                  {canEdit && (
+                    <button type="button" onClick={() => setRemoving(d)} className="btn-icon h-8 w-8 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${d.name}`} title="Remove link">
+                      <Icon name="trash" className="h-4 w-4" />
+                    </button>
                   )}
-                </div>
+                </li>
               )
             })}
-          </div>
-        ))}
+          </ul>
+        )}
       </div>
-      <p className="border-t border-stone-100 px-5 py-3 text-xs text-stone-400">
-        Attached files and links also appear under Documents and on the client's {project.services.design ? 'Design' : 'Execution'} tab. Attaching either marks the document received.
-      </p>
+      {removing && (
+        <ConfirmDialog
+          title="Remove this link?"
+          message={<>“{removing.name}” will be taken off this project and Documents. The file itself, wherever it is kept, is not touched.</>}
+          confirmLabel="Remove"
+          onClose={() => setRemoving(null)}
+          onConfirm={() => api.documents.remove(removing.id)}
+        />
+      )}
     </Section>
   )
 }

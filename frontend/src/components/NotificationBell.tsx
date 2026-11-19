@@ -6,6 +6,7 @@ import { useSession } from '../state/session'
 import { addDays, formatDate, formatTime, today } from '../domain/format'
 import { occurrencesBetween, visibleTo } from '../domain/reminders'
 import { dueVisitReminders, visitPeople, visitSubject } from '../domain/siteVisits'
+import { dueConsultationReminders, endOf, hostsOf, partyName } from '../domain/consultations'
 import { Icon } from './Icon'
 import { ReminderModal } from './ReminderModal'
 import { useClickOutside } from './useClickOutside'
@@ -28,7 +29,10 @@ export function NotificationBell() {
   const coming = occurrencesBetween(visibleTo(db.reminders, user.id), addDays(today(), 1), addDays(today(), 7)).slice(0, 4)
   // Site visits this person is on, once their reminder window opens. They clear when the visit is done.
   const visits = dueVisitReminders(db.siteVisits, user.id, today())
-  const count = due.length + visits.length
+  // Consultations this person is on — as a consultant, a team member in it, or the booker — the day before and on the day.
+  const consultations = dueConsultationReminders(db.consultations, user.id, db.employees, today())
+  const count = due.length + visits.length + consultations.length
+  const firstNames = (ids: string[]) => ids.map((id) => db.employees.find((e) => e.id === id)?.name.split(' ')[0]).filter(Boolean).join(', ')
 
   return (
     <div ref={root} className="relative">
@@ -74,6 +78,32 @@ export function NotificationBell() {
                         </span>
                         {v.time && ` · ${formatTime(v.time)}`} · {v.location}
                         {others > 0 && ` · with ${others} other${others === 1 ? '' : 's'}`}
+                      </p>
+                    </div>
+                  </Link>
+                )
+              })}
+              {consultations.map((c) => {
+                const hosts = hostsOf(c, db.employees).filter((id) => id !== user.id)
+                return (
+                  <Link
+                    key={c.id}
+                    to="/consultations"
+                    onClick={() => setOpen(false)}
+                    className="flex items-start gap-3 border-b border-stone-50 bg-brand-50/40 px-4 py-2.5 hover:bg-brand-50"
+                  >
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-brand-100 text-brand-700">
+                      <Icon name="calendar" className="h-3 w-3" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-stone-800">Consultation — {c.purpose}</p>
+                      <p className="text-xs text-stone-500">
+                        <span className={c.date === today() ? 'font-semibold text-brand-700' : ''}>
+                          {c.date === today() ? 'Today' : 'Tomorrow'}
+                        </span>
+                        {` · ${formatTime(c.start)}–${formatTime(endOf(c))} · ${partyName(c, db.clients, db.leads, db.employees)}`}
+                        {hosts.length > 0 && ` · with ${firstNames(hosts)}`}
+                        {c.mode === 'Site' && c.location ? ` · ${c.location}` : c.mode !== 'Office' ? ` · ${c.mode}` : ''}
                       </p>
                     </div>
                   </Link>

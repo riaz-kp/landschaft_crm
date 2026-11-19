@@ -125,7 +125,11 @@ export interface Api {
     /** Takes back a payment recorded by mistake, noting it in the project's history. */
     remove(paymentId: ID, by: ID): void
   }
-  documents: { create(input: Omit<DocumentRecord, 'id'>): DocumentRecord }
+  documents: {
+    create(input: Omit<DocumentRecord, 'id'>): DocumentRecord
+    /** Takes the record off; a stored file stays in storage, a linked one is not touched. */
+    remove(documentId: ID): void
+  }
   employees: Crud<Employee>
   workers: Crud<Worker> & {
     /** Adds a skill to the list offered on the worker form; returns the stored spelling. */
@@ -194,7 +198,7 @@ export interface Api {
     /** Hands the task to someone else, with the reason kept in the project history. */
     reassign(taskId: ID, toId: ID, by: ID, reason?: string): void
   }
-  /** BOQs and quotations. The number (BOQ-2026-004, QT-2026-011) is given on creation. */
+  /** BOQs, quotations and scope proposals. The number (BQ-LND26100-01, QT-…, SC-…) is given on creation and can be changed. */
   quotations: {
     create(input: Omit<Quotation, 'id' | 'number'>): Quotation
     /**

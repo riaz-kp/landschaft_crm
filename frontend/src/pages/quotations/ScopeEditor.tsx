@@ -1,3 +1,4 @@
+import { DocNumberField } from './DocNumber'
 import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
@@ -104,10 +105,13 @@ export function ScopeEditor({ initial }: { initial: Quotation }) {
         <div className="min-w-0 space-y-6">
           <SectionCard id="s-cover" title="Cover page" description="The subject, date and covering letter. The client, project and location come from the project.">
             <div className="space-y-4 px-5 py-5">
-              <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DocNumberField quote={draft} disabled={!access.canEdit(draft.kind)} onSave={(number) => patch({ number })} />
                 <Field label="Date">
                   <input type="date" className="input" value={draft.date} disabled={readOnly} onChange={(e) => patch({ date: e.target.value })} />
                 </Field>
+              </div>
+              <div className="grid gap-4">
                 <Field label="Subject" hint={`Printed over “${KIND_TITLE.Scope}”.`}>
                   <input className="input" value={scope.subject} disabled={readOnly} placeholder="Landscape Consultancy" onChange={(e) => patchScope({ subject: e.target.value })} />
                 </Field>
