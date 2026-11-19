@@ -348,6 +348,17 @@ export interface ClientDocTick {
   note?: string
 }
 
+/** The parts an execution value can be split into. The split is optional; when given, the execution value is its sum. */
+export const EXECUTION_SPLIT = [
+  { key: 'softscape', label: 'Softscape' },
+  { key: 'hardscape', label: 'Hardscape' },
+  { key: 'drainage', label: 'Drainage' },
+  { key: 'electrical', label: 'Electrical' },
+  { key: 'irrigation', label: 'Irrigation' },
+  { key: 'other', label: 'Other' },
+] as const
+export type ExecutionSplitKey = (typeof EXECUTION_SPLIT)[number]['key']
+
 /** How the design fee is to be worked out, chosen when the project is opened. */
 export const FEE_BASES = ['Lump Sum', 'Area Based', 'Scope Based', 'To Be Decided'] as const
 export type FeeBasis = (typeof FEE_BASES)[number]
@@ -394,6 +405,8 @@ export interface Project {
   /** Accounts' value for the design work and for the execution work. Each one's payment slabs come from Settings. */
   designValue?: number
   executionValue?: number
+  /** The execution value split by work, when Accounts gave one. `executionValue` is then its sum. */
+  executionSplit?: Partial<Record<ExecutionSplitKey, number>>
   /** What the client said they could spend, from the first discussion. Kept apart from the project value. */
   budget?: number
   /** The client's preliminary requirement, noted when the project is opened. */

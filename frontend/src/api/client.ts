@@ -33,6 +33,7 @@ export interface NewProjectInput {
   value: number
   designValue?: number
   executionValue?: number
+  executionSplit?: Project['executionSplit']
   budget?: number
   requirement?: string
   siteVisitRequired?: boolean

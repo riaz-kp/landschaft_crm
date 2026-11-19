@@ -1,5 +1,5 @@
 import { nextId, nowTime, store, type DbShape } from '../data/store'
-import { addDays, formatCurrency, formatDate, today } from '../domain/format'
+import { addDays, capitalizeName, formatCurrency, formatDate, today } from '../domain/format'
 import type {
   ChatMessage, Clarification, Client, Consultation, DailyWorkReport, DocumentRecord, Employee, ID,
   Lead, MaintenanceRecord, MaintenanceVisit, PayRecord, Payment, PaymentFollowUp, Project, ProjectLogEntry, ProjectMessage, Quotation, Settings, SiteVisit,
@@ -10,7 +10,7 @@ import { workerSkills } from '../domain/workers'
 import { formatArea, normaliseCode, suggestProjectCode } from '../domain/projectInfo'
 import { applyScope, describePhases } from '../domain/projectScope'
 import { projectType } from '../domain/progress'
-import { holders, paymentSchedule, stepFor, withCollection, type CollectionRow, type ScheduleRow } from '../domain/workflow'
+import { describeSplit, holders, paymentSchedule, stepFor, withCollection, type CollectionRow, type ScheduleRow } from '../domain/workflow'
 import { CLIENT_DOCS } from '../domain/clientDocs'
 import { nextDocNumber } from '../domain/quotation'
 import { hasPermission } from '../domain/roles'
@@ -20,6 +20,11 @@ type WithId = { id: ID }
 function patchIn<T extends WithId>(list: T[], id: ID, patch: Partial<Omit<T, 'id'>>) {
   const record = list.find((x) => x.id === id)
   if (record) Object.assign(record, patch)
+}
+
+/** A patch with its name, if it has one, in capitals at the start of each word. */
+function withName<P extends { name?: string }>(patch: P): P {
+  return patch.name !== undefined ? { ...patch, name: capitalizeName(patch.name) } : patch
 }
 
 function removeFrom<T extends WithId>(list: T[], id: ID) {
@@ -162,6 +167,7 @@ function describeChanges(db: DbShape, before: Project, patch: Partial<Project>):
     { label: 'Value', value: (p) => (p.value !== undefined ? formatCurrency(p.value) : '') },
     { label: 'Design value', value: (p) => (p.designValue ? formatCurrency(p.designValue) : '') },
     { label: 'Execution value', value: (p) => (p.executionValue ? formatCurrency(p.executionValue) : '') },
+    { label: 'Execution split', value: (p) => describeSplit(p.executionSplit) },
     { label: 'Budget', value: (p) => (p.budget ? formatCurrency(p.budget) : '') },
     { label: 'Fee basis', value: (p) => p.feeBasis ?? '' },
     { label: 'Next action', value: (p) => p.nextAction ?? '' },
@@ -228,7 +234,7 @@ export const adapter: Api = {
       const project: Project = {
         id,
         code: normaliseCode(input.code) || suggestProjectCode(store.db.projects),
-        name: input.name,
+        name: capitalizeName(input.name),
         category: input.category,
         positioning: input.positioning,
         area: input.area || undefined,
@@ -244,6 +250,7 @@ export const adapter: Api = {
         value: input.value,
         designValue: input.designValue || undefined,
         executionValue: input.executionValue || undefined,
+        executionSplit: input.executionSplit,
         budget: input.budget || undefined,
         requirement: input.requirement?.trim() || undefined,
         siteVisitRequired: input.siteVisitRequired || undefined,
@@ -290,6 +297,7 @@ export const adapter: Api = {
     },
 
     update(projectId, patch, by) {
+      if (patch.name !== undefined) patch = { ...patch, name: capitalizeName(patch.name) }
       store.update((db) => {
         const project = db.projects.find((p) => p.id === projectId)
         if (!project) return
@@ -519,14 +527,14 @@ export const adapter: Api = {
 
   leads: {
     create(input): Lead {
-      const lead: Lead = { ...input, id: nextId('l'), createdAt: today() }
+      const lead: Lead = { ...input, name: capitalizeName(input.name), id: nextId('l'), createdAt: today() }
       store.update((db) => {
         db.leads.unshift(lead)
       })
       return lead
     },
     update(leadId, patch) {
-      store.update((db) => patchIn(db.leads, leadId, patch))
+      store.update((db) => patchIn(db.leads, leadId, withName(patch)))
     },
     remove(leadId) {
       store.update((db) => {
@@ -547,7 +555,7 @@ export const adapter: Api = {
       const lead = store.db.leads.find((l) => l.id === leadId)
       const client: Client = {
         id: nextId('c'),
-        name: lead?.name ?? 'New Client',
+        name: capitalizeName(lead?.name ?? 'New Client'),
         phone: lead?.phone ?? '',
         // The lead's WhatsApp carries over; older leads without one fall back to the phone.
         whatsapp: lead?.whatsapp || lead?.phone || '',
@@ -570,14 +578,14 @@ export const adapter: Api = {
 
   clients: {
     create(input): Client {
-      const client: Client = { ...input, id: nextId('c'), createdAt: today() }
+      const client: Client = { ...input, name: capitalizeName(input.name), id: nextId('c'), createdAt: today() }
       store.update((db) => {
         db.clients.push(client)
       })
       return client
     },
     update(clientId, patch) {
-      store.update((db) => patchIn(db.clients, clientId, patch))
+      store.update((db) => patchIn(db.clients, clientId, withName(patch)))
     },
     /** Callers block this while the client still has projects. */
     remove(clientId) {
@@ -675,14 +683,14 @@ export const adapter: Api = {
 
   employees: {
     create(input): Employee {
-      const employee: Employee = { ...input, id: nextId('e') }
+      const employee: Employee = { ...input, name: capitalizeName(input.name), id: nextId('e') }
       store.update((db) => {
         db.employees.push(employee)
       })
       return employee
     },
     update(employeeId, patch) {
-      store.update((db) => patchIn(db.employees, employeeId, patch))
+      store.update((db) => patchIn(db.employees, employeeId, withName(patch)))
     },
     remove(employeeId) {
       store.update((db) => {
@@ -698,14 +706,14 @@ export const adapter: Api = {
 
   workers: {
     create(input): Worker {
-      const worker: Worker = { ...input, id: nextId('w') }
+      const worker: Worker = { ...input, name: capitalizeName(input.name), id: nextId('w') }
       store.update((db) => {
         db.workers.push(worker)
       })
       return worker
     },
     update(workerId, patch) {
-      store.update((db) => patchIn(db.workers, workerId, patch))
+      store.update((db) => patchIn(db.workers, workerId, withName(patch)))
     },
     /** Past reports keep the worker's lines; they simply show the id. Deactivate to keep history readable. */
     remove(workerId) {

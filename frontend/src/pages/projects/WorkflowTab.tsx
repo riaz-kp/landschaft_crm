@@ -5,10 +5,10 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatCurrency, formatDate, today } from '../../domain/format'
 import type { ID, Payment, Project } from '../../domain/types'
-import { canTickStep, holders, nextStep, paymentSchedule, withCollection, workflowFor, type CollectionRow } from '../../domain/workflow'
+import { canTickStep, describeSplit, holders, nextStep, paymentSchedule, withCollection, workflowFor, type CollectionRow } from '../../domain/workflow'
 import { Badge, ConfirmDialog, EmptyState, Field, Modal, ProgressBar, Section, Table } from '../../components/ui'
 import { Icon } from '../../components/Icon'
-import { MoneyFields, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
+import { MoneyFields, forServices, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
 
 /**
  * The project's hand-offs, from the scope proposal to work starting on site.
@@ -130,6 +130,12 @@ export function PaymentSchedule({ project, received, canEdit, canRecord, canRemo
           </div>
         ))}
       </dl>
+      {project.services.execution && describeSplit(project.executionSplit) && (
+        <p className="border-b border-stone-100 px-5 py-2.5 text-sm text-stone-600">
+          <span className="label mr-2">Execution split</span>
+          <span className="tabular-nums">{describeSplit(project.executionSplit)}</span>
+        </p>
+      )}
       {rows.length === 0 ? (
         <EmptyState title="No payment slabs — this project has no design or execution." />
       ) : (
@@ -275,7 +281,7 @@ function ValuesModal({ project, onClose }: { project: Project; onClose: () => vo
   const save = () => {
     const problem = moneyProblem(money)
     if (problem) return setError(problem)
-    api.projects.update(project.id, moneyFields(money, project.value), user.id)
+    api.projects.update(project.id, moneyFields(forServices(money, project.services), project.value), user.id)
     onClose()
   }
   return (
