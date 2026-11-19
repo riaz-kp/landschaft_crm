@@ -1,12 +1,13 @@
-// Expands a short Google Maps share link (maps.app.goo.gl/…) to the full link,
-// so the CRM can read the pin's coordinates out of it.
+// Expands a short Google Maps or Apple Maps share link to the full link, so
+// the CRM can read the pin's coordinates out of it.
 //
 //   { url: 'https://maps.app.goo.gl/AbC123' }  →  { url: 'https://www.google.com/maps/place/…' }
+//   { url: 'https://maps.apple/p/8Zs.nG6R…' }   →  { url: 'https://maps.apple.com/place?coordinate=10.93,75.92&…' }
 //
-// A browser cannot follow these redirects itself (Google sends no CORS
-// headers), so the CRM asks through here. Only Google Maps short links are
-// accepted and only redirects to Google are followed, so this cannot be used
-// to fetch anything else. Nothing is stored.
+// A browser cannot follow these redirects itself (neither sends CORS
+// headers), so the CRM asks through here. Only map short links are accepted,
+// and only redirects that stay with the same maps service are followed, so this
+// cannot be used to fetch anything else. Nothing is stored.
 //
 // Only signed-in staff with an active login may call it.
 // Deployed with verify_jwt off, like plants: the caller's token is checked here.
@@ -21,6 +22,7 @@ const cors = {
 
 const SHORT_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl', 'g.co'])
 const GOOGLE = /(^|\.)(google\.[a-z.]+|goo\.gl|g\.co|app\.goo\.gl)$/i
+const APPLE = /^(maps\.apple|maps\.apple\.com)$/i
 const MAX_HOPS = 6
 
 class Refusal extends Error {
@@ -47,9 +49,9 @@ async function checkCaller(req: Request): Promise<void> {
   if (!link?.active) throw new Refusal('Your login is not active.', 403)
 }
 
-/** Follows the redirects one at a time, staying on Google, and returns where they end. */
+/** Follows the redirects one at a time, staying with the same maps service, and returns where they end. */
 async function expand(raw: unknown): Promise<string> {
-  if (typeof raw !== 'string' || raw.length > 500) throw new Refusal('Paste a Google Maps link.')
+  if (typeof raw !== 'string' || raw.length > 500) throw new Refusal('Paste a Google Maps or Apple Maps link.')
   let url: URL
   try {
     url = new URL(/^https?:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`)
@@ -57,10 +59,13 @@ async function expand(raw: unknown): Promise<string> {
     throw new Refusal('That is not a link.')
   }
   const host = url.hostname.toLowerCase()
-  const isMapShare = host === 'maps.app.goo.gl'
+  const isGoogleShare = host === 'maps.app.goo.gl'
     || (host === 'goo.gl' && url.pathname.startsWith('/maps'))
     || (host === 'g.co' && url.pathname.startsWith('/kgs'))
-  if (!isMapShare) throw new Refusal('Only Google Maps share links can be expanded.')
+  const isAppleShare = APPLE.test(host) && url.pathname.startsWith('/p/')
+  if (!isGoogleShare && !isAppleShare) throw new Refusal('Only Google Maps or Apple Maps share links can be expanded.')
+  // Redirects are only followed while they stay with the service the link came from.
+  const allowed = isAppleShare ? APPLE : GOOGLE
   url.protocol = 'https:'
 
   for (let hop = 0; hop < MAX_HOPS; hop++) {
@@ -68,7 +73,7 @@ async function expand(raw: unknown): Promise<string> {
     try {
       res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CRM map link)' } })
     } catch {
-      throw new Refusal('Google Maps did not answer. Try again in a minute.', 502)
+      throw new Refusal(`${isAppleShare ? 'Apple' : 'Google'} Maps did not answer. Try again in a minute.`, 502)
     }
     await res.body?.cancel()
     const next = res.headers.get('location')
@@ -77,9 +82,9 @@ async function expand(raw: unknown): Promise<string> {
       return url.href
     }
     const target = new URL(next, url)
-    if (!GOOGLE.test(target.hostname)) throw new Refusal('That link does not lead to Google Maps.')
+    if (!allowed.test(target.hostname)) throw new Refusal(`That link does not lead to ${isAppleShare ? 'Apple' : 'Google'} Maps.`)
     // A full maps link: the coordinates are in it, so no need to go further.
-    if (/\/maps\b|[?&](q|ll)=/.test(target.pathname + target.search) && !SHORT_HOSTS.has(target.hostname)) return target.href
+    if (isAppleShare ? /[?&](coordinate|ll|q|address)=/.test(target.search) : /\/maps\b|[?&](q|ll)=/.test(target.pathname + target.search) && !SHORT_HOSTS.has(target.hostname)) return target.href
     url = target
   }
   return url.href

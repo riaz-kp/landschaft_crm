@@ -1,11 +1,11 @@
 import { DEMO_MODE, isNetworkError, supabase } from '../lib/supabase'
 
 /**
- * Expands a short Google Maps share link (maps.app.goo.gl/…) through the
+ * Expands a short Google or Apple Maps share link (maps.app.goo.gl/…, maps.apple/p/…) through the
  * `map-link` Edge Function, since a browser cannot follow it itself.
  */
 export async function expandMapLink(url: string): Promise<string> {
-  if (DEMO_MODE) throw new Error('Short share links need the server. In the demo, paste the full Google Maps link from the browser.')
+  if (DEMO_MODE) throw new Error('Short share links need the server. In the demo, paste the full map link from the browser.')
   const { data, error } = await supabase().functions.invoke('map-link', { body: { url } })
   if (!error) return (data as { url: string }).url
   const response = (error as { context?: Response }).context

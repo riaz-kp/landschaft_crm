@@ -3,7 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { LatLng } from '../domain/types'
 import { Icon } from './Icon'
-import { isShortMapLink, parseMapLink } from './mapLinks'
+import { isAppleMapLink, isShortMapLink, parseMapLink, placeLink } from './mapLinks'
 import { expandMapLink } from '../data/mapLink'
 
 /** Centre of Kerala — where a new map opens before a pin is dropped. */
@@ -65,6 +65,8 @@ export function MapPicker({
   const [results, setResults] = useState<Place[]>([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  /** A good-news line under the map, e.g. that an Apple link was turned into a Google one. */
+  const [note, setNote] = useState<string | null>(null)
   const [link, setLink] = useState('')
 
   // Callbacks change every render; the map handlers read the latest through refs.
@@ -74,6 +76,7 @@ export function MapPicker({
   named.current = onPlaceName
 
   const place = (at: LatLng, zoom?: number, fromUser = true) => {
+    if (fromUser) setNote(null)
     const m = map.current
     if (!m) return
     if (!marker.current) {
@@ -148,11 +151,16 @@ export function MapPicker({
     }
   }
 
-  /** Drops the pin where a pasted Google Maps link points; a link naming only a place searches for it. */
+  /**
+   * Drops the pin where a pasted Google or Apple Maps link points; a link
+   * naming only a place searches for it. An Apple link becomes a Google Maps
+   * link this way: the pin is kept, and every link the CRM gives out is Google's.
+   */
   const useLink = async (text = link) => {
     const raw = text.trim()
     if (!raw) return
     setMessage(null)
+    setNote(null)
     setResults([])
     let parsed = parseMapLink(raw)
     if (!parsed && isShortMapLink(raw)) {
@@ -165,9 +173,13 @@ export function MapPicker({
       }
       setBusy(false)
     }
-    if (!parsed) return setMessage('No location found in that link. Copy the link from Google Maps (Share → Copy link) and paste it here.')
+    if (!parsed) return setMessage('No location found in that link. Copy the link from Google Maps or Apple Maps (Share → Copy link) and paste it here.')
     setLink('')
-    if ('coords' in parsed) return place(parsed.coords, 17)
+    if ('coords' in parsed) {
+      place(parsed.coords, 17)
+      if (isAppleMapLink(raw)) setNote(`Apple Maps link converted to Google Maps: ${placeLink(parsed.coords)}`)
+      return
+    }
     setQuery(parsed.query)
     void search(parsed.query)
   }
@@ -212,8 +224,8 @@ export function MapPicker({
               <input
                 className="input pl-9"
                 value={link}
-                placeholder="Or paste a Google Maps link"
-                aria-label="Google Maps link"
+                placeholder="Or paste a Google Maps or Apple Maps link"
+                aria-label="Google Maps or Apple Maps link"
                 onChange={(e) => setLink(e.target.value)}
                 onPaste={(e) => {
                   const pasted = e.clipboardData.getData('text')
@@ -259,6 +271,7 @@ export function MapPicker({
         )}
       </div>
       {message && <p className="text-xs font-medium text-amber-700">{message}</p>}
+      {note && !message && <p className="break-all text-xs font-medium text-brand-700">{note}</p>}
       {editable && (
         <p className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
           <span>Tap the map or drag the pin to the exact site. Zoom with + and −.</span>
