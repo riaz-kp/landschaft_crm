@@ -12,7 +12,7 @@ import { applyScope, describePhases } from '../domain/projectScope'
 import { projectType } from '../domain/progress'
 import { holders, paymentSchedule, stepFor, withCollection, type CollectionRow, type ScheduleRow } from '../domain/workflow'
 import { CLIENT_DOCS } from '../domain/clientDocs'
-import { KIND_PREFIX } from '../domain/quotation'
+import { nextDocNumber } from '../domain/quotation'
 import { hasPermission } from '../domain/roles'
 
 type WithId = { id: ID }
@@ -966,15 +966,8 @@ export const adapter: Api = {
 
   quotations: {
     create(input): Quotation {
-      const year = input.date.slice(0, 4)
-      const prefix = KIND_PREFIX[input.kind]
-      // One past the highest number used that year, so a deleted one is never reissued.
-      const used = store.db.quotations
-        .filter((q) => q.number.startsWith(`${prefix}-${year}-`))
-        .map((q) => Number(q.number.slice(prefix.length + year.length + 2)))
-        .filter((n) => Number.isFinite(n))
-      const seq = Math.max(0, ...used) + 1
-      const record: Quotation = { ...input, id: nextId('q'), number: `${prefix}-${year}-${String(seq).padStart(3, '0')}` }
+      const code = store.db.projects.find((p) => p.id === input.projectId)?.code
+      const record: Quotation = { ...input, id: nextId('q'), number: nextDocNumber(input.kind, code, input.date, store.db.quotations) }
       store.update((db) => {
         db.quotations.unshift(record)
       })

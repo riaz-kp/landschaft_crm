@@ -194,7 +194,7 @@ export interface Api {
     /** Hands the task to someone else, with the reason kept in the project history. */
     reassign(taskId: ID, toId: ID, by: ID, reason?: string): void
   }
-  /** BOQs and quotations. The number (BOQ-2026-004, QT-2026-011) is given on creation. */
+  /** BOQs, quotations and scope proposals. The number (BQ-LND26100-01, QT-…, SC-…) is given on creation and can be changed. */
   quotations: {
     create(input: Omit<Quotation, 'id' | 'number'>): Quotation
     /**

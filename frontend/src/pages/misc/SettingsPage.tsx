@@ -8,7 +8,7 @@ import { DESIGN_PHASES, PHASE_LABELS, type Settings, type SlabDue } from '../../
 import { SLAB_DUE_LABELS } from '../../domain/workflow'
 import { DEFAULT_DESIGN_SPLIT, DESIGN_PAYMENT_POINTS } from '../../domain/designPhases'
 import {
-  PageHeader, Section, Field, Checkbox, Badge, ProgressBar,
+  PageHeader, Section, Field, Checkbox, Badge, ProgressBar, Modal,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { TimeInput } from '../../components/TimeInput'
@@ -16,6 +16,11 @@ import { workerSkills } from '../../domain/workers'
 import { formatDuration, minutesBetween } from '../../domain/format'
 import { DEMO_MODE } from '../../lib/supabase'
 import { resetDemo } from '../../data/demo'
+import { useSession } from '../../state/session'
+import {
+  collectionLabel, downloadBackup, makeBackup, readBackup, restoreBackup, restorePlan, type BackupFile,
+} from '../../data/backup'
+import { formatDateLong } from '../../domain/format'
 
 /** The company's standard design payment structure. */
 const SPLIT_PRESETS: { label: string; split: Settings['designPaymentSplit'] }[] = [
@@ -359,6 +364,8 @@ export function SettingsPage() {
 
       <DocumentSettingsSection value={draft.documents} onChange={(documents) => patch({ documents })} disabled={!editable} />
 
+      {editable && <BackupRestore />}
+
       {editable && (dirty || saved) && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 backdrop-blur lg:left-64">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -480,5 +487,134 @@ function WorkerSkills({ editable }: { editable: boolean }) {
         )}
       </div>
     </Section>
+  )
+}
+
+/**
+ * Backup and restore of everything in the CRM. A backup is one .json file
+ * saved to this device. Restoring asks for the word RESTORE, saves a backup of
+ * the data as it is now first, then lays the chosen backup over it.
+ */
+function BackupRestore() {
+  const { user } = useSession()
+  const [chosen, setChosen] = useState<BackupFile | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
+
+  const choose = async (file?: File) => {
+    setError(null)
+    setDone(null)
+    if (!file) return
+    try {
+      setChosen(await readBackup(file))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read that file.')
+    }
+  }
+
+  return (
+    <Section
+      title="Backup & Restore"
+      description="Download everything in the CRM as one file, or put the data back as it was in an earlier backup."
+      className="mb-6"
+    >
+      <div className="grid gap-4 px-5 py-5 sm:grid-cols-2">
+        <div className="rounded-xl border border-stone-200 p-4">
+          <p className="flex items-center gap-2 font-medium text-stone-900"><Icon name="upload" className="h-4 w-4 rotate-180 text-brand-600" /> Backup</p>
+          <p className="mt-1 text-sm text-stone-500">
+            Saves projects, clients, tasks, documents, attendance, payments, settings and the rest to a .json file on this device.
+            Photos and files stay in storage; the backup keeps their links.
+          </p>
+          <button type="button" className="btn-primary mt-3" onClick={() => downloadBackup(makeBackup(user.name))}>
+            Download backup
+          </button>
+        </div>
+        <div className="rounded-xl border border-stone-200 p-4">
+          <p className="flex items-center gap-2 font-medium text-stone-900"><Icon name="upload" className="h-4 w-4 text-clay-600" /> Restore</p>
+          <p className="mt-1 text-sm text-stone-500">
+            Choose a backup file. You see what it holds before anything changes, and a backup of today&apos;s data is saved first.
+          </p>
+          <label className="btn-secondary mt-3 cursor-pointer">
+            Choose backup file…
+            <input
+              type="file" accept="application/json,.json" className="sr-only"
+              onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = '' }}
+            />
+          </label>
+          {error && <p className="mt-2 text-sm font-medium text-red-700">{error}</p>}
+          {done && <p className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand-700"><Icon name="check" className="h-4 w-4" /> {done}</p>}
+        </div>
+      </div>
+      {chosen && (
+        <RestoreModal
+          backup={chosen}
+          onClose={() => setChosen(null)}
+          onRestored={(when) => { setChosen(null); setDone(`Restored the backup from ${when}. Changes are saving — keep the app open until the sync shows Saved.`) }}
+        />
+      )}
+    </Section>
+  )
+}
+
+/** YYYY-MM-DD in this device's time zone. */
+const localDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+function RestoreModal({ backup, onClose, onRestored }: { backup: BackupFile; onClose: () => void; onRestored: (when: string) => void }) {
+  const { user } = useSession()
+  const [typed, setTyped] = useState('')
+  const plan = restorePlan(backup)
+  const taken = new Date(backup.exportedAt)
+  const when = Number.isNaN(taken.getTime())
+    ? backup.exportedAt
+    : `${formatDateLong(localDate(taken))}, ${taken.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`
+  const ok = typed.trim().toUpperCase() === 'RESTORE'
+
+  const restore = () => {
+    if (!ok) return
+    // The data as it is now, in case the restore was a mistake.
+    downloadBackup(makeBackup(user.name), 'before-restore')
+    restoreBackup(backup)
+    onRestored(when)
+  }
+
+  return (
+    <Modal
+      title="Restore this backup?"
+      size="lg"
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="btn-secondary">Cancel</button>
+        <button onClick={restore} disabled={!ok} className="btn bg-red-600 text-white hover:bg-red-700 disabled:opacity-40">Restore backup</button>
+      </>}
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-stone-600">
+          Taken <strong>{when}</strong>{backup.exportedBy && <> by <strong>{backup.exportedBy}</strong></>}.
+          Everything below goes back to how it was then, for everyone: records added since are removed, and records changed since go back.
+        </p>
+        <div className="max-h-64 overflow-y-auto rounded-xl border border-stone-200">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-stone-50 text-xs uppercase tracking-wider text-stone-500">
+              <tr><th className="px-3 py-2 text-left">Records</th><th className="px-3 py-2 text-right">Now</th><th className="px-3 py-2 text-right">In backup</th></tr>
+            </thead>
+            <tbody>
+              {plan.map((row) => (
+                <tr key={row.key} className="border-t border-stone-100">
+                  <td className="px-3 py-1.5 text-stone-700">{collectionLabel(row.key)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-stone-500">{row.now}</td>
+                  <td className={`px-3 py-1.5 text-right tabular-nums ${row.backup !== row.now ? 'font-semibold text-amber-700' : 'text-stone-700'}`}>{row.backup}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+          A backup of today&apos;s data downloads first, so this can be undone by restoring that file.
+        </p>
+        <Field label="Type RESTORE to confirm">
+          <input className="input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="RESTORE" autoFocus />
+        </Field>
+      </div>
+    </Modal>
   )
 }

@@ -27,7 +27,7 @@ import { ClientDocumentsTab } from './ClientDocuments'
 import { ClientBriefTab } from './ClientBriefTab'
 import { briefFor } from '../../domain/clientBrief'
 import { ProjectHistory } from './ProjectHistory'
-import { TASK_STATUSES, TaskDoneModal, TaskFormModal, TaskReassignModal } from '../tasks/TaskForm'
+import { TASK_STATUSES, TaskDoneModal, TaskDrawer, TaskFormModal, TaskReassignModal, taskProgress } from '../tasks/TaskForm'
 import { ProgressCell, ProjectProgressPanel } from '../../components/ProjectProgress'
 import { RepeaterView } from '../../components/RepeaterList'
 import { Icon } from '../../components/Icon'
@@ -62,6 +62,7 @@ export function ProjectDetail() {
   const [editingTask, setEditingTask] = useState<Task | 'new' | null>(null)
   const [finishing, setFinishing] = useState<Task | null>(null)
   const [reassigning, setReassigning] = useState<Task | null>(null)
+  const [viewingTask, setViewingTask] = useState<Task | null>(null)
 
   const project = db.projects.find((p) => p.id === projectId)
   if (!project) {
@@ -224,7 +225,8 @@ export function ProjectDetail() {
             </div>
           </Section>
 
-          <div className="space-y-6">
+          {/* On a phone the column's cards join the page's grid, so Progress can lead the page. */}
+          <div className="contents lg:block lg:space-y-6">
             {steps.length > 0 && (
               <Section title="Workflow" actions={<button onClick={() => setTab('workflow')} className="text-xs font-semibold text-brand-700">Open</button>}>
                 <div className="px-5 py-4">
@@ -240,7 +242,7 @@ export function ProjectDetail() {
                 </div>
               </Section>
             )}
-            <Section title="Progress">
+            <Section title="Progress" className="order-first lg:order-none">
               <div className="px-5 py-5">
                 <ProjectProgressPanel project={project} />
               </div>
@@ -352,7 +354,7 @@ export function ProjectDetail() {
                 return (
                   <tr key={task.id} className="row-hover">
                     <td className="td">
-                      <button onClick={() => canEditTask(task) && setEditingTask(task)} className="text-left">
+                      <button onClick={() => setViewingTask(task)} className="text-left">
                         <span className={`font-medium ${task.status === 'Done' ? 'text-stone-400 line-through' : 'text-stone-900'} hover:text-brand-700`}>{task.title}</span>
                       </button>
                       {task.fromReportId && (
@@ -361,6 +363,12 @@ export function ProjectDetail() {
                       {task.status === 'Done' && task.doneNote && (
                         <span className="mt-1 flex items-start gap-1 text-xs text-stone-500">
                           <Icon name="check" className="mt-px h-3 w-3 shrink-0 text-brand-600" /> {task.doneNote}
+                        </span>
+                      )}
+                      {task.status !== 'Done' && taskProgress(task) > 0 && (
+                        <span className="mt-1.5 flex w-40 items-center gap-2">
+                          <span className="min-w-0 flex-1"><ProgressBar value={taskProgress(task)} size="sm" /></span>
+                          <span className="text-[11px] font-semibold tabular-nums text-stone-500">{taskProgress(task)}%</span>
                         </span>
                       )}
                     </td>
@@ -547,6 +555,7 @@ export function ProjectDetail() {
       )}
       {finishing && <TaskDoneModal task={finishing} onClose={() => setFinishing(null)} />}
       {reassigning && <TaskReassignModal task={reassigning} onClose={() => setReassigning(null)} />}
+      {viewingTask && <TaskDrawer taskId={viewingTask.id} canEdit={canEditTask(viewingTask)} onClose={() => setViewingTask(null)} />}
 
       <Link to="/projects" className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-stone-500 hover:text-stone-800">
         <Icon name="back" className="h-4 w-4" /> All projects

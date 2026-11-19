@@ -1,3 +1,4 @@
+import { DocNumberField } from './DocNumber'
 import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../api/client'
@@ -127,10 +128,13 @@ function QuoteEditor({ initial }: { initial: Quotation }) {
         <div className="min-w-0 space-y-6">
           <SectionCard id="q-cover" title="Cover page" description="The date, the covering letter and the line under the Bill of Quantities heading.">
             <div className="space-y-4 px-5 py-5">
-              <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DocNumberField quote={draft} disabled={!access.canEdit(draft.kind)} onSave={(number) => patch({ number })} />
                 <Field label="Date">
                   <input type="date" className="input" value={draft.date} disabled={readOnly} onChange={(e) => patch({ date: e.target.value })} />
                 </Field>
+              </div>
+              <div className="grid gap-4">
                 <Field label="Greeting">
                   <input className="input" value={draft.letter.greeting} disabled={readOnly} onChange={(e) => patch((q) => ({ letter: { ...q.letter, greeting: e.target.value } }))} />
                 </Field>

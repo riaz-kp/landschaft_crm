@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
-import { addDays, formatDateLong, today } from '../../domain/format'
+import { addDays, formatDate, formatDateLong, today } from '../../domain/format'
 import {
   DESIGN_PHASES, EXECUTION_PHASES, PHASE_LABELS, TASK_STATUS_LABELS, type PhaseKey, type Task, type TaskPriority, type TaskStatus,
 } from '../../domain/types'
-import { Avatar, Field, FormError, Modal } from '../../components/ui'
+import { Avatar, Badge, Drawer, Field, FormError, Modal, ProgressBar } from '../../components/ui'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions, projectOptions } from '../../components/pickerOptions'
 import { Icon } from '../../components/Icon'
@@ -276,5 +276,189 @@ export function TaskReassignModal({ task, onClose }: { task: Task; onClose: () =
         )}
       </div>
     </Modal>
+  )
+}
+
+const STATUS_TONE: Record<TaskStatus, string> = {
+  'To Do': 'bg-stone-400', 'In Progress': 'bg-amber-500', Review: 'bg-clay-500', Done: 'bg-brand-500',
+}
+
+/** How far along a task shows as: a finished one is always 100%. */
+export const taskProgress = (task: Task) => (task.status === 'Done' ? 100 : Math.max(0, Math.min(100, task.progress ?? 0)))
+
+/**
+ * A task opened from a list or the board: read it in a panel on the right,
+ * move its status and progress there, and open the full form with Edit.
+ * Anyone who can see the task can read it; changes need edit rights on it.
+ */
+export function TaskDrawer({
+  taskId, canEdit, onClose, onDelete,
+}: {
+  taskId: string
+  canEdit: boolean
+  onClose: () => void
+  /** Offered in the edit form's footer. */
+  onDelete?: (task: Task) => void
+}) {
+  const db = useDb()
+  const { user } = useSession()
+  const task = db.tasks.find((t) => t.id === taskId)
+  const [mode, setMode] = useState<'read' | 'edit' | 'finish' | 'reassign'>('read')
+  // The slider moves freely and is saved once it is let go.
+  const [sliding, setSliding] = useState<number | null>(null)
+
+  if (!task) return null
+  const project = db.projects.find((p) => p.id === task.projectId)
+  const assignee = db.employees.find((e) => e.id === task.assigneeId)
+  const doneBy = task.doneBy && db.employees.find((e) => e.id === task.doneBy)?.name
+  const history = taskHistory(db, task)
+  const overdue = task.status !== 'Done' && task.dueDate < today()
+  const progress = sliding ?? taskProgress(task)
+
+  if (mode === 'edit') {
+    return (
+      <TaskFormModal
+        task={task}
+        onClose={() => setMode('read')}
+        onDelete={onDelete ? () => { onDelete(task); onClose() } : undefined}
+      />
+    )
+  }
+  if (mode === 'finish') return <TaskDoneModal task={task} onClose={() => setMode('read')} />
+  if (mode === 'reassign') return <TaskReassignModal task={task} onClose={() => setMode('read')} />
+
+  const setStatus = (status: TaskStatus) => {
+    if (status === task.status || !canEdit) return
+    if (status === 'Done') setMode('finish')
+    else api.tasks.setStatus(task.id, status, user.id)
+  }
+  const saveProgress = () => {
+    if (sliding === null) return
+    const value = sliding
+    setSliding(null)
+    if (value === taskProgress(task)) return
+    // Moving a task that has not started forward puts it in progress.
+    const patch: Partial<Task> = { progress: value }
+    if (value > 0 && task.status === 'To Do') patch.status = 'In Progress'
+    api.tasks.update(task.id, patch, user.id)
+  }
+
+  const row = (label: string, value: ReactNode) => (
+    <div className="flex items-start justify-between gap-4 py-2.5">
+      <dt className="shrink-0 text-xs font-semibold uppercase tracking-wider text-stone-400">{label}</dt>
+      <dd className="min-w-0 text-right text-sm text-stone-800">{value}</dd>
+    </div>
+  )
+
+  return (
+    <Drawer
+      title={<span className={task.status === 'Done' ? 'text-stone-500 line-through' : ''}>{task.title}</span>}
+      subtitle={project ? <>{project.name} · <span className="font-mono text-xs">{project.code}</span></> : undefined}
+      onClose={onClose}
+      footer={canEdit && <>
+        {task.status !== 'Done' && (
+          <button onClick={() => setMode('reassign')} className="btn-secondary mr-auto"><Icon name="repeat" className="h-4 w-4" /> Reassign</button>
+        )}
+        <button onClick={() => setMode('edit')} className="btn-primary"><Icon name="edit" className="h-4 w-4" /> Edit</button>
+      </>}
+    >
+      <div className="space-y-6">
+        <div>
+          <p className="label mb-2">Status</p>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4" role="radiogroup" aria-label="Status">
+            {TASK_STATUSES.map((status) => (
+              <button
+                key={status} type="button" role="radio" aria-checked={task.status === status}
+                disabled={!canEdit}
+                onClick={() => setStatus(status)}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition disabled:cursor-default ${
+                  task.status === status ? 'bg-stone-900 text-white shadow-sm' : 'border border-stone-200 bg-white text-stone-600 enabled:hover:bg-stone-50'
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${STATUS_TONE[status]}`} /> {TASK_STATUS_LABELS[status]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <p className="label">Progress</p>
+            <span className="text-lg font-bold tabular-nums text-stone-900">{progress}%</span>
+          </div>
+          {canEdit && task.status !== 'Done' ? (
+            <>
+              <input
+                type="range" min={0} max={100} step={5} value={progress}
+                onChange={(e) => setSliding(Number(e.target.value))}
+                onPointerUp={saveProgress} onKeyUp={saveProgress} onBlur={saveProgress}
+                className="w-full accent-brand-600"
+                aria-label="Progress"
+              />
+              <div className="mt-1 flex justify-between gap-1">
+                {[0, 25, 50, 75, 100].map((v) => (
+                  <button
+                    key={v} type="button"
+                    onClick={() => {
+                      if (v === 100) return setMode('finish')
+                      const patch: Partial<Task> = { progress: v }
+                      if (v > 0 && task.status === 'To Do') patch.status = 'In Progress'
+                      api.tasks.update(task.id, patch, user.id)
+                    }}
+                    className={`rounded-md px-2 py-0.5 text-xs font-medium tabular-nums ${progress === v ? 'bg-brand-100 text-brand-800' : 'text-stone-500 hover:bg-stone-100'}`}
+                    title={v === 100 ? 'Mark completed' : undefined}
+                  >
+                    {v}%
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <ProgressBar value={progress} />
+          )}
+        </div>
+
+        <dl className="divide-y divide-stone-100 border-y border-stone-100">
+          {row('Project', project?.name ?? '—')}
+          {row('Phase', task.phase ? PHASE_LABELS[task.phase] : 'General')}
+          {row('Assigned to', (
+            <span className="inline-flex items-center gap-2">
+              <Avatar name={assignee?.name ?? '?'} size="sm" src={assignee?.photo} /> {assignee?.name ?? 'Unassigned'}
+            </span>
+          ))}
+          {row('Due', (
+            <span className={overdue ? 'font-semibold text-red-700' : task.dueDate === today() ? 'font-semibold text-amber-700' : ''}>
+              {task.dueDate === today() ? 'Today' : formatDate(task.dueDate)}
+              {overdue && <span className="ml-1.5"><Badge tone="red">Overdue</Badge></span>}
+            </span>
+          ))}
+          {row('Priority', <Badge tone={task.priority === 'High' ? 'red' : task.priority === 'Medium' ? 'amber' : 'stone'}>{task.priority}</Badge>)}
+          {task.fromReportId && row('From', 'A daily work report')}
+        </dl>
+
+        {task.description && (
+          <div>
+            <p className="label mb-1">Details</p>
+            <p className="whitespace-pre-line text-sm text-stone-700">{task.description}</p>
+          </div>
+        )}
+
+        {task.status === 'Done' && (
+          <div className="rounded-xl bg-brand-50/70 px-4 py-3">
+            <p className="label text-brand-800">
+              Done{task.doneOn && <> · {formatDateLong(task.doneOn)}</>}{doneBy && <> by {doneBy}</>}
+            </p>
+            <p className="mt-1 whitespace-pre-line text-sm text-stone-700">{task.doneNote || <span className="text-stone-400">No done note.</span>}</p>
+          </div>
+        )}
+
+        {history.length > 0 && (
+          <div>
+            <p className="label mb-3">Task history</p>
+            <TaskHistoryList items={history} />
+          </div>
+        )}
+      </div>
+    </Drawer>
   )
 }

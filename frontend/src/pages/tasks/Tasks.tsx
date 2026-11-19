@@ -8,12 +8,12 @@ import { addDays, formatDate, formatDateLong, today } from '../../domain/format'
 import { PHASE_LABELS, TASK_STATUS_LABELS, type ID, type Task, type TaskStatus } from '../../domain/types'
 import {
   PageHeader, Section, StatusBadge, Table, EmptyState, Badge, Avatar, RowActions, ConfirmDialog,
-  SearchInput, StatTile,
+  SearchInput, StatTile, ProgressBar,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions, projectOptions } from '../../components/pickerOptions'
-import { TASK_PRIORITIES, TASK_STATUSES, TaskDoneModal, TaskFormModal, TaskReassignModal } from './TaskForm'
+import { TASK_PRIORITIES, TASK_STATUSES, TaskDoneModal, TaskDrawer, TaskFormModal, TaskReassignModal, taskProgress } from './TaskForm'
 import { WeeklyTaskReportModal, type WeeklyTaskScope } from './WeeklyTaskReport'
 
 // ---------------------------------------------------------------- time filter
@@ -428,23 +428,25 @@ function Board({
                         setDragging(task.id)
                       }}
                       onDragEnd={() => { setDragging(null); setOver(null) }}
-                      onClick={() => editable && onOpen(task)}
-                      className={`group rounded-xl border border-stone-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                        editable ? 'cursor-pointer' : ''
-                      } ${dragging === task.id ? 'opacity-40' : ''}`}
+                      onClick={() => onOpen(task)}
+                      className={`group cursor-pointer rounded-xl border border-stone-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                        dragging === task.id ? 'opacity-40' : ''
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className={`text-sm font-medium ${task.status === 'Done' ? 'text-stone-400 line-through' : 'text-stone-900'}`}>{task.title}</p>
                         <Badge tone={task.priority === 'High' ? 'red' : task.priority === 'Medium' ? 'amber' : 'stone'}>{task.priority}</Badge>
                       </div>
-                      <Link
-                        to={`/projects/${task.projectId}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="mt-1 block truncate text-xs text-stone-400 hover:text-brand-700"
-                      >
+                      <p className="mt-1 truncate text-xs text-stone-400">
                         {projectName(task.projectId)}{task.phase && ` · ${PHASE_LABELS[task.phase]}`}
-                      </Link>
+                      </p>
                       <DoneNote task={task} />
+                      {task.status !== 'Done' && taskProgress(task) > 0 && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="min-w-0 flex-1"><ProgressBar value={taskProgress(task)} size="sm" /></div>
+                          <span className="text-[11px] font-semibold tabular-nums text-stone-500">{taskProgress(task)}%</span>
+                        </div>
+                      )}
                       <div className="mt-2.5 flex items-center justify-between gap-2">
                         <span className="flex min-w-0 items-center gap-1.5 text-xs text-stone-500">
                           <Avatar name={assignee?.name ?? '?'} size="sm" src={assignee?.photo} />
@@ -486,14 +488,14 @@ function Board({
 // ---------------------------------------------------------------- shared task page
 
 /** Opens the task named in `?open=` (the header search links here). */
-function useOpenFromUrl(setEditing: (t: Task) => void) {
+function useOpenFromUrl(setViewing: (id: string) => void) {
   const db = useDb()
   const [params, setParams] = useSearchParams()
   const open = params.get('open')
   useEffect(() => {
     if (!open) return
     const task = db.tasks.find((t) => t.id === open)
-    if (task) setEditing(task)
+    if (task) setViewing(task.id)
     setParams({}, { replace: true })
   }, [open])
 }
@@ -522,7 +524,9 @@ function TaskList({
   const [finishing, setFinishing] = useState<Task | null>(null)
   const [reassigning, setReassigning] = useState<Task | null>(null)
   const [weekly, setWeekly] = useState(false)
-  useOpenFromUrl(setEditing)
+  // The task open in the reading panel.
+  const [viewing, setViewing] = useState<string | null>(null)
+  useOpenFromUrl(setViewing)
 
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? ''
   const personName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? ''
@@ -582,7 +586,7 @@ function TaskList({
           tasks={tasks}
           canEdit={canEdit}
           canCreate={can('Tasks', 'create')}
-          onOpen={setEditing}
+          onOpen={(t) => setViewing(t.id)}
           onAdd={(status) => setEditing({ status })}
           onMove={move}
         />
@@ -603,7 +607,7 @@ function TaskList({
                 return (
                   <tr key={task.id} className="row-hover">
                     <td className="td">
-                      <button onClick={() => canEdit(task) && setEditing(task)} className="text-left">
+                      <button onClick={() => setViewing(task.id)} className="text-left">
                         <span className={`font-medium ${task.status === 'Done' ? 'text-stone-400 line-through' : 'text-stone-900'} hover:text-brand-700`}>{task.title}</span>
                       </button>
                       <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-stone-400">
@@ -611,6 +615,12 @@ function TaskList({
                         {task.fromReportId && <span>from daily report</span>}
                       </span>
                       <DoneNote task={task} />
+                      {task.status !== 'Done' && taskProgress(task) > 0 && (
+                        <span className="mt-1.5 flex w-40 items-center gap-2">
+                          <span className="min-w-0 flex-1"><ProgressBar value={taskProgress(task)} size="sm" /></span>
+                          <span className="text-[11px] font-semibold tabular-nums text-stone-500">{taskProgress(task)}%</span>
+                        </span>
+                      )}
                     </td>
                     <td className="td">
                       <Link to={`/projects/${task.projectId}`} className="hover:text-brand-700">{projectName(task.projectId) || '—'}</Link>
@@ -680,6 +690,17 @@ function TaskList({
       )}
       {finishing && <TaskDoneModal task={finishing} onClose={() => setFinishing(null)} />}
       {reassigning && <TaskReassignModal task={reassigning} onClose={() => setReassigning(null)} />}
+      {viewing && (() => {
+        const task = db.tasks.find((t) => t.id === viewing)
+        return task && (
+          <TaskDrawer
+            taskId={viewing}
+            canEdit={canEdit(task)}
+            onClose={() => setViewing(null)}
+            onDelete={can('Tasks', 'delete') ? setDeleting : undefined}
+          />
+        )
+      })()}
       {weekly && (
         <WeeklyTaskReportModal
           scope={reportScope(scoped, filters, reportLabel, { project: projectName, person: personName }, people)}
@@ -736,7 +757,7 @@ export function TaskBoard() {
   return (
     <TaskList
       title="Task Board"
-      subtitle="Every task by stage. Drag a card to move it; click it to edit. Dropping a card on Completed asks for its done note."
+      subtitle="Every task by stage. Drag a card to move it; click it to open. Dropping a card on Completed asks for its done note."
       scope={() => true}
       showAssignee
       reportLabel="All tasks"

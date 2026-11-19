@@ -3,6 +3,8 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { LatLng } from '../domain/types'
 import { Icon } from './Icon'
+import { isShortMapLink, parseMapLink } from './mapLinks'
+import { expandMapLink } from '../data/mapLink'
 
 /** Centre of Kerala — where a new map opens before a pin is dropped. */
 const KERALA: LatLng = { lat: 10.1632, lng: 76.6413 }
@@ -63,6 +65,7 @@ export function MapPicker({
   const [results, setResults] = useState<Place[]>([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [link, setLink] = useState('')
 
   // Callbacks change every render; the map handlers read the latest through refs.
   const change = useRef(onChange)
@@ -130,12 +133,12 @@ export function MapPicker({
     }
   }, [value?.lat, value?.lng])
 
-  const search = async () => {
-    if (!query.trim()) return
+  const search = async (text = query) => {
+    if (!text.trim()) return
     setBusy(true)
     setMessage(null)
     try {
-      const found = await geocode(query.trim())
+      const found = await geocode(text.trim())
       setResults(found)
       if (found.length === 0) setMessage('No places found. Try a nearby town, or click the map.')
     } catch {
@@ -143,6 +146,30 @@ export function MapPicker({
     } finally {
       setBusy(false)
     }
+  }
+
+  /** Drops the pin where a pasted Google Maps link points; a link naming only a place searches for it. */
+  const useLink = async (text = link) => {
+    const raw = text.trim()
+    if (!raw) return
+    setMessage(null)
+    setResults([])
+    let parsed = parseMapLink(raw)
+    if (!parsed && isShortMapLink(raw)) {
+      setBusy(true)
+      try {
+        parsed = parseMapLink(await expandMapLink(raw))
+      } catch (e) {
+        setBusy(false)
+        return setMessage(e instanceof Error ? e.message : 'Could not read that link.')
+      }
+      setBusy(false)
+    }
+    if (!parsed) return setMessage('No location found in that link. Copy the link from Google Maps (Share → Copy link) and paste it here.')
+    setLink('')
+    if ('coords' in parsed) return place(parsed.coords, 17)
+    setQuery(parsed.query)
+    void search(parsed.query)
   }
 
   const locate = () => {
@@ -171,13 +198,33 @@ export function MapPicker({
               />
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={search} disabled={busy} className="btn-secondary flex-1 sm:flex-none">
+              <button type="button" onClick={() => search()} disabled={busy} className="btn-secondary flex-1 sm:flex-none">
                 {busy ? 'Searching…' : 'Search'}
               </button>
               <button type="button" onClick={locate} disabled={busy} className="btn-secondary flex-1 sm:flex-none" title="Use this device's location">
                 <Icon name="pin" className="h-4 w-4" /> My location
               </button>
             </div>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <div className="relative flex-1">
+              <Icon name="link" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+              <input
+                className="input pl-9"
+                value={link}
+                placeholder="Or paste a Google Maps link"
+                aria-label="Google Maps link"
+                onChange={(e) => setLink(e.target.value)}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData('text')
+                  if (pasted.trim()) { e.preventDefault(); setLink(pasted.trim()); void useLink(pasted) }
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void useLink() } }}
+              />
+            </div>
+            <button type="button" onClick={() => useLink()} disabled={busy || !link.trim()} className="btn-secondary shrink-0">
+              Use link
+            </button>
           </div>
           {results.length > 0 && (
             <ul className="absolute z-[500] mt-1 w-full overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl">
