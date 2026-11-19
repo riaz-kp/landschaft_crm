@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
@@ -8,7 +8,7 @@ import { formatDate } from '../../domain/format'
 import type { Lead, LeadStatus } from '../../domain/types'
 import {
   PageHeader, Section, Table, EmptyState, Badge, Pills, SearchInput, Toolbar, RowActions, ConfirmDialog,
-  Modal, Field, FormError, StatTile,
+  Modal, Field, FormError, StatTile, Drawer,
 } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { ContactNumbers, PhoneWhatsAppFields } from '../../components/ContactFields'
@@ -41,6 +41,8 @@ export function Leads() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Lead | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Lead | null>(null)
+  // The lead open in the reading panel on the right.
+  const [viewing, setViewing] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
   // List or board, remembered in this browser.
   const [view, setViewState] = useState<LeadView>(storedView)
@@ -112,7 +114,7 @@ export function Leads() {
       </Toolbar>
 
       {view === 'board' ? (
-        <LeadBoard leads={leads} canEdit={can('CRM', 'edit')} canCreateClient={can('CRM', 'create')} onOpen={setEditing} />
+        <LeadBoard leads={leads} canEdit={can('CRM', 'edit')} canCreateClient={can('CRM', 'create')} onOpen={(lead) => setViewing(lead.id)} />
       ) : (
       <Section>
         {leads.length === 0 ? (
@@ -163,6 +165,15 @@ export function Leads() {
       </Section>
       )}
 
+      {viewing && (
+        <LeadDrawer
+          leadId={viewing}
+          canEdit={can('CRM', 'edit')}
+          canCreateClient={can('CRM', 'create')}
+          onEdit={(lead) => { setViewing(null); setEditing(lead) }}
+          onClose={() => setViewing(null)}
+        />
+      )}
       {editing && <LeadFormModal lead={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
       {deleting && (
         <ConfirmDialog
@@ -176,6 +187,102 @@ export function Leads() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * A lead opened from the board: read it in a panel on the right, move its
+ * status there, and open the full form with Edit.
+ */
+function LeadDrawer({
+  leadId, canEdit, canCreateClient, onEdit, onClose,
+}: {
+  leadId: string; canEdit: boolean; canCreateClient: boolean
+  onEdit: (lead: Lead) => void; onClose: () => void
+}) {
+  const db = useDb()
+  const lead = db.leads.find((l) => l.id === leadId)
+  if (!lead) return null
+  const owner = db.employees.find((e) => e.id === lead.ownerId)
+  const visits = db.siteVisits.filter((v) => v.leadId === lead.id).sort((a, b) => b.date.localeCompare(a.date))
+
+  const row = (label: string, value: ReactNode) => (
+    <div className="flex items-start justify-between gap-4 py-2.5">
+      <dt className="shrink-0 text-xs font-semibold uppercase tracking-wider text-stone-400">{label}</dt>
+      <dd className="min-w-0 text-right text-sm text-stone-800">{value}</dd>
+    </div>
+  )
+
+  return (
+    <Drawer
+      title={lead.name}
+      subtitle={<>Lead since {formatDate(lead.createdAt)}</>}
+      onClose={onClose}
+      footer={<>
+        {lead.clientId ? (
+          <Link to={`/crm/clients/${lead.clientId}`} onClick={onClose} className="btn-secondary mr-auto">View client</Link>
+        ) : lead.status === 'Won' && canCreateClient ? (
+          <button onClick={() => api.leads.convert(lead.id)} className="btn-secondary mr-auto">Create client</button>
+        ) : null}
+        {canEdit && <button onClick={() => onEdit(lead)} className="btn-primary"><Icon name="edit" className="h-4 w-4" /> Edit</button>}
+      </>}
+    >
+      <div className="space-y-6">
+        <div>
+          <p className="label mb-2">Status</p>
+          <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Status">
+            {STATUSES.map((status) => (
+              <button
+                key={status} type="button" role="radio" aria-checked={lead.status === status}
+                disabled={!canEdit}
+                onClick={() => status !== lead.status && api.leads.setStatus(lead.id, status)}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition disabled:cursor-default ${
+                  lead.status === status ? 'bg-stone-900 text-white shadow-sm' : 'border border-stone-200 bg-white text-stone-600 enabled:hover:bg-stone-50'
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} /> {status}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <dl className="divide-y divide-stone-100 border-y border-stone-100">
+          {row('Phone', lead.phone || lead.whatsapp ? <ContactNumbers phone={lead.phone} whatsapp={lead.whatsapp} /> : <span className="text-stone-400">Not given</span>)}
+          {lead.email && row('Email', <a href={`mailto:${lead.email}`} className="hover:text-brand-700">{lead.email}</a>)}
+          {row('Location', lead.location || <span className="text-stone-400">Not given</span>)}
+          {row('Source', <Badge tone="stone">{lead.source}</Badge>)}
+          {row('Owner', owner?.name ?? '—')}
+        </dl>
+
+        <div>
+          <p className="label mb-1">Requirement</p>
+          <p className="whitespace-pre-line text-sm text-stone-700">{lead.requirement || <span className="text-stone-400">Not written yet.</span>}</p>
+        </div>
+
+        {lead.notes && (
+          <div>
+            <p className="label mb-1">Notes</p>
+            <p className="whitespace-pre-line text-sm text-stone-700">{lead.notes}</p>
+          </div>
+        )}
+
+        {visits.length > 0 && (
+          <div>
+            <p className="label mb-2">Site visits</p>
+            <ul className="space-y-1.5">
+              {visits.map((v) => (
+                <li key={v.id}>
+                  <Link to="/consultations/site-visits" onClick={onClose} className="flex items-center justify-between gap-3 rounded-lg bg-stone-50 px-3 py-2 text-sm hover:bg-stone-100">
+                    <span className="min-w-0 truncate text-stone-700">{formatDate(v.date)} · {v.location}</span>
+                    <Badge tone={v.status === 'Completed' ? 'green' : v.status === 'Cancelled' ? 'stone' : 'amber'}>{v.status}</Badge>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </Drawer>
   )
 }
 
@@ -229,10 +336,10 @@ function LeadBoard({
                     setDragging(lead.id)
                   }}
                   onDragEnd={() => { setDragging(null); setOver(null) }}
-                  onClick={() => canEdit && onOpen(lead)}
-                  className={`rounded-xl border border-stone-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                    canEdit ? 'cursor-pointer' : ''
-                  } ${dragging === lead.id ? 'opacity-40' : ''}`}
+                  onClick={() => onOpen(lead)}
+                  className={`cursor-pointer rounded-xl border border-stone-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                    dragging === lead.id ? 'opacity-40' : ''
+                  }`}
                 >
                   <p className="text-sm font-medium text-stone-900">{lead.name}</p>
                   {lead.location && <p className="mt-0.5 truncate text-xs text-stone-500">{lead.location}</p>}
