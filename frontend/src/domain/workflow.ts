@@ -1,4 +1,5 @@
-import { DESIGN_PHASES, PHASE_LABELS } from './types'
+import { DESIGN_PHASES, EXECUTION_SPLIT, PHASE_LABELS } from './types'
+import { formatCurrency } from './format'
 import type { Employee, Project, RoleKey, Settings, SlabDue, WorkflowStepKey } from './types'
 
 const SITE_PHASES = ['hardscape', 'softscape', 'mep'] as const
@@ -210,6 +211,11 @@ export function withCollection(rows: ScheduleRow[], received: number): Collectio
 }
 
 /** The dashboard figure: design plus execution when either is set, else the value as entered. */
+/** "Softscape ₹2,00,000 · Hardscape ₹1,50,000" — the parts given, in the usual order. */
+export function describeSplit(split: Project['executionSplit']): string {
+  return EXECUTION_SPLIT.filter((p) => split?.[p.key]).map((p) => `${p.label} ${formatCurrency(split![p.key]!)}`).join(' · ')
+}
+
 export function totalValue(designValue: number | undefined, executionValue: number | undefined, fallback: number): number {
   return designValue || executionValue ? (designValue ?? 0) + (executionValue ?? 0) : fallback
 }

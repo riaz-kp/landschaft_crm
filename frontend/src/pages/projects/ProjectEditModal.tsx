@@ -12,7 +12,7 @@ import { employeeOptions } from '../../components/pickerOptions'
 import { Icon } from '../../components/Icon'
 import { applyScope, scopeOf, scopeProblem, type ProjectScope } from '../../domain/projectScope'
 import { DesignPhasePicker, ExecutionPhasePicker, PositioningPicker, ServicePicker } from './ProjectScope'
-import { IntakeFields, MoneyFields, intakeOf, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
+import { IntakeFields, MoneyFields, intakeOf, forServices, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
 import { usePermissions } from '../../state/permissions'
 import { ClientPicker } from './ClientPicker'
 
@@ -80,7 +80,7 @@ export function ProjectEditModal({ project, onClose }: { project: Project; onClo
       expectedCompletion: form.expectedCompletion,
       // Without Accounts access the values are not on the form, so they are left as they are.
       ...(canSeeMoney
-        ? moneyFields({ ...money, designValue: design ? money.designValue : '', executionValue: execution ? money.executionValue : '' }, Number(form.value) || 0)
+        ? moneyFields(forServices(money, { design, execution }), Number(form.value) || 0)
         : {}),
       requirement: intake.requirement.trim() || undefined,
       siteVisitRequired: design && intake.siteVisitRequired ? true : undefined,

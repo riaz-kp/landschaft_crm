@@ -80,6 +80,14 @@ export function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
 
+/**
+ * "ravi kumar" → "Ravi Kumar": the first letter of each word in capitals, the
+ * rest left as typed so "LND", "McDonald" and "ABC Pvt Ltd" stay as they are.
+ */
+export function capitalizeName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').replace(/(^|[\s(\-./&])(\p{Ll})/gu, (_, before: string, letter: string) => before + letter.toUpperCase())
+}
+
 export function initials(name: string): string {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
 }

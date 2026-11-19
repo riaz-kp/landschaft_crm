@@ -17,7 +17,7 @@ import { NoAccess } from '../misc/Fallbacks'
 import { Icon } from '../../components/Icon'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions } from '../../components/pickerOptions'
-import { IntakeFields, MoneyFields, intakeOf, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
+import { IntakeFields, MoneyFields, intakeOf, forServices, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
 
 /** Roles that manage projects — who a new project is given to by default. */
 const MANAGER_ROLES: RoleKey[] = ['design_pm', 'execution_pm', 'design_director', 'execution_head']
@@ -84,7 +84,7 @@ export function NewProject() {
     setError(null)
     const { category, positioning, area, areaUnit, ...basics } = form
     // A project opened without a name goes by its code until it is given one.
-    const values = moneyFields({ ...money, designValue: design ? money.designValue : '', executionValue: execution ? money.executionValue : '' }, 0)
+    const values = moneyFields(forServices(money, { design, execution }), 0)
     const project = api.projects.create({
       ...basics,
       name: form.name.trim() || code,
