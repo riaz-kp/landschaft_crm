@@ -12,6 +12,7 @@ import {
 } from '../../components/ui'
 import { SearchSelect } from '../../components/SearchSelect'
 import { projectOptions } from '../../components/pickerOptions'
+import { useSort } from '../../components/SortControl'
 import { Icon } from '../../components/Icon'
 import { viewPath } from '../quotations/access'
 import { StoredImg } from '../../components/StoredImage'
@@ -64,10 +65,16 @@ export function Materials() {
   const rows = useMemo(() => materialRows(db.materials, db.quotations), [db.materials, db.quotations])
   const q = query.trim().toLowerCase()
   const inSource = (row: MaterialRow, s: SourceFilter) => s === 'all' || (s === 'documents' ? row.uses.length > 0 : Boolean(row.record))
-  const shown = rows.filter((row) =>
+  const { sort, control: sortControl } = useSort<MaterialRow>('materials', [
+    { key: 'name', label: 'Material', value: (r) => r.name },
+    { key: 'rate', label: 'Rate', value: (r) => r.rate, dir: 'desc' },
+    { key: 'projects', label: 'Projects', value: (r) => r.projectIds.length, dir: 'desc' },
+    { key: 'unit', label: 'Unit', value: (r) => r.unit },
+  ])
+  const shown = sort(rows.filter((row) =>
     inSource(row, source)
     && (!projectId || row.projectIds.includes(projectId))
-    && (!q || [row.name, row.dimension, row.specification, row.unit].some((v) => v?.toLowerCase().includes(q))))
+    && (!q || [row.name, row.dimension, row.specification, row.unit].some((v) => v?.toLowerCase().includes(q)))))
 
   const projectsUsed = new Set(rows.flatMap((r) => r.projectIds)).size
 
@@ -108,6 +115,7 @@ export function Materials() {
             <SearchInput value={query} onChange={setQuery} placeholder="Search material, size, specification…" className="min-w-0 flex-1 sm:w-72 sm:flex-none" />
             <ViewSwitch view={view} setView={setView} />
           </div>
+          {sortControl}
         </div>
       </div>
 

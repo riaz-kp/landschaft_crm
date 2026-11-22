@@ -889,6 +889,14 @@ export const adapter: Api = {
       })
       return message
     },
+    edit(messageId, text) {
+      store.update((db) => {
+        const message = db.projectMessages.find((m) => m.id === messageId)
+        if (!message || message.text === text) return
+        message.text = text
+        message.editedAt = `${today()}T${nowTime()}`
+      })
+    },
     remove(messageId) {
       store.update((db) => {
         db.projectMessages = db.projectMessages.filter((m) => m.id !== messageId)

@@ -1,4 +1,4 @@
-import type { CommercialDoc, Project } from './types'
+import type { CommercialDoc, Project, Quotation } from './types'
 
 export interface ChecklistItem {
   id: string
@@ -54,4 +54,21 @@ export function checklistProgress(project: Project, doc: CommercialDoc): { done:
   const items = CHECKLISTS[doc]
   const done = items.filter((item) => project.checklist?.[item.id]?.done).length
   return { done, total: items.length }
+}
+
+/**
+ * The client approved the design scope: ticked on the Workflow tab ("Client
+ * approved the scope" or "Scope confirmed"), on the scope proposal's checklist,
+ * or the scope proposal marked Accepted.
+ */
+export function scopeApproved(project: Project, quotations: Quotation[]): boolean {
+  const wf = project.workflow ?? {}
+  return Boolean(wf.clientApproved?.done || wf.scopeConfirmed?.done || project.checklist?.['sc.accepted']?.done)
+    || quotations.some((q) => q.projectId === project.id && q.kind === 'Scope' && q.status === 'Accepted')
+}
+
+/** The client accepted the execution quotation: ticked on its checklist, or the quotation marked Accepted. */
+export function quotationApproved(project: Project, quotations: Quotation[]): boolean {
+  return Boolean(project.checklist?.['qt.accepted']?.done)
+    || quotations.some((q) => q.projectId === project.id && q.kind === 'Quotation' && q.status === 'Accepted')
 }

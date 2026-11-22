@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSort } from '../../components/SortControl'
 import { Link, useNavigate } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
@@ -31,6 +32,13 @@ export function Employees() {
     !q || [e.name, e.email, e.phone, titleOf(e)].some((v) => v.toLowerCase().includes(q))
 
   const departments = DEPARTMENTS.filter((d) => department === 'All' || d === department)
+  const { sort, control: sortControl } = useSort<Employee>('employees', [
+    { key: 'hierarchy', label: 'Hierarchy', value: (e) => db.employees.indexOf(e) },
+    { key: 'name', label: 'Name', value: (e) => e.name },
+    { key: 'role', label: 'Role', value: (e) => titleOf(e) },
+    { key: 'reportsTo', label: 'Reports to', value: (e) => (e.reportsTo ? managerName(e.reportsTo) : '') },
+    { key: 'joined', label: 'Joined', value: (e) => e.joinedOn, dir: 'desc' },
+  ])
 
   return (
     <div>
@@ -60,12 +68,15 @@ export function Employees() {
             ...DEPARTMENTS.map((d) => ({ key: d, label: d, count: db.employees.filter((e) => e.department === d).length })),
           ]}
         />
-        <SearchInput value={query} onChange={setQuery} placeholder="Search name, email, phone…" className="lg:w-72" />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search name, email, phone…" className="min-w-0 flex-1 lg:w-72 lg:flex-none" />
+          {sortControl}
+        </div>
       </Toolbar>
 
       <div className="space-y-6">
         {departments.map((dept) => {
-          const people = db.employees.filter((e) => e.department === dept && matches(e))
+          const people = sort(db.employees.filter((e) => e.department === dept && matches(e)))
           // AMC is shown even before anyone is assigned, so the department is visible.
           if (people.length === 0 && !(dept === 'AMC' && !q)) return null
           return (

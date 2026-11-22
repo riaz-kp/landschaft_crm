@@ -1,4 +1,4 @@
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { moduleOf, navForRole, sectionForPath, titleOf, type NavSection } from '../domain/roles'
 import { formatDateLong, today } from '../domain/format'
@@ -14,6 +14,7 @@ import { GlobalSearch } from '../components/GlobalSearch'
 import { NotificationBell } from '../components/NotificationBell'
 import { NoAccess, PageLoading } from '../pages/misc/Fallbacks'
 import { PageTrail, buildCrumbs } from '../components/Breadcrumbs'
+import { useSwipeDrawer } from './useSwipeDrawer'
 
 function Logo() {
   return (
@@ -66,6 +67,11 @@ export function AdminShell() {
   const { canView } = usePermissions()
   const { pathname } = useLocation()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const drawerRef = useRef<HTMLElement>(null)
+  // How far open the phone drawer is while a finger drags it; null when it rests open or shut.
+  const drag = useSwipeDrawer(mobileNavOpen, setMobileNavOpen, drawerRef)
+  const drawerShown = drag ?? (mobileNavOpen ? 1 : 0)
+  const settling = drag === null
   const sections = navForRole(roleKey, settings.permissions)
   const current = sectionForPath(pathname)
   const tab = current && activeChild(current, pathname)
@@ -82,6 +88,19 @@ export function AdminShell() {
     setMobileNavOpen(false)
     window.scrollTo({ top: 0 })
   }, [pathname])
+
+  // The page behind an open drawer stays still.
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const before = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileNavOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = before
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [mobileNavOpen])
 
   // Anyone may open their own profile, whatever the Employees permission says.
   const ownProfile = pathname === `/employees/${user.id}`
@@ -137,22 +156,39 @@ export function AdminShell() {
         {sidebar}
       </aside>
 
-      {/* Mobile drawer */}
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-stone-950/50 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] animate-fade-in flex-col bg-gradient-to-b from-brand-900 to-brand-950 shadow-2xl">
-            <button
-              onClick={() => setMobileNavOpen(false)}
-              className="absolute right-3 top-6 rounded-lg p-1.5 text-brand-200 hover:bg-white/10"
-              aria-label="Close navigation"
-            >
-              <Icon name="x" className="h-5 w-5" />
-            </button>
-            {sidebar}
-          </aside>
-        </div>
-      )}
+      {/* Mobile drawer: slides in from the left, by the menu button or a swipe to the right, and follows the finger. */}
+      <div
+        className="fixed inset-0 z-50 lg:hidden"
+        style={{
+          visibility: drawerShown > 0 ? 'visible' : 'hidden',
+          // Stay visible until the slide out has finished.
+          transition: settling ? `visibility 0s linear ${drawerShown > 0 ? '0s' : '280ms'}` : 'none',
+        }}
+        aria-hidden={!mobileNavOpen}
+      >
+        <div
+          className="absolute inset-0 bg-stone-950/50 backdrop-blur-[2px]"
+          style={{ opacity: drawerShown, transition: settling ? 'opacity 280ms ease' : 'none' }}
+          onClick={() => setMobileNavOpen(false)}
+        />
+        <aside
+          ref={drawerRef}
+          className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-gradient-to-b from-brand-900 to-brand-950 pb-[env(safe-area-inset-bottom)] shadow-2xl will-change-transform"
+          style={{
+            transform: `translate3d(${(drawerShown - 1) * 100}%, 0, 0)`,
+            transition: settling ? 'transform 280ms cubic-bezier(0.22, 0.8, 0.24, 1)' : 'none',
+          }}
+        >
+          <button
+            onClick={() => setMobileNavOpen(false)}
+            className="absolute right-3 top-6 rounded-lg p-1.5 text-brand-200 hover:bg-white/10"
+            aria-label="Close navigation"
+          >
+            <Icon name="x" className="h-5 w-5" />
+          </button>
+          {sidebar}
+        </aside>
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
         <header className="sticky top-0 z-20 border-b border-stone-200/70 bg-white/80 backdrop-blur-xl">
@@ -179,7 +215,7 @@ export function AdminShell() {
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main className="min-w-0 flex-1 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-[1440px] animate-fade-in" key={current?.label}>
             {crumbs.length > 0 && <PageTrail crumbs={crumbs} parentTo={parentTo} />}
             {allowed && onListPage && visible && visible.children!.length > 1 && <SectionTabs section={visible} pathname={pathname} />}
@@ -187,6 +223,64 @@ export function AdminShell() {
           </div>
         </main>
       </div>
+
+      <BottomBar sections={sections} current={current} onMenu={() => setMobileNavOpen(true)} />
     </div>
+  )
+}
+
+/** The sections a phone's bottom bar offers first, in order, when the role can open them. */
+const BOTTOM_PREFERENCE = ['Dashboard', 'Projects', 'Tasks', 'CRM', 'Consultations', 'Execution', 'AMC', 'Design', 'Accounts', 'Employees']
+const SHORT_LABEL: Record<string, string> = { Dashboard: 'Home', CRM: 'Clients', Consultations: 'Diary', Employees: 'People' }
+
+/**
+ * A phone's tab bar: four of the role's main sections within thumb reach, and
+ * Menu for the rest. The sidebar also opens with a swipe to the right.
+ */
+function BottomBar({ sections, current, onMenu }: { sections: NavSection[]; current?: NavSection; onMenu: () => void }) {
+  const tabs = BOTTOM_PREFERENCE
+    .map((label) => sections.find((s) => s.label === label))
+    .filter((s): s is NavSection => Boolean(s))
+    .slice(0, 4)
+  const elsewhere = Boolean(current) && !tabs.some((t) => t.label === current?.label)
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200/80 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(0,0,0,0.04)] backdrop-blur-xl lg:hidden print:hidden"
+      aria-label="Main sections"
+    >
+      <div className="mx-auto grid max-w-xl" style={{ gridTemplateColumns: `repeat(${tabs.length + 1}, minmax(0, 1fr))` }}>
+        {tabs.map((section) => {
+          const on = current?.label === section.label
+          return (
+            <Link
+              key={section.label}
+              to={section.path}
+              className={`relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-semibold transition active:scale-95 ${on ? 'text-brand-700' : 'text-stone-400'}`}
+              aria-current={on ? 'page' : undefined}
+            >
+              {on && <span className="absolute inset-x-6 top-0 h-0.5 rounded-b-full bg-brand-600" />}
+              <span className={`flex h-7 w-12 items-center justify-center rounded-full transition ${on ? 'bg-brand-50' : ''}`}>
+                <Icon name={section.icon} className="h-5 w-5" />
+              </span>
+              {SHORT_LABEL[section.label] ?? section.label}
+            </Link>
+          )
+        })}
+        <button
+          type="button"
+          onClick={onMenu}
+          className={`relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-semibold transition active:scale-95 ${elsewhere ? 'text-brand-700' : 'text-stone-400'}`}
+          aria-label="Open navigation"
+        >
+          {elsewhere && <span className="absolute inset-x-6 top-0 h-0.5 rounded-b-full bg-brand-600" />}
+          <span className={`flex h-7 w-12 items-center justify-center rounded-full ${elsewhere ? 'bg-brand-50' : ''}`}>
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+            </svg>
+          </span>
+          {elsewhere ? (SHORT_LABEL[current!.label] ?? current!.label) : 'Menu'}
+        </button>
+      </div>
+    </nav>
   )
 }

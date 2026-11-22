@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSort } from '../../components/SortControl'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
@@ -46,9 +47,17 @@ export function Quotations() {
   const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
   const project = (id: string) => db.projects.find((p) => p.id === id)
   const q = query.trim().toLowerCase()
-  const rows = db.quotations.filter((x) =>
+  const { sort, control: sortControl } = useSort<Quotation>('quotations', [
+    { key: 'date', label: 'Date', value: (x) => x.date, dir: 'desc' },
+    { key: 'number', label: 'Number', value: (x) => x.number },
+    { key: 'project', label: 'Project', value: (x) => project(x.projectId)?.name },
+    { key: 'client', label: 'Client', value: (x) => clientName(x.clientId) },
+    { key: 'status', label: 'Status', value: (x) => QUOTE_STATUSES.indexOf(x.status) },
+    { key: 'value', label: 'Value', value: (x) => quoteValue(x), dir: 'desc' },
+  ])
+  const rows = sort(db.quotations.filter((x) =>
     (kind === 'All' || x.kind === kind)
-    && (!q || [x.number, project(x.projectId)?.name ?? '', clientName(x.clientId)].some((v) => v.toLowerCase().includes(q))))
+    && (!q || [x.number, project(x.projectId)?.name ?? '', clientName(x.clientId)].some((v) => v.toLowerCase().includes(q)))))
 
   const accepted = db.quotations.filter((x) => x.status === 'Accepted' && x.kind === 'Quotation')
   const canCreateAny = access.canCreate('Scope') || access.canCreate('BOQ') || access.canCreate('Quotation')
@@ -79,7 +88,10 @@ export function Quotations() {
             key: k, label: k === 'All' ? 'All' : k === 'Scope' ? 'Scope proposals' : `${k}s`, count: k === 'All' ? db.quotations.length : db.quotations.filter((x) => x.kind === k).length,
           }))}
         />
-        <SearchInput value={query} onChange={setQuery} placeholder="Search number, project, client…" className="lg:w-80" />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search number, project, client…" className="min-w-0 flex-1 lg:w-80 lg:flex-none" />
+          {sortControl}
+        </div>
       </Toolbar>
 
       <Section>

@@ -3,6 +3,7 @@ import { normalizeQuotation } from '../domain/quotation'
 import { normalizePhaseTag, normalizeProjectPhases } from '../domain/designPhases'
 import type { Project } from '../domain/types'
 import { store, type DbShape } from './store'
+import { clearDemoHistory, demoRecorder } from './changeLog'
 
 // The offline demo (VITE_DEMO_MODE=true): the seed data, kept in this browser.
 // v4 added AMC as a project service with repeat visit schedules, project remarks,
@@ -88,6 +89,7 @@ function load(seed: Seed): DbShape {
 /** Clears everything entered in the demo and starts again from the seed. */
 export function resetDemo() {
   localStorage.removeItem(STORAGE_KEY)
+  clearDemoHistory()
   window.location.reload()
 }
 
@@ -96,7 +98,9 @@ export async function openDemo(): Promise<void> {
   // Imported on demand, so the seed is not shipped in the production bundle.
   const seed = await import('../mock/seed')
   store.load(load(seed))
+  const record = demoRecorder(store.db)
   store.setPersister((_touched, db) => {
+    record(db)
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(db))
     } catch {

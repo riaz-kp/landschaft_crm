@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { formatDate, formatDuration, minutesBetween, pad2 } from '../../domain/format'
-import type { ReportStatus } from '../../domain/types'
+import type { DailyWorkReport, ReportStatus } from '../../domain/types'
+import { useSort } from '../../components/SortControl'
 import {
   PageHeader, Section, StatusBadge, SiteName, Table, EmptyState, StatTile, Badge,
 } from '../../components/ui'
@@ -14,13 +15,20 @@ export function DailyWorkReports() {
   const db = useDb()
   const [filter, setFilter] = useState<ReportStatus | 'All'>('All')
 
-  const reports = [...db.reports]
+  const foremanName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
+  const { sort, control: sortControl } = useSort<DailyWorkReport>('daily-reports', [
+    { key: 'date', label: 'Date', value: (r) => r.date, dir: 'desc' },
+    { key: 'site', label: 'Site', value: (r) => r.siteLocation },
+    { key: 'foreman', label: 'Foreman', value: (r) => foremanName(r.foremanId) },
+    { key: 'workers', label: 'Workers', value: (r) => r.attendance.filter((a) => a.present).length, dir: 'desc' },
+    { key: 'status', label: 'Status', value: (r) => r.status },
+  ])
+  const reports = sort([...db.reports]
     .filter((r) => filter === 'All' || r.status === filter)
-    .sort((a, b) => b.date.localeCompare(a.date) || a.siteLocation.localeCompare(b.siteLocation))
+    .sort((a, b) => a.siteLocation.localeCompare(b.siteLocation)))
 
   const submitted = db.reports.filter((r) => r.status === 'Submitted')
   const openIssues = db.issues.filter((i) => i.status === 'Open')
-  const foremanName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
 
   return (
     <div>
@@ -48,7 +56,8 @@ export function DailyWorkReports() {
         />
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-wrap gap-2">
         {FILTERS.map((status) => {
           const count = status === 'All'
             ? db.reports.length
@@ -67,6 +76,8 @@ export function DailyWorkReports() {
             </button>
           )
         })}
+      </div>
+      {sortControl}
       </div>
 
       <Section>

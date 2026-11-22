@@ -1,4 +1,6 @@
 import { useDb } from '../../state/useDb'
+import { useSort } from '../../components/SortControl'
+import type { Payment } from '../../domain/types'
 import { formatCurrency, formatDate } from '../../domain/format'
 import {
   PageHeader, Section, Table, EmptyState, StatTile, Badge, ProgressBar,
@@ -6,12 +8,19 @@ import {
 
 export function Payments() {
   const db = useDb()
-  const payments = [...db.payments].sort((a, b) => b.date.localeCompare(a.date))
+  const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
+  const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? '—'
+  const { sort, control: sortControl } = useSort<Payment>('payments', [
+    { key: 'date', label: 'Date', value: (p) => p.date, dir: 'desc' },
+    { key: 'amount', label: 'Amount', value: (p) => p.amount, dir: 'desc' },
+    { key: 'client', label: 'Client', value: (p) => clientName(p.clientId) },
+    { key: 'project', label: 'Project', value: (p) => projectName(p.projectId) },
+    { key: 'method', label: 'Method', value: (p) => p.method },
+  ])
+  const payments = sort(db.payments)
 
   const contracted = db.projects.reduce((sum, p) => sum + p.value, 0)
   const received = payments.reduce((sum, p) => sum + p.amount, 0)
-  const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
-  const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? '—'
 
   return (
     <div>
@@ -46,7 +55,7 @@ export function Payments() {
         </div>
       </Section>
 
-      <Section title="Received Payments">
+      <Section title="Received Payments" actions={sortControl}>
         {payments.length === 0 ? (
           <EmptyState title="No payments recorded." />
         ) : (

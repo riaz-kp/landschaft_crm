@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
+import { useSort } from '../../components/SortControl'
 import { useSession } from '../../state/session'
 import { can } from '../../domain/roles'
 import { formatCurrency, today } from '../../domain/format'
+import type { MaintenanceRecord } from '../../domain/types'
 import { allOccurrences, renewalReminders, visitReminders } from '../../domain/amc'
 import { PageHeader, Section, EmptyState, StatTile, Pills } from '../../components/ui'
 import { Icon } from '../../components/Icon'
@@ -32,11 +34,22 @@ export function AmcContracts() {
   const renewals = renewalReminders(db.maintenance, today())
   const upcoming = allOccurrences(active, today()).filter((o) => o.status !== 'Done' && o.date >= today()).length
 
-  const records = db.maintenance
+  const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name
+  const base = db.maintenance
     .filter((m) => filter === 'active' ? m.endDate >= today()
       : filter === 'ended' ? m.endDate < today()
       : m.type === filter)
     .sort((a, b) => (a.type === b.type ? b.startDate.localeCompare(a.startDate) : a.type === 'AMC' ? -1 : 1))
+  const listed = new Map(base.map((m, i) => [m.id, i]))
+  const { sort, control: sortControl } = useSort<MaintenanceRecord>('amc-contracts', [
+    { key: 'default', label: 'AMCs, newest first', value: (m) => listed.get(m.id) },
+    { key: 'project', label: 'Project', value: (m) => projectName(m.projectId) },
+    { key: 'start', label: 'Start date', value: (m) => m.startDate, dir: 'desc' },
+    { key: 'end', label: 'End date', value: (m) => m.endDate },
+    { key: 'renewal', label: 'Renewal date', value: (m) => m.renewalDate },
+    { key: 'value', label: 'Value', value: (m) => m.value, dir: 'desc' },
+  ])
+  const records = sort(base)
 
   return (
     <div>
@@ -75,7 +88,7 @@ export function AmcContracts() {
         <span className="ml-1">— or an AMC on its own, for a garden someone else built.</span>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <Pills<Filter>
           active={filter}
           onChange={setFilter}
@@ -86,6 +99,7 @@ export function AmcContracts() {
             { key: 'ended', label: 'Ended', count: db.maintenance.length - active.length },
           ]}
         />
+        {sortControl}
       </div>
 
       {records.length === 0 ? (

@@ -170,6 +170,8 @@ export interface Api {
   }
   projectChat: {
     post(input: Omit<ProjectMessage, 'id' | 'at'>): ProjectMessage
+    /** Changes a message's text and marks it edited. */
+    edit(messageId: ID, text: string): void
     remove(messageId: ID): void
     /** Notes that the person has read the project's remarks up to now. */
     markRead(personId: ID, projectId: ID): void

@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
+import type { Project } from '../../domain/types'
+import { useSort } from '../../components/SortControl'
 import { usePermissions } from '../../state/permissions'
 import { useSession } from '../../state/session'
 import { formatDate } from '../../domain/format'
@@ -24,14 +26,21 @@ export function ExecutionPhasePage({ phase }: { phase: Key }) {
   const { can } = usePermissions()
   const editable = can('Execution', 'edit')
 
-  const projects = db.projects.filter(
+  const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
+  const { sort, control: sortControl } = useSort<Project>(`execution-phase`, [
+    { key: 'name', label: 'Project', value: (p) => p.name },
+    { key: 'client', label: 'Client', value: (p) => clientName(p.clientId) },
+    { key: 'site', label: 'Site', value: (p) => p.siteLocation },
+    { key: 'progress', label: 'Progress', value: (p) => p.execution[phase].progress, dir: 'desc' },
+    { key: 'report', label: 'Last report', value: (p) => db.reports.filter((r) => r.projectId === p.id).reduce((m, r) => (r.date > m ? r.date : m), ''), dir: 'desc' },
+    { key: 'status', label: 'Status', value: (p) => p.status },
+  ])
+  const projects = sort(db.projects.filter(
     (p) => p.services.execution && p.execution[phase].enabled,
-  )
+  ))
   const average = projects.length
     ? Math.round(projects.reduce((s, p) => s + p.execution[phase].progress, 0) / projects.length)
     : 0
-
-  const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
 
   return (
     <div>
@@ -55,7 +64,7 @@ export function ExecutionPhasePage({ phase }: { phase: Key }) {
         <StatTile label="Average Progress" value={`${average}%`} />
       </div>
 
-      <Section title={`Sites in ${PHASE_LABELS[phase]}`}>
+      <Section title={`Sites in ${PHASE_LABELS[phase]}`} actions={projects.length > 1 && sortControl}>
         {projects.length === 0 ? (
           <EmptyState
             title={`No site currently carries ${PHASE_LABELS[phase]}.`}

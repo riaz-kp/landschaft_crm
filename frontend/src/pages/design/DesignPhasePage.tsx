@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
+import type { Project } from '../../domain/types'
+import { useSort } from '../../components/SortControl'
 import { usePermissions } from '../../state/permissions'
 import { useSession } from '../../state/session'
 import { formatCurrency, formatDate } from '../../domain/format'
@@ -25,7 +27,15 @@ export function DesignPhasePage({ phase }: { phase: DesignPhaseKey }) {
   const { can } = usePermissions()
   const editable = can('Design', 'edit')
 
-  const projects = db.projects.filter((p) => p.services.design && p.design[phase].enabled)
+  const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
+  const { sort, control: sortControl } = useSort<Project>('design-phase', [
+    { key: 'name', label: 'Project', value: (p) => p.name },
+    { key: 'client', label: 'Client', value: (p) => clientName(p.clientId) },
+    { key: 'progress', label: 'Progress', value: (p) => p.design[phase].progress, dir: 'desc' },
+    { key: 'due', label: 'Due date', value: (p) => p.expectedCompletion },
+    { key: 'status', label: 'Status', value: (p) => p.status },
+  ])
+  const projects = sort(db.projects.filter((p) => p.services.design && p.design[phase].enabled))
   const complete = projects.filter((p) => p.design[phase].progress === 100)
   const notStarted = projects.filter((p) => p.design[phase].progress === 0)
   const average = projects.length
@@ -33,7 +43,6 @@ export function DesignPhasePage({ phase }: { phase: DesignPhaseKey }) {
     : 0
 
   const phaseTasks = db.tasks.filter((t) => t.phase === phase && t.status !== 'Done')
-  const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
 
   return (
     <div>
@@ -46,7 +55,7 @@ export function DesignPhasePage({ phase }: { phase: DesignPhaseKey }) {
         <StatTile label="Average Progress" value={`${average}%`} tone="amber" />
       </div>
 
-      <Section title={`Projects in ${PHASE_LABELS[phase]}`} className="mb-6">
+      <Section title={`Projects in ${PHASE_LABELS[phase]}`} className="mb-6" actions={projects.length > 1 && sortControl}>
         {projects.length === 0 ? (
           <EmptyState
             title={`No project currently carries ${PHASE_LABELS[phase]}.`}

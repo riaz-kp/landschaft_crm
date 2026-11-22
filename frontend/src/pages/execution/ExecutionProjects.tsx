@@ -1,16 +1,32 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
+import { useSort } from '../../components/SortControl'
 import { computeProgress } from '../../domain/progress'
 import { formatDate, today } from '../../domain/format'
-import { MEP_LABELS, MEP_SERVICES } from '../../domain/types'
+import { MEP_LABELS, MEP_SERVICES, type Project } from '../../domain/types'
+import { quotationApproved } from '../../domain/commercial'
 import {
-  PageHeader, Section, StatusBadge, SiteName, EmptyState, Badge, ProgressBar,
+  PageHeader, Section, StatusBadge, SiteName, EmptyState, Badge, ProgressBar, Pills,
 } from '../../components/ui'
 
 /** Site-oriented view of every project carrying the execution module. */
 export function ExecutionProjects() {
   const db = useDb()
-  const projects = db.projects.filter((p) => p.services.execution && p.status !== 'Completed')
+  const [approval, setApproval] = useState<'all' | 'approved' | 'pending'>('all')
+  const live = db.projects.filter((p) => p.services.execution && p.status !== 'Completed')
+  const approved = (p: Project) => quotationApproved(p, db.quotations)
+  const approvedCount = live.filter(approved).length
+  const lastReport = (p: Project) => db.reports.filter((r) => r.projectId === p.id).reduce((m, r) => (r.date > m ? r.date : m), '')
+  const { sort, control: sortControl } = useSort<Project>('execution-projects', [
+    { key: 'name', label: 'Project', value: (p) => p.name },
+    { key: 'site', label: 'Site', value: (p) => p.siteLocation },
+    { key: 'due', label: 'Due date', value: (p) => p.expectedCompletion },
+    { key: 'progress', label: 'Progress', value: (p) => computeProgress(p).execution?.overall, dir: 'desc' },
+    { key: 'report', label: 'Last report', value: lastReport, dir: 'desc' },
+    { key: 'issues', label: 'Open issues', value: (p) => db.issues.filter((i) => i.projectId === p.id && i.status === 'Open').length, dir: 'desc' },
+  ])
+  const projects = sort(approval === 'all' ? live : live.filter((p) => approved(p) === (approval === 'approved')))
 
   return (
     <div>
@@ -19,8 +35,21 @@ export function ExecutionProjects() {
         subtitle="Live sites, their phases and today's reporting status."
       />
 
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <Pills<'all' | 'approved' | 'pending'>
+          active={approval}
+          onChange={setApproval}
+          options={[
+            { key: 'all', label: 'All live sites', count: live.length },
+            { key: 'approved', label: 'Quotation approved', count: approvedCount },
+            { key: 'pending', label: 'Quotation not approved yet', count: live.length - approvedCount },
+          ]}
+        />
+        {sortControl}
+      </div>
+
       {projects.length === 0 ? (
-        <Section><EmptyState title="No live execution projects." /></Section>
+        <Section><EmptyState title={approval === 'all' ? 'No live execution projects.' : 'No live sites match this filter.'} /></Section>
       ) : (
         <div className="grid gap-5 lg:grid-cols-2">
           {projects.map((project) => {

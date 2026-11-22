@@ -5,6 +5,7 @@ import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
 import { formatCurrency, formatDate } from '../../domain/format'
 import { receivable } from '../../domain/finance'
+import { useSort } from '../../components/SortControl'
 import type { Client } from '../../domain/types'
 import {
   PageHeader, Section, Table, EmptyState, Badge, SearchInput, Toolbar, RowActions, ConfirmDialog, StatTile, Avatar,
@@ -21,9 +22,16 @@ export function Clients() {
   const [editing, setEditing] = useState<Client | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Client | null>(null)
 
+  const { sort, control: sortControl } = useSort<Client>('clients', [
+    { key: 'name', label: 'Name', value: (c) => c.name },
+    { key: 'recent', label: 'Newest first', value: (c) => c.createdAt, dir: 'desc' },
+    { key: 'projects', label: 'Projects', value: (c) => db.projects.filter((p) => p.clientId === c.id).length, dir: 'desc' },
+    { key: 'value', label: 'Value', value: (c) => receivable(db, c.id).contracted, dir: 'desc' },
+    { key: 'outstanding', label: 'Outstanding', value: (c) => receivable(db, c.id).outstanding, dir: 'desc' },
+  ])
   const q = query.trim().toLowerCase()
-  const clients = db.clients.filter((c) =>
-    !q || [c.name, c.phone, c.whatsapp, c.address, c.email ?? ''].some((v) => v.toLowerCase().includes(q)))
+  const clients = sort(db.clients.filter((c) =>
+    !q || [c.name, c.phone, c.whatsapp, c.address, c.email ?? ''].some((v) => v.toLowerCase().includes(q))))
   const totals = db.clients.map((c) => receivable(db, c.id))
   const outstanding = totals.reduce((s, m) => s + m.outstanding, 0)
 
@@ -48,7 +56,10 @@ export function Clients() {
 
       <Toolbar>
         <p className="text-sm text-stone-500">{clients.length} of {db.clients.length} clients</p>
-        <SearchInput value={query} onChange={setQuery} placeholder="Search name, phone, address…" className="lg:w-80" />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search name, phone, address…" className="min-w-0 flex-1 lg:w-80 lg:flex-none" />
+          {sortControl}
+        </div>
       </Toolbar>
 
       <Section>
