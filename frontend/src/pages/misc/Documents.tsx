@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useDb } from '../../state/useDb'
+import { useSort } from '../../components/SortControl'
 import { formatDate } from '../../domain/format'
 import type { DocumentRecord } from '../../domain/types'
 import {
@@ -14,13 +15,17 @@ export function Documents() {
   const db = useDb()
   const [filter, setFilter] = useState<DocumentRecord['category'] | 'All'>('All')
 
-  const documents = [...db.documents]
-    .filter((d) => filter === 'All' || d.category === filter)
-    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
-
   const uploaderName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
   const projectName = (id?: string) =>
     id ? db.projects.find((p) => p.id === id)?.name ?? '—' : '—'
+  const { sort, control: sortControl } = useSort<DocumentRecord>('documents', [
+    { key: 'date', label: 'Date', value: (d) => d.uploadedAt, dir: 'desc' },
+    { key: 'name', label: 'Name', value: (d) => d.name },
+    { key: 'project', label: 'Project', value: (d) => (d.projectId ? projectName(d.projectId) : '') },
+    { key: 'category', label: 'Category', value: (d) => d.category },
+    { key: 'size', label: 'Size', value: (d) => d.sizeKb, dir: 'desc' },
+  ])
+  const documents = sort(db.documents.filter((d) => filter === 'All' || d.category === filter))
 
   const size = (kb: number) => (kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`)
 
@@ -38,7 +43,8 @@ export function Documents() {
         />
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-wrap gap-2">
         {CATEGORIES.map((category) => (
           <button
             key={category}
@@ -52,6 +58,8 @@ export function Documents() {
             {category}
           </button>
         ))}
+      </div>
+      {sortControl}
       </div>
 
       <Section>

@@ -5,6 +5,11 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* No grey flash on tap; taps answer at once rather than waiting to see if it's a double-tap zoom. */
+    -webkit-tap-highlight-color: transparent;
+  }
+  a, button, [role='button'], label, select, summary {
+    touch-action: manipulation;
   }
   body {
     @apply bg-canvas text-stone-800 antialiased;

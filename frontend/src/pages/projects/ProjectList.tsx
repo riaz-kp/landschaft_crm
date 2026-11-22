@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
 import { usePermissions } from '../../state/permissions'
-import { projectType } from '../../domain/progress'
+import { computeProgress, projectType } from '../../domain/progress'
+import { quotationApproved, scopeApproved } from '../../domain/commercial'
+import { useSort, type SortOption } from '../../components/SortControl'
 import { daysBetween, formatCurrency, formatDate, today } from '../../domain/format'
 import { amcProgress, describeSchedule, occurrencesFor } from '../../domain/amc'
 import { PROJECT_CATEGORIES, type Project, type ProjectCategory } from '../../domain/types'
@@ -38,6 +40,29 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
   // Values are Accounts' business; other roles see the projects without them.
   const canSeeMoney = can('Accounts', 'view')
   const [category, setCategory] = useState<ProjectCategory | 'all'>('all')
+  // Design projects filter on the client approving the scope; execution ones on the quotation being accepted.
+  const [approval, setApproval] = useState<'all' | 'approved' | 'pending'>('all')
+  const approvalCheck = scope === 'design' ? (p: Project) => scopeApproved(p, db.quotations)
+    : scope === 'execution' ? (p: Project) => quotationApproved(p, db.quotations)
+    : null
+  const approvalLabel = scope === 'design' ? 'Scope approved' : 'Quotation approved'
+
+  const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
+  const managerName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
+  const amcFor = (p: Project) => db.maintenance.find((m) => m.projectId === p.id && m.type === 'AMC')
+  const sortOptions: SortOption<Project>[] = [
+    { key: 'recent', label: 'Newest first', value: (p) => p.startDate || p.code, dir: 'desc' },
+    { key: 'name', label: 'Project name', value: (p) => p.name },
+    { key: 'code', label: 'Project code', value: (p) => p.code },
+    { key: 'client', label: 'Client', value: (p) => clientName(p.clientId) },
+    { key: 'due', label: 'Due date', value: (p) => p.expectedCompletion },
+    { key: 'status', label: 'Status', value: (p) => p.status },
+    { key: 'progress', label: 'Progress', value: (p) => computeProgress(p).overall, dir: 'desc' },
+    { key: 'manager', label: 'Manager', value: (p) => managerName(p.projectManagerId) },
+    ...(scope === 'amc' ? [{ key: 'renewal', label: 'Renewal date', value: (p: Project) => amcFor(p)?.renewalDate }] : []),
+    ...(canSeeMoney ? [{ key: 'value', label: 'Value', value: (p: Project) => p.value, dir: 'desc' as const }] : []),
+  ]
+  const { sort, control: sortControl } = useSort(`projects-${scope}`, sortOptions)
 
   const inSection = db.projects.filter((p) => {
     if (scope === 'design') return p.services.design
@@ -45,10 +70,11 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
     if (scope === 'amc') return p.services.amc || db.maintenance.some((m) => m.projectId === p.id && m.type === 'AMC')
     return true
   })
-  const projects = category === 'all' ? inSection : inSection.filter((p) => p.category === category)
-
-  const clientName = (id: string) => db.clients.find((c) => c.id === id)?.name ?? '—'
-  const managerName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
+  const ofCategory = category === 'all' ? inSection : inSection.filter((p) => p.category === category)
+  const approvedCount = approvalCheck ? ofCategory.filter(approvalCheck).length : 0
+  const projects = sort(approvalCheck && approval !== 'all'
+    ? ofCategory.filter((p) => approvalCheck(p) === (approval === 'approved'))
+    : ofCategory)
 
   return (
     <div>
@@ -62,7 +88,8 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
         }
       />
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 space-y-2">
         <Pills<ProjectCategory | 'all'>
           active={category}
           onChange={setCategory}
@@ -71,6 +98,19 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
             ...PROJECT_CATEGORIES.map((c) => ({ key: c, label: c, count: inSection.filter((p) => p.category === c).length })),
           ]}
         />
+        {approvalCheck && (
+          <Pills<'all' | 'approved' | 'pending'>
+            active={approval}
+            onChange={setApproval}
+            options={[
+              { key: 'all', label: 'Any approval', count: ofCategory.length },
+              { key: 'approved', label: approvalLabel, count: approvedCount },
+              { key: 'pending', label: scope === 'design' ? 'Scope not approved yet' : 'Quotation not approved yet', count: ofCategory.length - approvedCount },
+            ]}
+          />
+        )}
+        </div>
+        {sortControl}
       </div>
 
       {scope === 'amc' && <AmcProjectsTable projects={projects} />}
@@ -87,6 +127,7 @@ export function ProjectList({ scope }: { scope: 'all' | 'design' | 'execution' |
                   <Link to={`/projects/${project.id}`} className="font-medium text-stone-900 hover:text-brand-700">
                     {project.name}
                   </Link>
+                  {approvalCheck?.(project) && <span className="ml-1.5 align-middle"><Badge tone="green">{approvalLabel}</Badge></span>}
                   <span className="block text-xs text-stone-400">
                     <span className="font-mono">{project.code}</span> · due {formatDate(project.expectedCompletion)}
                   </span>

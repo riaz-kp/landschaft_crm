@@ -196,7 +196,15 @@ export const NAV: NavSection[] = [
   { label: 'Documents', path: '/documents', icon: 'doc' },
   { label: 'Calendar', path: '/calendar', icon: 'calendar' },
   { label: 'Reports', path: '/reports', icon: 'chart' },
-  { label: 'Settings', path: '/settings', icon: 'cog' },
+  {
+    label: 'Settings',
+    path: '/settings',
+    icon: 'cog',
+    children: [
+      { label: 'Settings', path: '/settings' },
+      { label: 'History', path: '/settings/history' },
+    ],
+  },
 ]
 
 /** Paths that sit inside a section without being one of its tabs. */

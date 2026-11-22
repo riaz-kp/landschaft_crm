@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSort } from '../../components/SortControl'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
@@ -39,10 +40,16 @@ export function ExecutionWorkers() {
 
   const skills = [...new Set(db.workers.map((w) => w.skill))].sort()
   const q = query.trim().toLowerCase()
-  const workers = db.workers.filter((w) =>
+  const { sort, control: sortControl } = useSort<Worker>('workers', [
+    { key: 'name', label: 'Name', value: (w) => w.name },
+    { key: 'skill', label: 'Skill', value: (w) => w.skill },
+    { key: 'wage', label: 'Day rate', value: (w) => w.dailyWage, dir: 'desc' },
+    { key: 'joined', label: 'Joined', value: (w) => w.joinedOn, dir: 'desc' },
+  ])
+  const workers = sort(db.workers.filter((w) =>
     (filter === 'all' || (filter === 'active' ? w.active : !w.active))
     && (!skill || w.skill === skill)
-    && (!q || [w.name, w.skill, w.phone].some((v) => v.toLowerCase().includes(q))))
+    && (!q || [w.name, w.skill, w.phone].some((v) => v.toLowerCase().includes(q)))))
 
   const active = db.workers.filter((w) => w.active)
   const onSiteToday = active.filter((w) => todayFor(w.id)?.status === 'Present' || todayFor(w.id)?.status === 'Half Day')
@@ -87,6 +94,7 @@ export function ExecutionWorkers() {
             {skills.map((s) => <option key={s}>{s}</option>)}
           </select>
           <SearchInput value={query} onChange={setQuery} placeholder="Search workers…" className="sm:w-64" />
+          {sortControl}
         </div>
       </Toolbar>
 

@@ -367,7 +367,7 @@ export function SettingsPage() {
       {editable && <BackupRestore />}
 
       {editable && (dirty || saved) && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 backdrop-blur lg:left-64">
+        <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-30 border-t border-stone-200 bg-white/95 backdrop-blur lg:bottom-0 lg:left-64">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
             {saved && !dirty ? (
               <span className="flex items-center gap-1.5 text-sm font-medium text-brand-700">

@@ -1,16 +1,23 @@
 import { useDb } from '../../state/useDb'
+import { useSort } from '../../components/SortControl'
 import { formatCurrency, formatDate } from '../../domain/format'
-import { PHASE_LABELS, type PhaseKey } from '../../domain/types'
+import { PHASE_LABELS, type PaymentRequest, type PhaseKey } from '../../domain/types'
 import {
   PageHeader, Section, StatusBadge, Table, EmptyState, StatTile, Badge,
 } from '../../components/ui'
 
 export function PaymentRequests() {
   const db = useDb()
-  const requests = [...db.paymentRequests].sort((a, b) => b.date.localeCompare(a.date))
-
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? '—'
   const staffName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
+  const { sort, control: sortControl } = useSort<PaymentRequest>('payment-requests', [
+    { key: 'date', label: 'Date', value: (r) => r.date, dir: 'desc' },
+    { key: 'amount', label: 'Amount', value: (r) => r.amount, dir: 'desc' },
+    { key: 'project', label: 'Project', value: (r) => projectName(r.projectId) },
+    { key: 'status', label: 'Status', value: (r) => ['Pending', 'Approved', 'Paid', 'Rejected'].indexOf(r.status) },
+    { key: 'by', label: 'Requested by', value: (r) => staffName(r.requestedBy) },
+  ])
+  const requests = sort(db.paymentRequests)
   const pending = requests.filter((r) => r.status === 'Pending')
 
   return (
@@ -31,7 +38,7 @@ export function PaymentRequests() {
         />
       </div>
 
-      <Section>
+      <Section title="Requests" actions={sortControl}>
         {requests.length === 0 ? (
           <EmptyState title="No payment requests." />
         ) : (

@@ -34,6 +34,8 @@ export function ProjectChat({ projectId, height = 'h-[620px]' }: { projectId: ID
   const { user, roleKey } = useSession()
   const [text, setText] = useState('')
   const [replyTo, setReplyTo] = useState<ProjectMessage | null>(null)
+  /** The message of your own whose text the composer is changing. */
+  const [editing, setEditing] = useState<ProjectMessage | null>(null)
   const [photo, setPhoto] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [emoji, setEmoji] = useState(false)
@@ -76,8 +78,38 @@ export function ProjectChat({ projectId, height = 'h-[620px]' }: { projectId: ID
     el.style.height = `${Math.min(el.scrollHeight, 132)}px`
   }, [text])
 
+  const startEdit = (m: ProjectMessage) => {
+    setEditing(m)
+    setReplyTo(null)
+    setPhoto(null)
+    setText(m.text)
+  }
+
+  // Starting an edit puts the cursor at the end of the message's text.
+  const editingId = editing?.id
+  useEffect(() => {
+    const el = input.current
+    if (!editingId || !el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  }, [editingId])
+
+  const cancelEdit = () => {
+    setEditing(null)
+    setText('')
+  }
+
   const send = () => {
     const body = text.trim()
+    if (editing) {
+      // A photo keeps its message even with the caption cleared; text alone needs some text.
+      if (!body && !editing.photo) return
+      api.projectChat.edit(editing.id, body)
+      setEditing(null)
+      setText('')
+      setEmoji(false)
+      return
+    }
     if (!body && !photo) return
     api.projectChat.post({ projectId, authorId: user.id, text: body, photo: photo ?? undefined, replyToId: replyTo?.id })
     setText('')
@@ -169,11 +201,17 @@ export function ProjectChat({ projectId, height = 'h-[620px]' }: { projectId: ID
                     {!grouped && author && <Avatar name={author.name} size="sm" src={author.photo} />}
                   </span>
                 )}
-                {mine && <MessageActions onReply={() => { setReplyTo(m); input.current?.focus() }} onDelete={canDelete(m) ? () => api.projectChat.remove(m.id) : undefined} />}
+                {mine && (
+                  <MessageActions
+                    onReply={() => { setEditing(null); setReplyTo(m); input.current?.focus() }}
+                    onEdit={() => startEdit(m)}
+                    onDelete={canDelete(m) ? () => { if (editing?.id === m.id) cancelEdit(); api.projectChat.remove(m.id) } : undefined}
+                  />
+                )}
                 <div
                   className={`relative max-w-[78%] rounded-xl px-2.5 pb-1.5 pt-1.5 text-sm shadow-sm transition sm:max-w-[65%] ${
                     mine ? 'bg-[#d9fdd3] text-stone-900' : 'bg-white text-stone-900'
-                  } ${grouped ? '' : mine ? 'rounded-tr-sm' : 'rounded-tl-sm'} ${flash === m.id ? 'ring-2 ring-amber-400' : ''}`}
+                  } ${grouped ? '' : mine ? 'rounded-tr-sm' : 'rounded-tl-sm'} ${flash === m.id || editing?.id === m.id ? 'ring-2 ring-amber-400' : ''}`}
                 >
                   {!mine && !grouped && (
                     <p className={`mb-0.5 text-xs font-semibold ${nameColour(m.authorId)}`}>
@@ -202,15 +240,16 @@ export function ProjectChat({ projectId, height = 'h-[620px]' }: { projectId: ID
                     <p className="whitespace-pre-wrap break-words leading-snug">
                       {m.text}
                       {/* Room on the last line for the time, as WhatsApp leaves it. */}
-                      <span aria-hidden className="inline-block h-3" style={{ width: mine ? 76 : 58 }} />
+                      <span aria-hidden className="inline-block h-3" style={{ width: (mine ? 76 : 58) + (m.editedAt ? 40 : 0) }} />
                     </p>
                   )}
                   <span className="absolute bottom-1 right-2 flex items-center gap-0.5 text-[10px] text-stone-500">
+                    {m.editedAt && <span className="mr-0.5 italic" title={`Edited ${dayLabel(m.editedAt.slice(0, 10))} ${formatTime(m.editedAt.slice(11, 16))}`}>edited</span>}
                     {formatTime(m.at.slice(11, 16)).replace(/^0/, '')}
                     {mine && <Icon name="checks" className="h-3.5 w-3.5 text-sky-500" />}
                   </span>
                 </div>
-                {!mine && <MessageActions onReply={() => { setReplyTo(m); input.current?.focus() }} onDelete={canDelete(m) ? () => api.projectChat.remove(m.id) : undefined} />}
+                {!mine && <MessageActions onReply={() => { setEditing(null); setReplyTo(m); input.current?.focus() }} onDelete={canDelete(m) ? () => api.projectChat.remove(m.id) : undefined} />}
               </div>
             </Fragment>
           )
@@ -219,6 +258,16 @@ export function ProjectChat({ projectId, height = 'h-[620px]' }: { projectId: ID
 
       {/* Composer */}
       <div className="border-t border-stone-200 bg-[#f0f2f5] px-3 py-2.5">
+        {editing && (
+          <div className="mb-2 flex items-start gap-2 rounded-lg border-l-4 border-amber-500 bg-white px-3 py-2">
+            <Icon name="edit" className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="min-w-0 flex-1 text-xs">
+              <p className="font-semibold text-amber-700">Editing your remark</p>
+              <p className="truncate text-stone-500">{editing.text || '📷 Photo'}</p>
+            </div>
+            <button onClick={cancelEdit} className="btn-icon h-6 w-6" aria-label="Cancel edit"><Icon name="x" className="h-4 w-4" /></button>
+          </div>
+        )}
         {replyTo && (
           <div className="mb-2 flex items-start gap-2 rounded-lg border-l-4 border-brand-600 bg-white px-3 py-2">
             <div className="min-w-0 flex-1 text-xs">
@@ -268,25 +317,30 @@ export function ProjectChat({ projectId, height = 'h-[620px]' }: { projectId: ID
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
                   send()
+                } else if (e.key === 'Escape' && editing) {
+                  e.preventDefault()
+                  cancelEdit()
                 }
               }}
-              placeholder="Type a remark"
+              placeholder={editing ? 'Edit the remark' : 'Type a remark'}
               className="max-h-[132px] min-h-[36px] flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-0"
               aria-label="Remark"
             />
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { attach(e.target.files?.[0]); e.target.value = '' }} />
-            <button type="button" onClick={() => fileRef.current?.click()} className="btn-icon h-9 w-9 shrink-0 rounded-full" aria-label="Attach photo">
-              <Icon name="camera" className="h-5 w-5" />
-            </button>
+            {!editing && (
+              <button type="button" onClick={() => fileRef.current?.click()} className="btn-icon h-9 w-9 shrink-0 rounded-full" aria-label="Attach photo">
+                <Icon name="camera" className="h-5 w-5" />
+              </button>
+            )}
           </div>
           <button
             type="button"
             onClick={send}
-            disabled={(!text.trim() && !photo) || busy}
+            disabled={editing ? (!text.trim() && !editing.photo) || text.trim() === editing.text : (!text.trim() && !photo) || busy}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white shadow-md transition hover:bg-brand-700 disabled:opacity-40"
-            aria-label="Send"
+            aria-label={editing ? 'Save edit' : 'Send'}
           >
-            <Icon name="send" className="h-5 w-5" />
+            <Icon name={editing ? 'check' : 'send'} className="h-5 w-5" />
           </button>
         </div>
       </div>
@@ -303,12 +357,17 @@ export function ProjectChat({ projectId, height = 'h-[620px]' }: { projectId: ID
   )
 }
 
-function MessageActions({ onReply, onDelete }: { onReply: () => void; onDelete?: () => void }) {
+function MessageActions({ onReply, onEdit, onDelete }: { onReply: () => void; onEdit?: () => void; onDelete?: () => void }) {
   return (
     <span className="mb-1 flex shrink-0 gap-0.5 opacity-60 transition sm:opacity-0 sm:group-hover:opacity-100">
       <button type="button" onClick={onReply} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-stone-500 shadow-sm hover:text-brand-700" aria-label="Reply">
         <Icon name="reply" className="h-3.5 w-3.5" />
       </button>
+      {onEdit && (
+        <button type="button" onClick={onEdit} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-stone-500 shadow-sm hover:text-amber-700" aria-label="Edit">
+          <Icon name="edit" className="h-3.5 w-3.5" />
+        </button>
+      )}
       {onDelete && (
         <button type="button" onClick={onDelete} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-stone-500 shadow-sm hover:text-red-600" aria-label="Delete">
           <Icon name="trash" className="h-3.5 w-3.5" />

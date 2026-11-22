@@ -994,6 +994,8 @@ export interface ProjectMessage {
   /** A compressed photo attached to the message. */
   photo?: string
   replyToId?: ID
+  /** Local date-time the author last changed the text, YYYY-MM-DDTHH:mm. */
+  editedAt?: string
 }
 
 // ---------------------------------------------------------------- staff pay

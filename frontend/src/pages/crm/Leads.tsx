@@ -14,6 +14,7 @@ import { Icon } from '../../components/Icon'
 import { ContactNumbers, PhoneWhatsAppFields } from '../../components/ContactFields'
 import { SearchSelect } from '../../components/SearchSelect'
 import { employeeOptions } from '../../components/pickerOptions'
+import { useSort } from '../../components/SortControl'
 
 const STATUSES: LeadStatus[] = ['New', 'Contacted', 'Site Visit', 'Quoted', 'Won', 'Lost']
 const SOURCES: Lead['source'][] = ['Instagram', 'Referral', 'Website', 'Walk-in', 'Google', 'Exhibition']
@@ -60,11 +61,19 @@ export function Leads() {
     setParams({}, { replace: true })
   }, [openId])
 
-  const q = query.trim().toLowerCase()
-  const leads = db.leads.filter((l) =>
-    (view === 'board' || filter === 'All' || l.status === filter)
-    && (!q || [l.name, l.phone, l.whatsapp ?? '', l.location, l.requirement, l.email ?? ''].some((v) => v.toLowerCase().includes(q))))
   const ownerName = (id: string) => db.employees.find((e) => e.id === id)?.name ?? '—'
+  const { sort, control: sortControl } = useSort<Lead>('leads', [
+    { key: 'recent', label: 'Newest first', value: (l) => l.createdAt, dir: 'desc' },
+    { key: 'name', label: 'Name', value: (l) => l.name },
+    { key: 'status', label: 'Status', value: (l) => STATUSES.indexOf(l.status) },
+    { key: 'source', label: 'Source', value: (l) => l.source },
+    { key: 'location', label: 'Location', value: (l) => l.location },
+    { key: 'owner', label: 'Owner', value: (l) => ownerName(l.ownerId) },
+  ])
+  const q = query.trim().toLowerCase()
+  const leads = sort(db.leads.filter((l) =>
+    (view === 'board' || filter === 'All' || l.status === filter)
+    && (!q || [l.name, l.phone, l.whatsapp ?? '', l.location, l.requirement, l.email ?? ''].some((v) => v.toLowerCase().includes(q)))))
   const open = db.leads.filter((l) => !['Won', 'Lost'].includes(l.status))
   const won = db.leads.filter((l) => l.status === 'Won').length
   const decided = db.leads.filter((l) => ['Won', 'Lost'].includes(l.status)).length
@@ -96,8 +105,10 @@ export function Leads() {
             }))}
           />
         ) : <span className="text-sm text-stone-500">Drag a card to move it along; click it to open.</span>}
+        <div className="sm:hidden">{sortControl}</div>
         <div className="flex items-center gap-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Search leads…" className="min-w-0 flex-1 lg:w-72 lg:flex-none" />
+          <div className="hidden sm:block">{sortControl}</div>
           <div className="flex shrink-0 gap-1 rounded-xl bg-stone-100 p-1" role="group" aria-label="View">
             {([['list', 'List', 'list'], ['board', 'Board', 'board']] as const).map(([key, label, icon]) => (
               <button

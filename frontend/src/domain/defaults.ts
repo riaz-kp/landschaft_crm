@@ -15,7 +15,7 @@ export function defaultSettings(): Settings {
     ],
     taEnabled: false,
     taRatePerKm: 0,
-    photosMandatory: true,
+    photosMandatory: false,
     photoMaxPx: 1600,
     photoMaxKb: 300,
     otAdjustRoles: ['super_admin', 'ceo', 'execution_head', 'execution_pm'],

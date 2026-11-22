@@ -46,6 +46,7 @@ const Documents = lazy(() => import('./pages/misc/Documents').then((m) => ({ def
 const CalendarPage = lazy(() => import('./pages/misc/CalendarPage').then((m) => ({ default: m.CalendarPage })))
 const ReportsPage = lazy(() => import('./pages/misc/ReportsPage').then((m) => ({ default: m.ReportsPage })))
 const SettingsPage = lazy(() => import('./pages/misc/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const HistoryPage = lazy(() => import('./pages/misc/HistoryPage').then((m) => ({ default: m.HistoryPage })))
 const NotFound = lazy(() => import('./pages/misc/Fallbacks').then((m) => ({ default: m.NotFound })))
 const NoAccess = lazy(() => import('./pages/misc/Fallbacks').then((m) => ({ default: m.NoAccess })))
 const MySites = lazy(() => import('./pages/field/MySites').then((m) => ({ default: m.MySites })))
@@ -160,6 +161,7 @@ export function App() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/history" element={<HistoryPage />} />
 
           <Route path="/no-access" element={<NoAccess />} />
           <Route path="*" element={<NotFound />} />

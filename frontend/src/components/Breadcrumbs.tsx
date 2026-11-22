@@ -36,7 +36,8 @@ function recordCrumbs(pathname: string, db: DbShape): Crumb[] {
   }
 
   p = m('/projects/:projectId')
-  if (p) return [{ label: db.projects.find((x) => x.id === p!.projectId)?.name ?? 'Project' }]
+  // The list tabs (/projects/design, /projects/map…) are not projects.
+  if (p && !['design', 'execution', 'amc', 'map'].includes(p.projectId!)) return [{ label: db.projects.find((x) => x.id === p!.projectId)?.name ?? 'Project' }]
 
   p = m('/execution/reports/:reportId')
   if (p) {

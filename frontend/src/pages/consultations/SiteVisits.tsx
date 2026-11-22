@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../../api/client'
 import { useDb } from '../../state/useDb'
+import { useSort } from '../../components/SortControl'
 import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
 import { titleOf } from '../../domain/roles'
@@ -58,6 +59,15 @@ export function SiteVisits() {
       const kb = b.date + (b.time ?? '')
       return filter === 'past' || filter === 'all' ? kb.localeCompare(ka) : ka.localeCompare(kb)
     })
+  const listed = new Map(visits.map((v, i) => [v.id, i]))
+  const { sort, control: sortControl } = useSort<SiteVisit>('site-visits', [
+    // Soonest first for upcoming visits, latest first for past ones.
+    { key: 'default', label: 'Date', value: (v) => listed.get(v.id) },
+    { key: 'subject', label: 'Visit', value: (v) => subject(v) },
+    { key: 'location', label: 'Location', value: (v) => v.location },
+    { key: 'status', label: 'Status', value: (v) => v.status },
+  ])
+  const shownVisits = sort(visits)
 
   const upcoming = db.siteVisits.filter(isUpcoming)
   const mine = upcoming.filter((v) => isOnVisit(v, user.id))
@@ -90,7 +100,10 @@ export function SiteVisits() {
             { key: 'all', label: 'All', count: db.siteVisits.length },
           ]}
         />
-        <SearchInput value={query} onChange={setQuery} placeholder="Search visits or people…" className="lg:w-72" />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search visits or people…" className="min-w-0 flex-1 lg:w-72 lg:flex-none" />
+          {sortControl}
+        </div>
       </Toolbar>
 
       <Section>
@@ -98,7 +111,7 @@ export function SiteVisits() {
           <EmptyState title={filter === 'mine' ? 'You are not on any upcoming visit.' : 'No site visits here.'} icon="pin" />
         ) : (
           <Table head={['Visit', 'When', 'Location', 'Team', 'Reminder', 'Status', '']}>
-            {visits.map((visit) => {
+            {shownVisits.map((visit) => {
               const people = visitPeople(visit)
               const place = visitPlace(visit, db.projects)
               return (
