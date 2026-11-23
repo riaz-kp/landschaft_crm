@@ -278,12 +278,13 @@ function ProfileForm({ employee, onDone }: { employee: Employee; onDone: () => v
 
   const save = () => {
     if (!draft.name.trim()) return setError('Name is required.')
-    if (!draft.phone.trim()) return setError('Mobile number is required.')
     const patch: Partial<Employee> = {}
     for (const [key, value] of Object.entries(draft)) {
       // Blank optional fields are cleared rather than stored as empty strings.
       ;(patch as Record<string, string | undefined>)[key] = value.trim() || undefined
     }
+    // The number may be left blank, but stays a string so search and links never meet a missing value.
+    patch.phone = draft.phone.trim()
     patch.whatsapp = draft.whatsapp.trim() || draft.phone.trim()
     patch.email = draft.email.trim()
     api.employees.update(employee.id, patch)
@@ -317,7 +318,6 @@ function ProfileForm({ employee, onDone }: { employee: Employee; onDone: () => v
         {defs.map((def, i) => def.key === 'phone' ? (
           <div key="phone" className="sm:col-span-2">
             <PhoneWhatsAppFields
-              required
               phone={draft.phone}
               whatsapp={draft.whatsapp}
               onChange={({ phone, whatsapp }) => setDraft({ ...draft, phone, whatsapp })}

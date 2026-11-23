@@ -233,13 +233,15 @@ function RemindTeamModal({ visit, onClose }: { visit: SiteVisit; onClose: () => 
                 <span className="block truncate text-sm font-medium text-stone-900">{p.name}{i === 0 && <span className="ml-1.5 text-xs font-normal text-stone-400">leading</span>}</span>
                 <span className="block truncate text-xs text-stone-500">{titleOf(p)}</span>
               </span>
-              <a
-                href={whatsappUrl(p.whatsapp || p.phone, text)}
-                target="_blank" rel="noreferrer"
-                className="btn-secondary shrink-0 py-1.5 text-xs"
-              >
-                <Icon name="chat" className="h-4 w-4 text-brand-600" /> WhatsApp
-              </a>
+              {(p.whatsapp || p.phone) ? (
+                <a
+                  href={whatsappUrl(p.whatsapp || p.phone, text)}
+                  target="_blank" rel="noreferrer"
+                  className="btn-secondary shrink-0 py-1.5 text-xs"
+                >
+                  <Icon name="chat" className="h-4 w-4 text-brand-600" /> WhatsApp
+                </a>
+              ) : <span className="shrink-0 text-xs text-stone-400">No number</span>}
             </li>
           ))}
         </ul>

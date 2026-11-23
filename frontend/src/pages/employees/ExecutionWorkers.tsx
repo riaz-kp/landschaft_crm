@@ -49,7 +49,7 @@ export function ExecutionWorkers() {
   const workers = sort(db.workers.filter((w) =>
     (filter === 'all' || (filter === 'active' ? w.active : !w.active))
     && (!skill || w.skill === skill)
-    && (!q || [w.name, w.skill, w.phone].some((v) => v.toLowerCase().includes(q)))))
+    && (!q || [w.name, w.skill, w.phone].some((v) => (v ?? '').toLowerCase().includes(q)))))
 
   const active = db.workers.filter((w) => w.active)
   const onSiteToday = active.filter((w) => todayFor(w.id)?.status === 'Present' || todayFor(w.id)?.status === 'Half Day')

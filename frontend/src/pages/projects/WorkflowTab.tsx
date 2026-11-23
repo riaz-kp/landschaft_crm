@@ -5,14 +5,16 @@ import { useDb } from '../../state/useDb'
 import { useSession } from '../../state/session'
 import { formatCurrency, formatDate, today } from '../../domain/format'
 import type { ID, Payment, Project } from '../../domain/types'
-import { canTickStep, describeSplit, holders, nextStep, paymentSchedule, withCollection, workflowFor, type CollectionRow } from '../../domain/workflow'
+import { canTickStep, describeSplit, holders, nextStep, paymentSchedule, withCollection, workflowFor, type CollectionRow, type WorkflowStep } from '../../domain/workflow'
 import { Badge, ConfirmDialog, EmptyState, Field, Modal, ProgressBar, Section, Table } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { MoneyFields, forServices, moneyFields, moneyOf, moneyProblem } from './ProjectIntake'
 
 /**
  * The project's hand-offs, from the scope proposal to work starting on site.
- * Ticking one tells whoever acts next, on their bell.
+ * The step to do now sits on top with one clear button; below, every step in
+ * order, grouped by stage, each with its own Mark done button. Marking a step
+ * done tells whoever acts next, on their bell, and writes it to History.
  */
 export function WorkflowTab({ project }: { project: Project }) {
   const db = useDb()
@@ -20,69 +22,187 @@ export function WorkflowTab({ project }: { project: Project }) {
   const steps = workflowFor(project)
   const next = nextStep(project)
   const done = steps.filter((s) => project.workflow?.[s.key]?.done).length
-  const names = (ids: string[]) => ids.join(', ')
+  const [undoing, setUndoing] = useState<WorkflowStep | null>(null)
+  const [flash, setFlash] = useState<{ key: string; text: string } | null>(null)
 
   if (steps.length === 0) {
     return <EmptyState title="No workflow on an AMC-only project." hint="The workflow covers design and execution." icon="list" />
   }
 
+  const namesOf = (roles: WorkflowStep['owners']) => holders(db.employees, roles).map((e) => e.name)
+  const list = (names: string[]) => (names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`)
+  const person = (id?: ID) => (id ? db.employees.find((e) => e.id === id)?.name : undefined) ?? '—'
+
+  const markDone = (step: WorkflowStep) => {
+    api.projects.setWorkflowStep(project.id, step.key, true, user.id)
+    const told = namesOf(step.notify).filter((n) => n !== user.name)
+    setFlash({ key: step.key, text: told.length ? `Done — ${list(told)} ${told.length === 1 ? 'has' : 'have'} been told.` : 'Done.' })
+    window.setTimeout(() => setFlash((f) => (f?.key === step.key ? null : f)), 4000)
+  }
+
+  const allDone = done === steps.length
+  const stages = (['Design', 'Execution'] as const)
+    .map((stage) => ({ stage, steps: steps.filter((s) => s.stage === stage) }))
+    .filter((g) => g.steps.length)
+
   return (
-    <Section
-      title="Workflow"
-      description="Tick each hand-off as it happens. The people who act next get a reminder on their bell, and it is written to the project's History."
-      actions={<Badge tone={done === steps.length ? 'green' : 'amber'}>{done} / {steps.length}</Badge>}
-    >
-      <div className="px-5 pt-4"><ProgressBar value={(done / steps.length) * 100} tone={done === steps.length ? 'green' : 'amber'} /></div>
-      <ol className="px-2 py-3">
-        {steps.map((step, i) => {
-          const tick = project.workflow?.[step.key]
-          const isNext = step.key === next?.key
-          const allowed = canTickStep(step, roleKey)
-          const owners = holders(db.employees, step.owners).map((e) => e.name)
-          const told = holders(db.employees, step.notify).map((e) => e.name)
-          return (
-            <li
-              key={step.key}
-              className={`flex gap-3 rounded-xl px-3 py-3 ${isNext ? 'bg-amber-50/70 ring-1 ring-amber-200' : ''}`}
-            >
-              <button
-                type="button"
-                disabled={!allowed}
-                onClick={() => api.projects.setWorkflowStep(project.id, step.key, !tick?.done, user.id)}
-                aria-pressed={Boolean(tick?.done)}
-                aria-label={`${tick?.done ? 'Reopen' : 'Mark done'}: ${step.label}`}
-                className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition disabled:cursor-not-allowed ${
-                  tick?.done ? 'border-brand-600 bg-brand-600 text-white' : isNext ? 'border-amber-500 bg-white text-amber-700' : 'border-stone-300 bg-white text-stone-400'
-                } ${allowed && !tick?.done ? 'hover:border-brand-500 hover:text-brand-600' : ''}`}
-              >
-                {tick?.done ? <Icon name="check" className="h-3.5 w-3.5" /> : i + 1}
-              </button>
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-2">
-                  <span className={`text-sm font-medium ${tick?.done ? 'text-stone-500' : 'text-stone-900'}`}>{step.label}</span>
-                  <Badge tone={step.stage === 'Design' ? 'green' : 'blue'}>{step.stage}</Badge>
-                  {isNext && <Badge tone="amber">Next</Badge>}
-                </p>
-                <p className="mt-0.5 text-xs text-stone-500">
-                  {owners.length > 0 && <>By {names(owners)}</>}
-                  {told.length > 0 && <> · tells {names(told)}</>}
-                </p>
-                {tick?.done && tick.on && (
-                  <p className="mt-0.5 text-xs text-brand-700">
-                    Done {formatDate(tick.on)} · {db.employees.find((e) => e.id === tick.by)?.name ?? '—'}
-                  </p>
-                )}
-                {isNext && step.key === 'clientApproved' && (
-                  <Link to="/consultations/site-visits" className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-700">
-                    <Icon name="pin" className="h-3 w-3" /> Plan the site visit
-                  </Link>
-                )}
-              </div>
-            </li>
-          )
-        })}
-      </ol>
-    </Section>
+    <div className="space-y-5">
+      {/* Where the project stands, and the one thing to do now. */}
+      <section className={`overflow-hidden rounded-2xl border shadow-card ${allDone ? 'border-brand-200 bg-brand-50/60' : 'border-amber-200 bg-gradient-to-br from-amber-50 to-white'}`}>
+        <div className="flex items-center justify-between gap-3 border-b border-black/5 px-5 py-3">
+          <p className="text-sm font-semibold text-stone-700">Workflow · {done} of {steps.length} steps done</p>
+          <div className="w-28 sm:w-40"><ProgressBar value={(done / steps.length) * 100} tone={allDone ? 'green' : 'amber'} size="sm" /></div>
+        </div>
+        {allDone || !next ? (
+          <div className="flex items-center gap-3 px-5 py-5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white"><Icon name="check" className="h-5 w-5" /></span>
+            <div>
+              <p className="font-semibold text-stone-900">Every hand-off is done</p>
+              <p className="text-sm text-stone-500">Nothing is waiting on the workflow. Any step below can still be undone.</p>
+            </div>
+          </div>
+        ) : (
+          <NextStepCard
+            step={next}
+            number={steps.indexOf(next) + 1}
+            owners={namesOf(next.owners)}
+            told={namesOf(next.notify)}
+            allowed={canTickStep(next, roleKey)}
+            flash={flash?.key === next.key ? flash.text : undefined}
+            onDone={() => markDone(next)}
+            list={list}
+          />
+        )}
+        {flash && flash.key !== next?.key && (
+          <p className="flex items-center gap-2 border-t border-black/5 bg-brand-50 px-5 py-2.5 text-sm font-medium text-brand-800">
+            <Icon name="checks" className="h-4 w-4" /> {flash.text}
+          </p>
+        )}
+      </section>
+
+      {/* Every step, in order. */}
+      {stages.map(({ stage, steps: group }) => {
+        const groupDone = group.filter((s) => project.workflow?.[s.key]?.done).length
+        return (
+          <Section
+            key={stage}
+            title={<span className="flex items-center gap-2">{stage} <span className="text-sm font-normal text-stone-400">{groupDone} of {group.length} done</span></span>}
+          >
+            <ol className="relative px-3 py-3 sm:px-4">
+              {group.map((step, i) => {
+                const n = steps.indexOf(step) + 1
+                const tick = project.workflow?.[step.key]
+                const isNext = step.key === next?.key
+                const allowed = canTickStep(step, roleKey)
+                const owners = namesOf(step.owners)
+                const told = namesOf(step.notify)
+                const last = i === group.length - 1
+                return (
+                  <li key={step.key} className="relative flex gap-3 pb-1">
+                    {/* The line joining the steps. */}
+                    {!last && <span aria-hidden className={`absolute left-[19px] top-10 bottom-0 w-0.5 sm:left-[23px] ${tick?.done ? 'bg-brand-300' : 'bg-stone-200'}`} />}
+                    <span className={`relative z-[1] mt-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-4 ring-white sm:ml-1 ${
+                      tick?.done ? 'bg-brand-600 text-white' : isNext ? 'bg-amber-500 text-white' : 'bg-stone-100 text-stone-500'
+                    }`}>
+                      {tick?.done ? <Icon name="check" className="h-4 w-4" /> : n}
+                    </span>
+                    <div className={`mb-2 flex min-w-0 flex-1 flex-col gap-3 rounded-xl px-3 py-2.5 sm:flex-row sm:items-center ${isNext ? 'bg-amber-50 ring-1 ring-amber-200' : ''}`}>
+                      <div className="min-w-0 flex-1">
+                        <p className="flex flex-wrap items-center gap-2">
+                          <span className={`text-sm font-semibold ${tick?.done ? 'text-stone-500' : 'text-stone-900'}`}>{step.label}</span>
+                          {isNext && <Badge tone="amber">Next</Badge>}
+                        </p>
+                        {tick?.done ? (
+                          <p className="mt-0.5 text-xs text-brand-700">
+                            Done{tick.on ? ` ${formatDate(tick.on)}` : ''}{tick.by ? ` by ${person(tick.by)}` : ''}
+                          </p>
+                        ) : (
+                          <p className="mt-0.5 text-xs text-stone-500">
+                            {owners.length > 0 ? <>Assigned to {list(owners)}</> : 'Assigned to the CEO'}
+                            {told.length > 0 && <> · tells {list(told)}</>}
+                          </p>
+                        )}
+                        {flash?.key === step.key && !isNext && <p className="mt-1 text-xs font-medium text-brand-700">{flash.text}</p>}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {tick?.done ? (
+                          allowed && (
+                            <button type="button" onClick={() => setUndoing(step)} className="btn-secondary px-2.5 py-1 text-xs text-stone-500">
+                              <Icon name="repeat" className="h-3.5 w-3.5" /> Undo
+                            </button>
+                          )
+                        ) : allowed ? (
+                          <button
+                            type="button"
+                            onClick={() => markDone(step)}
+                            className={`${isNext ? 'btn-primary' : 'btn-secondary'} w-full px-3 py-1.5 text-sm sm:w-auto`}
+                          >
+                            <Icon name="check" className="h-4 w-4" /> Mark done
+                          </button>
+                        ) : (
+                          <span className="text-xs text-stone-400" title={`Only ${list(owners)} can mark this done`}>
+                            <Icon name="shield" className="mr-1 inline h-3.5 w-3.5" />{owners.length ? `For ${list(owners)}` : 'Not your step'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
+          </Section>
+        )
+      })}
+
+      <p className="px-1 text-xs text-stone-500">
+        Marking a step done reminds the people who act next on their bell and writes it to the project's History.
+      </p>
+
+      {undoing && (
+        <ConfirmDialog
+          title="Undo this step?"
+          confirmLabel="Undo step"
+          onClose={() => setUndoing(null)}
+          onConfirm={() => api.projects.setWorkflowStep(project.id, undoing.key, false, user.id)}
+          message={`“${undoing.label}” goes back to not done. Nobody is told; the project's History notes that it was reopened.`}
+        />
+      )}
+    </div>
+  )
+}
+
+/** The step to do now: what it is, whose it is, who hears, and the button that does it. */
+function NextStepCard({ step, number, owners, told, allowed, flash, onDone, list }: {
+  step: WorkflowStep; number: number; owners: string[]; told: string[]; allowed: boolean
+  flash?: string; onDone: () => void; list: (names: string[]) => string
+}) {
+  return (
+    <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-500 text-base font-bold text-white shadow-sm">{number}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">Next step · {step.stage}</p>
+        <p className="mt-0.5 text-base font-semibold text-stone-900 sm:text-lg">{step.label}</p>
+        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600">
+          <span className="inline-flex items-center gap-1"><Icon name="user" className="h-3.5 w-3.5 text-stone-400" />{owners.length ? list(owners) : 'The CEO'}</span>
+          {told.length > 0 && <span className="inline-flex items-center gap-1"><Icon name="bell" className="h-3.5 w-3.5 text-stone-400" />Tells {list(told)}</span>}
+        </p>
+        {step.key === 'clientApproved' && (
+          <Link to="/consultations/site-visits" className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:text-brand-800">
+            <Icon name="pin" className="h-3.5 w-3.5" /> Plan the site visit
+          </Link>
+        )}
+        {flash && <p className="mt-2 text-sm font-medium text-brand-700">{flash}</p>}
+      </div>
+      {allowed ? (
+        <button type="button" onClick={onDone} className="btn-primary w-full px-5 py-2.5 sm:w-auto">
+          <Icon name="check" className="h-4 w-4" /> Mark as done
+        </button>
+      ) : (
+        <p className="rounded-xl bg-white/70 px-3 py-2 text-sm text-stone-500 ring-1 ring-stone-200 sm:max-w-[14rem]">
+          Waiting for {owners.length ? list(owners) : 'the CEO'} to mark this done.
+        </p>
+      )}
+    </div>
   )
 }
 

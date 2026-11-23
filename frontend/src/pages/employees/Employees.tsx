@@ -29,7 +29,7 @@ export function Employees() {
   const managerName = (id?: string) => (id ? db.employees.find((e) => e.id === id)?.name ?? '—' : '—')
   const q = query.trim().toLowerCase()
   const matches = (e: Employee) =>
-    !q || [e.name, e.email, e.phone, titleOf(e)].some((v) => v.toLowerCase().includes(q))
+    !q || [e.name, e.email, e.phone, titleOf(e)].some((v) => (v ?? '').toLowerCase().includes(q))
 
   const departments = DEPARTMENTS.filter((d) => department === 'All' || d === department)
   const { sort, control: sortControl } = useSort<Employee>('employees', [

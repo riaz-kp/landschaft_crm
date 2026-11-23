@@ -33,7 +33,6 @@ export function WorkerFormModal({
   const save = () => {
     if (!form.name.trim()) return setError('Enter the worker’s name.')
     if (!form.skill.trim()) return setError('Enter their trade or skill.')
-    if (!form.phone.trim()) return setError('Enter a phone number.')
     const values = {
       name: form.name.trim(),
       skill: form.skill.trim(),
@@ -92,7 +91,7 @@ export function WorkerFormModal({
             <input type="date" className="input" value={form.joinedOn} onChange={(e) => set({ joinedOn: e.target.value })} />
           </Field>
         </div>
-        <PhoneWhatsAppFields required phone={form.phone} whatsapp={form.whatsapp} onChange={(n) => set(n)} />
+        <PhoneWhatsAppFields phone={form.phone} whatsapp={form.whatsapp} onChange={(n) => set(n)} />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Address">
             <textarea rows={2} className="input" value={form.address} onChange={(e) => set({ address: e.target.value })} />
