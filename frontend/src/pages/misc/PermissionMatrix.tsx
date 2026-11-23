@@ -12,7 +12,7 @@ import { Icon } from '../../components/Icon'
 const ACTION_LABEL: Record<PermissionAction, string> = { view: 'View', create: 'Create', edit: 'Edit', delete: 'Delete' }
 
 /** What each action means for modules that have nothing to create or delete. */
-const VIEW_ONLY: ModuleKey[] = ['Dashboard', 'Reports']
+const VIEW_ONLY: ModuleKey[] = ['Dashboard', 'Reports', 'History']
 
 const EDITABLE_ROLES = (Object.keys(ROLES) as RoleKey[]).filter((r) => !LOCKED_ROLES.includes(r))
 

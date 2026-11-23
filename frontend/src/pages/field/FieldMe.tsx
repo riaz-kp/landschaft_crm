@@ -7,7 +7,7 @@ import { titleOf } from '../../domain/roles'
 import { formatCurrency, formatDate, formatDateLong, today, whatsappUrl } from '../../domain/format'
 import { PAY_TONE } from '../../domain/pay'
 import { BLOOD_GROUPS } from '../../domain/types'
-import { Avatar, Badge, Field, FormError, SiteName } from '../../components/ui'
+import { Avatar, Badge, Field, SiteName } from '../../components/ui'
 import { Icon } from '../../components/Icon'
 import { PhoneWhatsAppFields } from '../../components/ContactFields'
 import { ProjectChat } from '../../components/ProjectChat'
@@ -221,8 +221,8 @@ export function FieldProfile() {
               <p className="font-semibold text-stone-900">{manager.name}</p>
               <p className="truncate text-xs text-stone-500">{titleOf(manager)}</p>
             </div>
-            <a href={`tel:${manager.phone.replace(/\s/g, '')}`} className="btn-secondary h-10 w-10 p-0" aria-label={`Call ${manager.name}`}><Icon name="phone" className="h-4 w-4" /></a>
-            <a href={whatsappUrl(manager.whatsapp || manager.phone)} target="_blank" rel="noreferrer" className="btn-secondary h-10 w-10 p-0" aria-label={`WhatsApp ${manager.name}`}><Icon name="chat" className="h-4 w-4 text-brand-600" /></a>
+            {manager.phone && <a href={`tel:${manager.phone.replace(/\s/g, '')}`} className="btn-secondary h-10 w-10 p-0" aria-label={`Call ${manager.name}`}><Icon name="phone" className="h-4 w-4" /></a>}
+            {(manager.whatsapp || manager.phone) && <a href={whatsappUrl(manager.whatsapp || manager.phone)} target="_blank" rel="noreferrer" className="btn-secondary h-10 w-10 p-0" aria-label={`WhatsApp ${manager.name}`}><Icon name="chat" className="h-4 w-4 text-brand-600" /></a>}
           </div>
         </FieldCard>
       )}
@@ -265,10 +265,7 @@ function ProfileEdit({ onDone }: { onDone: () => void }) {
   const [form, setForm] = useState({
     phone: user.phone, whatsapp: user.whatsapp ?? '', address: user.address ?? '', dob: user.dob ?? '', bloodGroup: user.bloodGroup ?? '',
   })
-  const [error, setError] = useState<string | null>(null)
-
   const save = () => {
-    if (!form.phone.trim()) return setError('Your mobile number is needed.')
     api.employees.update(user.id, {
       phone: form.phone.trim(),
       whatsapp: form.whatsapp.trim() || form.phone.trim(),
@@ -282,7 +279,7 @@ function ProfileEdit({ onDone }: { onDone: () => void }) {
   return (
     <FieldCard className="space-y-4">
       <p className="label">Edit my details</p>
-      <PhoneWhatsAppFields required phone={form.phone} whatsapp={form.whatsapp} onChange={(n) => setForm({ ...form, ...n })} />
+      <PhoneWhatsAppFields phone={form.phone} whatsapp={form.whatsapp} onChange={(n) => setForm({ ...form, ...n })} />
       <Field label="Address">
         <textarea rows={2} className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
       </Field>
@@ -297,7 +294,6 @@ function ProfileEdit({ onDone }: { onDone: () => void }) {
           </select>
         </Field>
       </div>
-      <FormError message={error} />
       <div className="flex gap-2">
         <button onClick={onDone} className="btn-secondary flex-1">Cancel</button>
         <button onClick={save} className="btn-primary flex-1">Save</button>

@@ -31,7 +31,7 @@ export function Clients() {
   ])
   const q = query.trim().toLowerCase()
   const clients = sort(db.clients.filter((c) =>
-    !q || [c.name, c.phone, c.whatsapp, c.address, c.email ?? ''].some((v) => v.toLowerCase().includes(q))))
+    !q || [c.name, c.phone, c.whatsapp, c.address, c.email ?? ''].some((v) => (v ?? '').toLowerCase().includes(q))))
   const totals = db.clients.map((c) => receivable(db, c.id))
   const outstanding = totals.reduce((s, m) => s + m.outstanding, 0)
 

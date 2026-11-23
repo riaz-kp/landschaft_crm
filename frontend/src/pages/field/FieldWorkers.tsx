@@ -112,7 +112,7 @@ export function FieldWorkerView() {
   const otHours = record.reports.reduce((s, r) => s + (r.otHours || 0), 0)
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? ''
   const months = [...new Set(record.reports.map((r) => r.date.slice(0, 7)))]
-  const phone = worker.phone.replace(/\s/g, '')
+  const phone = (worker.phone ?? '').replace(/\s/g, '')
 
   return (
     <div className="space-y-4">
@@ -128,12 +128,14 @@ export function FieldWorkerView() {
             <p className="text-sm text-stone-500">{worker.skill}{!worker.active && ' · inactive'}</p>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <a href={`tel:${phone}`} className="btn-secondary py-2.5"><Icon name="phone" className="h-4 w-4" /> Call</a>
-          <a href={whatsappUrl(worker.whatsapp || worker.phone)} target="_blank" rel="noreferrer" className="btn-secondary py-2.5">
-            <Icon name="chat" className="h-4 w-4 text-brand-600" /> WhatsApp
-          </a>
-        </div>
+        {(phone || worker.whatsapp) && (
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {phone && <a href={`tel:${phone}`} className="btn-secondary py-2.5"><Icon name="phone" className="h-4 w-4" /> Call</a>}
+            <a href={whatsappUrl(worker.whatsapp || worker.phone)} target="_blank" rel="noreferrer" className="btn-secondary py-2.5">
+              <Icon name="chat" className="h-4 w-4 text-brand-600" /> WhatsApp
+            </a>
+          </div>
+        )}
       </FieldCard>
 
       <div className="grid grid-cols-3 gap-2">

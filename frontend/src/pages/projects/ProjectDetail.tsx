@@ -228,8 +228,9 @@ export function ProjectDetail() {
           {/* On a phone the column's cards join the page's grid, so Progress can lead the page. */}
           <div className="contents lg:block lg:space-y-6">
             {steps.length > 0 && (
-              <Section title="Workflow" actions={<button onClick={() => setTab('workflow')} className="text-xs font-semibold text-brand-700">Open</button>}>
-                <div className="px-5 py-4">
+              <Section title="Workflow">
+                {/* The whole card opens the Workflow tab, where steps are marked done. */}
+                <button type="button" onClick={() => setTab('workflow')} className="group block w-full px-5 py-4 text-left transition hover:bg-stone-50">
                   {next ? (
                     <>
                       <p className="label">Next step</p>
@@ -238,8 +239,14 @@ export function ProjectDetail() {
                   ) : (
                     <p className="flex items-center gap-1.5 text-sm font-medium text-brand-700"><Icon name="check" className="h-4 w-4" /> Every hand-off done</p>
                   )}
-                  <p className="mt-2 text-xs text-stone-500">{steps.filter((s) => project.workflow?.[s.key]?.done).length} of {steps.length} steps done</p>
-                </div>
+                  <div className="mt-3"><ProgressBar value={(steps.filter((s) => project.workflow?.[s.key]?.done).length / steps.length) * 100} size="sm" tone={next ? 'amber' : 'green'} /></div>
+                  <p className="mt-2 flex items-center justify-between text-xs text-stone-500">
+                    <span>{steps.filter((s) => project.workflow?.[s.key]?.done).length} of {steps.length} steps done</span>
+                    <span className="inline-flex items-center gap-0.5 font-semibold text-brand-700 group-hover:text-brand-800">
+                      {next ? 'Open workflow' : 'View workflow'} <Icon name="chevron" className="h-3.5 w-3.5" />
+                    </span>
+                  </p>
+                </button>
               </Section>
             )}
             <Section title="Progress" className="order-first lg:order-none">

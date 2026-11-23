@@ -202,7 +202,8 @@ export const NAV: NavSection[] = [
     icon: 'cog',
     children: [
       { label: 'Settings', path: '/settings' },
-      { label: 'History', path: '/settings/history' },
+      // Its own permission: the change log shows pay and every record, so it is granted on purpose.
+      { label: 'History', path: '/settings/history', module: 'History' },
     ],
   },
 ]

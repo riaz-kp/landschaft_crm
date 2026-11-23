@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDb } from '../../state/useDb'
-import { useSession } from '../../state/session'
 import { usePermissions } from '../../state/permissions'
 import { COLLECTIONS } from '../../data/collections'
 import { fetchHistory, type ChangeEntry, type HistoryQuery } from '../../data/changeLog'
@@ -140,9 +139,9 @@ const localTime = (at: string) => {
  */
 export function HistoryPage() {
   const db = useDb()
-  const { roleKey } = useSession()
   const { can } = usePermissions()
-  const allowed = roleKey === 'super_admin' || roleKey === 'ceo' || can('Settings', 'edit')
+  // Settings → Roles & Permissions → History → View.
+  const allowed = can('History', 'view')
   const format = useFormatter(db)
 
   const [collection, setCollection] = useState('')
@@ -209,7 +208,7 @@ export function HistoryPage() {
     return (
       <div>
         <PageHeader title="History" subtitle="Every change made in the CRM." />
-        <Section><EmptyState title="History is open to the Super Admin, the CEO and anyone who can edit Settings." icon="shield" /></Section>
+        <Section><EmptyState title="Your role can't see the history." hint="It is given per role in Settings → Roles & Permissions → History." icon="shield" /></Section>
       </div>
     )
   }

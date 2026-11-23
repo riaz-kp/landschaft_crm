@@ -1114,7 +1114,7 @@ export interface WorkHours {
  */
 export const MODULES = [
   'Dashboard', 'Consultations', 'Site Visits', 'CRM', 'Projects', 'Tasks', 'Design', 'Execution', 'AMC',
-  'Accounts', 'Materials', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar', 'Reports', 'Settings',
+  'Accounts', 'Materials', 'Employees', 'Attendance', 'Gallery', 'Documents', 'Calendar', 'Reports', 'Settings', 'History',
 ] as const
 export type ModuleKey = (typeof MODULES)[number]
 
